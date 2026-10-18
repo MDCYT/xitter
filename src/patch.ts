@@ -119,6 +119,16 @@ const RULES: [RegExp, string][] = [
 		/\bo=\w+\.Ay\.isAndroid\(\)\|\|\w+\.Ay\.isIOS\(\)/g,
 		'o=!1',
 	],
+	// Disable in-app webview redirect to x-safari-https://redirect.x.com (e.g. WhatsApp, Instagram, Telegram)
+	[
+		/function ec\(\w+,\w+,\w+\)\{var \w+,\w+;let \w+;[\s\S]*?window\.location\.href=\w+\}/g,
+		'function ec(){}',
+	],
+	// Rewrite redirect.x.com to instance origin
+	[
+		/https:\/\/redirect\.x\.com(?=["'`$/?#])/g,
+		PUBLIC_ORIGIN,
+	],
 ];
 
 // Only for the chat app's files: its own list of API hosts, which it sends the
