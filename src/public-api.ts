@@ -13,7 +13,7 @@ import { newId } from "./ids";
 import { absolute, mediaUpload, mediaUrl, posterUrl } from "./media";
 import type { PostRow } from "./model";
 import { PostError, feed, getPost, postsByIds, replies, type FeedItem } from "./posts";
-import { type Bucket, hit, limitHeaders, limitedResponse } from "./ratelimit";
+import { type Bucket, limitHeaders, limitedResponse, noteRefusal, take } from "./ratelimit";
 import { searchPosts, searchUsers } from "./search";
 import { settings } from "./settings";
 import { followList, setFollow, userByName, usersByIds } from "./users";
@@ -230,7 +230,7 @@ const ROUTES: Route[] = [
 		run: async (v, _m, _r, url) => {
 			const q = (url.searchParams.get("q") ?? "").trim();
 			if (!q) throw new ApiError(400, "Give a query in q.");
-			const ids = await searchUsers(q, limitOf(url));
+			const ids = await searchUsers(v.id, q, limitOf(url));
 			const byId = await usersByIds(v.id, ids);
 			return { data: (ids as string[]).map((id) => byId.get(id)).filter((x): x is User => !!x).map(userJson) };
 		},
@@ -308,12 +308,11 @@ export async function publicApi(req: Request, url: URL): Promise<Response> {
 	if (route.scope === "write" && scope !== "write") return withCors(fail(403, "This token can only read."));
 	if (settings().operations.maintenance) return withCors(fail(503, settings().operations.message || "The instance is under maintenance."));
 
-	let last = hit("read", viewer.id);
+	const where = `api ${route.method} ${route.pattern.source}`;
+	const last = take(route.bucket ? [["read", viewer.id], [route.bucket, viewer.id]] : [["read", viewer.id]], (bucket, first) => {
+		if (first) noteRefusal(bucket, where, viewer.id);
+	});
 	if (!last.ok) return withCors(limitedResponse(last));
-	if (route.bucket) {
-		last = hit(route.bucket, viewer.id);
-		if (!last.ok) return withCors(limitedResponse(last));
-	}
 	try {
 		const out: any = await route.run(viewer, match, req, url);
 		const { status, ...rest } = out ?? {};

@@ -724,13 +724,23 @@ const RENDER = {
 			'<label class="row small"><input type="checkbox" id="staff"> Staff only</label></div>' +
 			(can("moderator") ? '<div class="bar" id="bulk" hidden><span class="small" id="picked"></span>' +
 				[["active", "Reinstate", ""], ["restricted", "Restrict", ""], ["limited", "Limit", ""], ["suspended", "Suspend", " danger"]].map(([s, l, c]) => '<button class="btn' + c + '" data-bulk="' + s + '">' + l + "</button>").join("") + "</div>" : "") +
-			'<div id="list" class="scroll"></div>';
+			'<p class="dim small" id="total"></p><div id="list" class="scroll"></div>' +
+			'<div class="row" style="margin-top:16px"><button class="btn" id="more" hidden>Show more</button></div>';
 		const picked = () => [...main.querySelectorAll("[data-pick]:checked")].map((c) => c.dataset.pick);
-		const load = async () => {
-			const { users } = await api("users", { q: $("#q").value, status: $("#status").value, staff: $("#staff").checked });
-			$("#list").innerHTML = users.length ? userTable(users, false, can("moderator")) : '<div class="empty">No accounts match.</div>';
-			if ($("#bulk")) $("#bulk").hidden = true;
+		// 50 at a time; after a bulk change the same number is fetched again, a new filter starts over
+		let shown = [];
+		const load = async (more) => {
+			const keep = more === true ? picked() : [];
+			const q = { q: $("#q").value, status: $("#status").value, staff: $("#staff").checked };
+			const { users, total } = await api("users", more === true ? { ...q, offset: shown.length } : more === "same" ? { ...q, limit: Math.max(shown.length, 50) } : q);
+			shown = more === true ? shown.concat(users) : users;
+			$("#list").innerHTML = shown.length ? userTable(shown, false, can("moderator")) : '<div class="empty">No accounts match.</div>';
+			keep.forEach((id) => { const c = main.querySelector('[data-pick="' + id + '"]'); if (c) c.checked = true; });
+			$("#total").textContent = total + (total === 1 ? " account" : " accounts") + (shown.length < total ? ", showing " + shown.length : "");
+			$("#more").hidden = shown.length >= total;
+			if ($("#bulk")) $("#bulk").hidden = !keep.length;
 		};
+		$("#more").onclick = () => load(true);
 		main.addEventListener("change", (e) => {
 			if (!e.target.matches("[data-pick]") || !$("#bulk")) return;
 			const n = picked().length;
@@ -740,21 +750,21 @@ const RENDER = {
 		main.querySelectorAll("[data-bulk]").forEach((b) => b.onclick = async () => {
 			const ids = picked();
 			if (b.dataset.bulk === "suspended" && !(await ask("Suspend " + ids.length + " accounts?"))) return;
-			act(() => api("bulkStatus", { ids, status: b.dataset.bulk }), "Standing changed").then(load);
+			act(() => api("bulkStatus", { ids, status: b.dataset.bulk }), "Standing changed").then(() => load("same"));
 		});
 		let t;
-		$("#q").oninput = () => { clearTimeout(t); t = setTimeout(load, 250); };
-		$("#status").onchange = load;
-		$("#staff").onchange = load;
-		await load();
+		$("#q").oninput = () => { clearTimeout(t); t = setTimeout(() => load(false), 250); };
+		$("#status").onchange = () => load(false);
+		$("#staff").onchange = () => load(false);
+		await load(false);
 	},
 
 	async orgs(main) {
 		const { orgs } = await api("orgs");
 		main.innerHTML = "<h1>Organisations</h1>" +
-			'<p class="dim">Organisations are accounts with the gold badge. Their affiliates show the organisation\'s picture as a badge after their name and are listed on its Affiliates tab.</p>' +
+			'<p class="dim">Organisations are accounts with the gold badge or the grey government badge. Their affiliates show the organisation\'s picture as a badge after their name and are listed on its Affiliates tab.</p>' +
 			(can("admin") ? '<div class="box" style="margin-bottom:16px"><h2>New organisation</h2><div class="row"><input id="oh" placeholder="handle"><input id="on" placeholder="Name"><button class="btn primary" id="oc">Create</button></div><div id="osecret"></div></div>' : "") +
-			'<div class="scroll">' + (orgs.length ? userTable(orgs, true) : '<div class="empty">No organisations yet. Give an account the gold badge, or create one above.</div>') + "</div>";
+			'<div class="scroll">' + (orgs.length ? userTable(orgs, true) : '<div class="empty">No organisations yet. Give an account the gold or grey government badge, or create one above.</div>') + "</div>";
 		if ($("#oc")) $("#oc").onclick = () => act(async () => {
 			const r = await api("createOrg", { screen_name: $("#oh").value, name: $("#on").value });
 			$("#osecret").innerHTML = '<div class="secret">Created. Its password: <span class="code">' + esc(r.password) + '</span><br><span class="dim small">Shown once. Give it to whoever runs the organisation.</span></div>';
@@ -776,9 +786,18 @@ const RENDER = {
 					["likes", "replies", "reposts", "quotes", "bookmarks", "views"].map((k) => '<label class="small" style="width:30%">' + k + '<input data-k="' + k + '" type="number" min="0" value="' + (c[k] ?? "") + '"></label>').join("") +
 					'</div><button class="btn primary" data-save-counts style="margin-top:8px">Save counts</button></div>' : "") + "</div>";
 		};
-		main.innerHTML = '<h1>Posts</h1><div class="bar"><input id="q" placeholder="Text contains" style="flex:1;min-width:160px"><input id="author" placeholder="@author"></div><div id="list" class="scroll"></div>';
-		const load = async () => {
-			const { posts } = await api("posts", { q: $("#q").value, author: $("#author").value });
+		main.innerHTML = '<h1>Posts</h1><div class="bar"><input id="q" placeholder="Text contains" style="flex:1;min-width:160px"><input id="author" placeholder="@author"></div><p class="dim small" id="total"></p><div id="list" class="scroll"></div>' +
+			'<div class="row" style="margin-top:16px"><button class="btn" id="more" hidden>Show more</button></div>';
+		// 50 at a time; after an edit the same number is fetched again, a new search starts over
+		let posts = [];
+		const load = async (more) => {
+			const q = { q: $("#q").value, author: $("#author").value };
+			const page = more === "new" ? await api("posts", { ...q, offset: 0 })
+				: more === true ? await api("posts", { ...q, offset: posts.length })
+				: await api("posts", { ...q, offset: 0, limit: Math.max(posts.length, 50) });
+			posts = more === true ? posts.concat(page.posts) : page.posts;
+			$("#total").textContent = page.total + (page.total === 1 ? " post" : " posts") + (posts.length < page.total ? ", showing " + posts.length : "");
+			$("#more").hidden = posts.length >= page.total;
 			$("#list").innerHTML = posts.length
 				? '<table class="table"><tr><th>Post</th><th>Author</th><th>When</th><th></th></tr>' +
 					posts.map((p) => "<tr><td>" + (p.reply_to_id ? '<span class="dim small">reply · </span>' : "") + esc(p.text || "(no text)") + (p.media ? ' <span class="dim small">· ' + p.media + " media</span>" : "") +
@@ -817,8 +836,9 @@ const RENDER = {
 			});
 		};
 		let t;
-		$("#q").oninput = $("#author").oninput = () => { clearTimeout(t); t = setTimeout(load, 250); };
-		await load();
+		$("#q").oninput = $("#author").oninput = () => { clearTimeout(t); t = setTimeout(() => load("new"), 250); };
+		$("#more").onclick = () => load(true);
+		await load("new");
 	},
 
 	async invites(main) {
@@ -887,6 +907,14 @@ const RENDER = {
 			[["image_mb", "Image size, MB"], ["video_mb", "Video size, MB"], ["video_seconds", "Video length, seconds"]]
 				.map(([k, l]) => '<div class="field"><label>' + l + '</label><input type="number" data-limit="' + k + '" value="' + esc(s.limits[k]) + '"' + dis + "></div>").join("") +
 			(admin ? '<button class="btn primary" id="saveLimits">Save</button>' : "") + "</div>" +
+			'<div class="box"><h2>Rate limits</h2><p class="dim small">Requests per account per 15 minutes. Staff have no limits. Hitting one shows the app\'s "try again later" and a line in the server log.</p>' +
+			[["read", "Any request (a page load is about 30)"], ["endpoint", "Any one kind of request (a stuck page loses only that)"], ["write", "Other changes (settings, deletes, lists…)"], ["post", "Posts and replies"], ["engage", "Likes, reposts, bookmarks, follows"], ["dm", "Messages sent"], ["upload", "Files uploaded"]]
+				.map(([k, l]) => '<div class="field"><label>' + l + '</label><input type="number" min="1" data-rate="' + k + '" value="' + esc(s.rate_limits[k]) + '"' + dis + "></div>").join("") +
+			(admin ? '<button class="btn primary" id="saveRates">Save</button>' : "") + "</div>" +
+			'<div class="box"><h2>Post length</h2><p class="dim small">The longest post each badge may write, counted like X counts (links 23, Chinese, Japanese, Korean and emoji 2). Past 280 a post shows a preview with "Show more". Changes reach the composer on its next page load.</p>' +
+			[["none", "No badge"], ["blue", "Blue check"], ["business", "Gold check (organisations)"], ["government", "Grey check (government organisations and officials)"]]
+				.map(([k, l]) => '<div class="field"><label>' + l + '</label><input type="number" min="1" data-postlen="' + k + '" value="' + esc(s.post_limits[k]) + '"' + dis + "></div>").join("") +
+			(admin ? '<button class="btn primary" id="savePostLen">Save</button>' : "") + "</div>" +
 			'<div class="box"><h2>Announcement</h2><p class="dim small">A banner above everyone\'s timeline until they close it. Saving new text shows it again to everyone.</p>' +
 			'<div class="field"><label>Text (empty removes the banner)</label><textarea id="annText" maxlength="500"' + dis + ">" + esc(s.announcement.text) + "</textarea></div>" +
 			'<div class="field"><label>Link (optional)</label><input id="annLink" value="' + esc(s.announcement.link) + '"' + dis + "></div>" +
@@ -898,10 +926,10 @@ const RENDER = {
 			'<label class="row" style="margin:6px 0"><input type="checkbox" id="maint"' + (o.maintenance ? " checked" : "") + dis + "> Maintenance mode</label>" +
 			'<div class="field"><label>Message</label><input id="maintMsg" maxlength="500" value="' + esc(o.message) + '"' + dis + "></div>" +
 			(admin ? '<button class="btn primary" data-save-ops>Save</button>' : "") + "</div>" +
-			'<div class="box"><h2>Blocked phrases</h2><p class="dim small">Posts and articles containing any of these can\'t be published. One per line, any case.</p>' +
+			'<div class="box"><h2>Blocked phrases</h2><p class="dim small">Posts, articles, profiles, poll choices, image descriptions, lists and communities containing any of these are refused. One per line; case, look-alike letters from other alphabets and invisible characters are ignored.</p>' +
 			'<textarea id="blocked"' + dis + ">" + esc(o.blocked_phrases.join("\n")) + "</textarea>" +
 			(admin ? '<button class="btn primary" data-save-ops style="margin-top:8px">Save</button>' : "") + "</div>" +
-			'<div class="box"><h2>Blocked names</h2><p class="dim small">No handle or display name may contain these. Sign-up with one is refused; an account that renames itself to one is suspended at once (staff are only refused). Case, accents, separators, digits for letters (n1gg3r) and repeated letters are ignored. One per line.</p>' +
+			'<div class="box"><h2>Blocked names</h2><p class="dim small">No handle, display name, bio, location or website may contain these. Sign-up with one is refused; an account that puts one in its profile is suspended at once (staff are only refused). Poll choices, image descriptions, lists and communities with one are refused. Case, accents, look-alike letters from other alphabets, separators, digits for letters (n1gg3r) and repeated letters are ignored; in a bio and the other longer fields words are read one at a time. One per line.</p>' +
 			'<textarea id="blockedNames"' + dis + ">" + esc((o.blocked_names || []).join("\n")) + "</textarea>" +
 			(admin ? '<div class="row" style="margin-top:8px"><button class="btn primary" data-save-ops>Save</button><button class="btn" id="checkNames">Check existing accounts</button></div><div id="nameHits"></div>' : "") + "</div>" +
 			'<div class="box"><h2>Trends</h2><div class="field"><label>Hidden hashtags, one per line</label><textarea id="hiddenTrends"' + dis + ">" + esc(o.hidden_trends.map((t) => "#" + t).join("\n")) + "</textarea></div>" +
@@ -933,6 +961,16 @@ const RENDER = {
 			const l = {};
 			main.querySelectorAll("[data-limit]").forEach((i) => l[i.dataset.limit] = i.value);
 			save({ limits: l }, "Limits saved");
+		};
+		if ($("#saveRates")) $("#saveRates").onclick = () => {
+			const r = {};
+			main.querySelectorAll("[data-rate]").forEach((i) => r[i.dataset.rate] = i.value);
+			save({ rate_limits: r }, "Rate limits saved");
+		};
+		if ($("#savePostLen")) $("#savePostLen").onclick = () => {
+			const r = {};
+			main.querySelectorAll("[data-postlen]").forEach((i) => r[i.dataset.postlen] = i.value);
+			save({ post_limits: r }, "Post lengths saved");
 		};
 		$("#saveAnn").onclick = () => save({ announcement: { text: $("#annText").value, link: $("#annLink").value } }, "Announcement saved");
 		$("#saveRules").onclick = () => save({ rules: $("#rules").value }, "Rules saved");
@@ -1002,7 +1040,7 @@ function userTable(users, orgs = false, pick = false) {
 
 async function renderUser(main, id) {
 	const { user: u, invited, log } = await api("user", { id });
-	const isOrg = u.verified_type === "business";
+	const isOrg = u.verified_type === "business" || u.verified_type === "government";
 	const [affiliates, { badges }, { notes }, { messages }, sessions, handles] = await Promise.all([
 		isOrg ? api("affiliates", { orgId: id }).then((r) => r.affiliates) : [],
 		api("badges"),

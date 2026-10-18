@@ -34,6 +34,8 @@ import { gifProxy } from "./gifs";
 import { cardImage } from "./explore-cards";
 import { rememberIp, requestIp } from "./login-history";
 import { hit, limitApi, limitedResponse } from "./ratelimit";
+import { actingViewer, delegateMay } from "./delegation";
+import { automationRoute } from "./automation";
 import { stickerImage, stickerPacks } from "./stickers";
 import { apiTokensRoute, publicApi } from "./public-api";
 import { apiDocsPage } from "./api-docs";
@@ -163,11 +165,10 @@ async function serveApi(req: Request, url: URL, viewer: Viewer | undefined): Pro
 
 	const path = url.pathname.replace(/^\/i\/(jf)?api/, "");
 	const parts = path.split("/").filter(Boolean);
-	const gql = parts.indexOf("graphql");
-	const opName = gql >= 0 ? parts[parts.length - 1] : undefined;
+	const operation = gql >= 0 ? parts[parts.length - 1] : undefined;
 
 	if (!viewer) {
-		const isGuestGql = !!opName && GUEST_ALLOWED_GQL.has(opName);
+		const isGuestGql = !!operation && GUEST_ALLOWED_GQL.has(operation);
 		const isGuestRest = GUEST_ALLOWED_REST.has(path) || TELEMETRY.test(path) || path === "/live_pipeline/events" || (req.method === "POST" && path === "/xitter/client_error");
 		if (isGuestGql || isGuestRest) {
 			viewer = GUEST_VIEWER;
@@ -181,12 +182,22 @@ async function serveApi(req: Request, url: URL, viewer: Viewer | undefined): Pro
 	viewer = { ...viewer, postSource: source ?? undefined };
 	if (req.method !== "GET" && viewer.id !== "0" && req.headers.get("x-csrf-token") !== viewer.csrf)
 		return apiError(403, 353, "This request requires a matching csrf cookie and header.");
+
+	// a delegate switched into another account (delegation.ts); the client sends
+	// this on every call while switched
+	const actAs = req.headers.get("x-act-as-user-id");
+	if (actAs && actAs !== viewer.id) {
+		const acting = await actingViewer(viewer, actAs);
+		if (!acting) return apiError(403, 200, "You can't act as this account.");
+		if (!delegateMay(acting.actor!.role, req.method, path, operation)) return apiError(403, 200, "Delegates can't do this for the account.");
+		viewer = acting;
+	}
 	if (path === "/xitter/moderation") return noticesApi(req, viewer);
 	if (path === "/xitter/badges") return extraBadges(viewer.id, url);
 	if (path === "/xitter/gif") return gifProxy(url);
 	if (path === "/xitter/stickers") return Response.json(await stickerPacks());
 	if (path === "/xitter/client_error" && req.method === "POST") return clientError(req, viewer);
-	const limited = limitApi(viewer, req.method, path, opName, url);
+	const limited = limitApi(viewer, req.method, path, operation, url);
 	if (limited) return limited;
 	if (process.env.LOG_REQUESTS) console.log(`api ${req.method} ${gql >= 0 ? `graphql:${parts[parts.length - 1]}` : path}`);
 	// the client reports its own render errors through telemetry
@@ -280,8 +291,13 @@ async function route(req: Request): Promise<Response | undefined> {
 	// X's sign-in screens (jf.x.com), answered here
 	// inside the signed-in client the same screens come through /i/jfapi
 	if (p.startsWith("/onboarding/web") || p.startsWith("/i/jfapi/onboarding/web")) {
+		// only the steps that try something count as tries; the screens also post
+		// on every keystroke (is this name free?), which would use them up while
+		// one person types
 		if (req.method === "POST") {
-			const h = hit("auth", requestIp(req) ?? "unknown");
+			const ip = requestIp(req) ?? "unknown";
+			const step = p.replace(/^\/i\/jfapi/, "");
+			const h = step.startsWith("/onboarding/web/actions/") ? hit("auth", ip) : hit("endpoint", `${ip}:${step.replace(/\d+/g, "#")}`);
 			if (!h.ok) return limitedResponse(h);
 		}
 		const screen = await onboarding(req, p.replace(/^\/i\/jfapi/, ""));
@@ -291,6 +307,10 @@ async function route(req: Request): Promise<Response | undefined> {
 	// is kept for the dialog, which then skips asking for it
 	// X's own add-email flow: ours is a page
 	if (p === "/i/flow/add_email") return Response.redirect("/account/email", 302);
+	// and X's automated-account flow (automation.ts)
+	if (p === "/i/flow/enable_automated_account") return Response.redirect("/account/automation", 302);
+	// the built-in "All" list (lists.ts)
+	if (p === "/all") return Response.redirect("/i/lists/1", 302);
 	if (p === "/login" || p === "/signup" || p.startsWith("/i/flow/")) {
 		const headers = new Headers({ location: "/" });
 		const code = url.searchParams.get("code");
@@ -323,6 +343,7 @@ async function route(req: Request): Promise<Response | undefined> {
 	if (p === "/account/notices" && viewer) return noticesPage(viewer);
 	if (p === "/account/invites" && viewer) return memberInvitesRoute(req, viewer);
 	if (p === "/account/api" && viewer) return apiTokensRoute(req, viewer);
+	if (p === "/account/automation" && viewer) return automationRoute(req, viewer);
 	if (p === "/account/organisation" && viewer) return orgRoute(req, viewer);
 	if (p.startsWith("/i/ton/data/xchat_media/")) return chatMediaRoute(req, viewer, url);
 	if (p.startsWith("/media/")) return serveMedia(req, p);

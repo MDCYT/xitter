@@ -17,6 +17,7 @@ export const userCols = (viewerId: string) => sql`
 	(select json_build_object('id', o.id::text, 'name', o.name, 'screen_name', o.screen_name, 'avatar_url', case when o.org_badge_id is not null then '/public/badge-' || o.org_badge_id::text || '.png' else o.avatar_url end, 'since', af.created_at)
 		from affiliations af join users o on o.id = af.org_id where af.user_id = u.id) as a_org,
 	(select count(*)::int from affiliations af where af.org_id = u.id) as a_affiliates,
+	(select m.screen_name from users m where m.id = u.automated_by) as a_automated_by, u.parody_label as a_parody_label,
 	(select count(distinct m.post_id)::int from media m join posts x on x.id = m.post_id where x.user_id = u.id) as a_media_posts,
 	(select count(*)::int from likes x where x.user_id = u.id) as a_likes,
 	(select count(*)::int from highlights x where x.user_id = u.id) as a_highlights,
@@ -52,6 +53,8 @@ export function toUser(r: any): User {
 		status: r.a_status,
 		org: r.a_org ?? null,
 		affiliates: r.a_affiliates,
+		automated_by: r.a_automated_by ?? null,
+		parody_label: r.a_parody_label ?? "None",
 		created_at: r.a_created_at,
 		stats: {
 			posts: r.a_posts,
@@ -140,9 +143,9 @@ export async function followList(viewerId: string, userId: string, kind: "follow
 	const rows =
 		kind === "following"
 			? await sql`select ${userCols(viewerId)} from follows f join users u on u.id = f.followee_id
-				where f.follower_id = ${userId}::bigint order by f.created_at desc limit ${limit}`
+				where f.follower_id = ${userId}::bigint and u.id not in ${outOfView(viewerId)} order by f.created_at desc limit ${limit}`
 			: await sql`select ${userCols(viewerId)} from follows f join users u on u.id = f.follower_id
-				where f.followee_id = ${userId}::bigint order by f.created_at desc limit ${limit}`;
+				where f.followee_id = ${userId}::bigint and u.id not in ${outOfView(viewerId)} order by f.created_at desc limit ${limit}`;
 	return rows.map(toUser);
 }
 

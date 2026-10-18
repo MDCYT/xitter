@@ -213,12 +213,13 @@ const ACTIONS: Record<string, Action> = {
 			const q = String(b.q ?? "").trim().replace(/^@/, "");
 			const status = ["active", "restricted", "limited", "suspended"].includes(b.status) ? b.status : null;
 			const staff = !!b.staff;
-			const rows = await sql`select ${userListCols} from users u
-				where (${q} = '' or u.screen_name ilike ${like(q)} or u.name ilike ${like(q)})
+			const match = sql`(${q} = '' or u.screen_name ilike ${like(q)} or u.name ilike ${like(q)})
 					and (${status}::text is null or u.status = ${status})
-					and (not ${staff} or u.role is not null)
-				order by u.created_at desc limit 50 offset ${Number(b.offset) || 0}`;
-			return { users: rows };
+					and (not ${staff} or u.role is not null)`;
+			const rows = await sql`select ${userListCols} from users u where ${match}
+				order by u.created_at desc, u.id desc limit ${Math.min(Math.max(Number(b.limit) || 50, 1), 500)} offset ${Math.max(Number(b.offset) || 0, 0)}`;
+			const [{ total }] = await sql`select count(*)::int as total from users u where ${match}`;
+			return { users: rows, total };
 		},
 	},
 
@@ -290,8 +291,8 @@ const ACTIONS: Record<string, Action> = {
 			const badge = b.badge || null;
 			if (badge !== null && !["blue", "business", "government", "government_individual"].includes(badge)) throw new AdminError("Unknown badge.");
 			await guard(a, id);
-			// an account stops being an organisation when it loses the gold badge
-			if (badge !== "business") {
+			// an account stops being an organisation when it loses the gold or grey (government) badge
+			if (badge !== "business" && badge !== "government") {
 				await sql`delete from affiliations where org_id = ${id}::bigint`;
 				await sql`delete from affiliation_requests where org_id = ${id}::bigint`;
 			}
@@ -389,7 +390,7 @@ const ACTIONS: Record<string, Action> = {
 	orgs: {
 		role: "support",
 		run: async () => ({
-			orgs: await sql`select ${userListCols} from users u where u.verified_type = 'business' order by u.name`,
+			orgs: await sql`select ${userListCols} from users u where u.verified_type in ('business', 'government') order by u.name`,
 		}),
 	},
 
@@ -423,7 +424,7 @@ const ACTIONS: Record<string, Action> = {
 		run: async (a, b) => {
 			const orgId = idOf(b.orgId, "organisation");
 			const [org] = await sql`select verified_type from users where id = ${orgId}::bigint`;
-			if (org?.verified_type !== "business") throw new AdminError("Only accounts with the gold badge are organisations.");
+			if (org?.verified_type !== "business" && org?.verified_type !== "government") throw new AdminError("Only accounts with the gold or grey organisation badge are organisations.");
 			const [u] = await sql`select id::text as id from users where lower(screen_name) = lower(${String(b.screen_name ?? "").replace(/^@/, "")})`;
 			if (!u) throw new AdminError("No account with that handle.");
 			if (u.id === orgId) throw new AdminError("An organisation can't be its own affiliate.");
@@ -451,13 +452,15 @@ const ACTIONS: Record<string, Action> = {
 		run: async (_a, b) => {
 			const q = String(b.q ?? "").trim();
 			const author = String(b.author ?? "").trim().replace(/^@/, "");
+			const match = sql`(${q} = '' or p.text ilike ${like(q)}) and (${author} = '' or lower(u.screen_name) = lower(${author}))`;
 			const rows = await sql`select p.id::text as id, p.text, p.created_at, p.hidden, p.sensitive, p.notice, p.count_overrides, p.reply_to_id::text as reply_to_id, u.screen_name, u.name,
 				(select count(*)::int from likes l where l.post_id = p.id) as likes,
 				(select count(*)::int from media m where m.post_id = p.id) as media
 				from posts p join users u on u.id = p.user_id
-				where (${q} = '' or p.text ilike ${like(q)}) and (${author} = '' or lower(u.screen_name) = lower(${author}))
-				order by p.id desc limit 50 offset ${Number(b.offset) || 0}`;
-			return { posts: rows };
+				where ${match}
+				order by p.id desc limit ${Math.min(Math.max(Number(b.limit) || 50, 1), 500)} offset ${Math.max(Number(b.offset) || 0, 0)}`;
+			const [{ total }] = await sql`select count(*)::int as total from posts p join users u on u.id = p.user_id where ${match}`;
+			return { posts: rows, total };
 		},
 	},
 
@@ -582,6 +585,28 @@ const ACTIONS: Record<string, Action> = {
 					video_seconds: n(b.limits.video_seconds, 5, 7200, "Video length"),
 				});
 				changed.push("limits");
+			}
+			if (b.rate_limits && typeof b.rate_limits === "object") {
+				const next = { ...s.rate_limits };
+				for (const k of Object.keys(next) as (keyof typeof next)[]) {
+					if (b.rate_limits[k] === undefined) continue;
+					const x = Number(b.rate_limits[k]);
+					if (!Number.isInteger(x) || x < 1 || x > 1_000_000) throw new AdminError(`The ${k} limit must be a whole number from 1 to 1000000.`);
+					next[k] = x;
+				}
+				await setSetting("rate_limits", next);
+				changed.push("rate_limits");
+			}
+			if (b.post_limits && typeof b.post_limits === "object") {
+				const next = { ...s.post_limits };
+				for (const k of Object.keys(next) as (keyof typeof next)[]) {
+					if (b.post_limits[k] === undefined) continue;
+					const x = Number(b.post_limits[k]);
+					if (!Number.isInteger(x) || x < 1 || x > 1_000_000) throw new AdminError("Post lengths must be whole numbers from 1 to 1000000.");
+					next[k] = x;
+				}
+				await setSetting("post_limits", next);
+				changed.push("post_limits");
 			}
 			if (b.announcement && typeof b.announcement === "object") {
 				const text = String(b.announcement.text ?? "").trim().slice(0, 500);

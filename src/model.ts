@@ -9,6 +9,7 @@ import { type MediaRow, absolute, mediaEntity } from "./media";
 import { placeById } from "./places";
 import { webSource } from "./platforms";
 import { settings } from "./settings";
+import { SHORT_POST, previewOf, weightedLength } from "./textlen";
 
 // a note's text with its links marked, as the note box and the note page expect
 export function noteText(text: string) {
@@ -20,6 +21,8 @@ export function noteText(text: string) {
 }
 
 const DEFAULT_AVATAR = `${PUBLIC_ORIGIN}/abs/sticky/default_profile_images/default_profile_normal.png`;
+// an account's picture as a full URL, X's default one when it has none
+export const avatarUrl = (url: string | null | undefined) => absolute(url ?? null) ?? DEFAULT_AVATAR;
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -104,7 +107,24 @@ export function badgeList(u: User): Badge[] {
 	return out;
 }
 
+// X's one label slot: "Automated by @owner" for a bot, else the first badge.
+// A bot's badges then all go through the page script (badges.ts).
+export const labelTakesSlot = (u: User) => !!u.automated_by;
+
+function automatedLabel(owner: string) {
+	const text = `Automated by @${owner}`;
+	return {
+		label: {
+			description: "Automated",
+			// the mention links to the managing account
+			longDescription: { text, entities: [{ fromIndex: text.indexOf("@"), toIndex: text.length, ref: { type: "TimelineRichTextMention", screen_name: owner, mention_results: {} } }] },
+			userLabelType: "AutomatedLabel",
+		},
+	};
+}
+
 function badgeLabel(u: User) {
+	if (u.automated_by) return automatedLabel(u.automated_by);
 	const [first] = badgeList(u);
 	if (!first) return {};
 	return {
@@ -123,7 +143,7 @@ export function userResult(u: User) {
 		__typename: "User",
 		action_counts: { favorites_count: u.stats?.likes ?? 0 },
 		affiliates_highlighted_label: badgeLabel(u),
-		...(u.verified_type === "business" ? { business_account: { affiliates_count: u.affiliates ?? 0 } } : {}),
+		...(u.verified_type === "business" || u.verified_type === "government" ? { business_account: { affiliates_count: u.affiliates ?? 0 } } : {}),
 		avatar: { image_url: absolute(u.avatar_url) ?? DEFAULT_AVATAR },
 		...(u.banner_url ? { banner: { image_url: absolute(u.banner_url) } } : {}),
 		core: { created_at: apiDate(u.created_at), name: u.name, screen_name: u.screen_name },
@@ -134,7 +154,7 @@ export function userResult(u: User) {
 		location: { location: u.location },
 		media_permissions: { can_media_tag: true },
 		notifications_settings: { notifications_enabled: !!u.stats?.notifying },
-		parody_commentary_fan_label: "None",
+		parody_commentary_fan_label: u.parody_label ?? "None",
 		pinned_items: u.pinned_post_id ? { tweet_ids_str: [u.pinned_post_id] } : {},
 		possibly_sensitive: false,
 		privacy: { protected: !!u.protected },
@@ -216,7 +236,7 @@ export function legacyUser(u: User) {
 		muting: u.stats?.muting ?? false,
 		has_graduated_access: true,
 		created_at: u.created_at.toISOString(),
-		parody_commentary_fan_label: "None",
+		parody_commentary_fan_label: u.parody_label ?? "None",
 		can_dm: false,
 	};
 }
@@ -342,6 +362,10 @@ export function tweetResult(p: PostRow, withTypename = true): Record<string, unk
 	};
 }
 
+// A notification's post (its preview line): the client reads only a plain
+// Tweet there, so a post with a notice or limited replies goes unwrapped.
+export const plainTweetResult = (p: PostRow) => plainTweet(p, true);
+
 // A label under a post, as X sends it (softInterventionPivot): its kind, the
 // text, and the link the text and its "Learn more" lead to (the instance's
 // rules unless staff gave one).
@@ -366,9 +390,15 @@ function noticePivot(n: { type: string; text: string; url?: string }) {
 }
 
 function plainTweet(p: PostRow, withTypename: boolean): Record<string, unknown> {
-	const textLength = [...p.text].length;
-	const mentions = userMentions(p);
-	const tags = hashtags(p.text);
+	// a long post: timelines get its start and "Show more", the post page the
+	// whole text (note_tweet), with entities for each
+	const long = weightedLength(p.text) > SHORT_POST;
+	const shown = long ? previewOf(p.text) : p.text;
+	const textLength = [...shown].length;
+	const allMentions = userMentions(p);
+	const allTags = hashtags(p.text);
+	const mentions = allMentions.filter((m: any) => m.indices[1] <= textLength);
+	const tags = allTags.filter((t: any) => t.indices[1] <= textLength);
 	const media = (p.media ?? []).map((m, i) => mediaEntity(m, p.id, p.author.screen_name, i, textLength));
 	const quoteLink = p.quoted && permalink(p.quoted);
 	return {
@@ -384,6 +414,11 @@ function plainTweet(p: PostRow, withTypename: boolean): Record<string, unknown> 
 		...(p.article ? { article: { article_results: { result: p.article } } } : {}),
 		...(p.community ? { community_results: { result: p.community } } : {}),
 		...(p.poll ? { card: p.poll } : {}),
+		...(long ? { note_tweet: { is_expandable: true, note_tweet_results: { result: {
+			id: globalId("NoteTweet", p.id),
+			text: p.text,
+			entity_set: { hashtags: allTags, user_mentions: allMentions, urls: [], symbols: [] },
+		} } } } : {}),
 		cashtag_attachments: [],
 		core: { user_results: { result: userResult(p.author) } },
 		edit_control: editControl(p),
@@ -399,7 +434,7 @@ function plainTweet(p: PostRow, withTypename: boolean): Record<string, unknown> 
 			bookmarked: p.bookmarked,
 			conversation_id_str: p.conversation_id,
 			created_at: apiDate(p.created_at),
-			display_text_range: [0, [...p.text].length],
+			display_text_range: [0, textLength],
 			entities: {
 				...(media.length ? { media } : {}),
 				...(mentions.length ? { user_mentions: mentions } : {}),
@@ -408,7 +443,7 @@ function plainTweet(p: PostRow, withTypename: boolean): Record<string, unknown> 
 			...(media.length ? { extended_entities: { media } } : {}),
 			favorite_count: p.like_count,
 			favorited: p.liked,
-			full_text: p.text,
+			full_text: shown,
 			possibly_sensitive: !!p.sensitive,
 			...(placeById(p.place_id) ? { place: placeById(p.place_id) } : {}),
 			source: (p.source ?? webSource()).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!),

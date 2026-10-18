@@ -17,14 +17,14 @@ import { answerChallenge, startChallenge } from "./two-factor";
 import { sql } from "./db";
 import { type Message, encode, mapStrings, nameId } from "./jetfuel";
 import { fromJson } from "./jetfuel-json";
-import { CODE_DIGITS, SignupError, checkSignup, normalizeCode, signUp, usernameState } from "./invites";
+import { CODE_DIGITS, SignupError, checkSignup, normalizeCode, signUp, usernameProblem, usernameState } from "./invites";
 import { requestReset } from "./password-reset";
 import { platformSource } from "./platforms";
 import { mailEnabled } from "./mail";
 import { checkSignupCode, sendSignupCode } from "./email-address";
 import { countryFromHeader } from "./countries";
 import { settings } from "./settings";
-import { hit } from "./ratelimit";
+import { hit, used } from "./ratelimit";
 import { requestIp } from "./login-history";
 
 const load = async (name: string): Promise<Message[]> => fromJson(await Bun.file(new URL(`./jf/${name}.json`, import.meta.url)).json());
@@ -272,8 +272,9 @@ export async function onboarding(req: Request, path: string): Promise<Response |
 		const [user] = name ? await sql`select screen_name from users where lower(screen_name) = lower(${name}) and status <> 'suspended'` : [];
 		if (user) return respond(signInScreen(user.screen_name));
 		const mode = settings().signup_mode;
-		if (mode === "closed" || !/^[A-Za-z0-9_]{1,15}$/.test(name))
-			return respond(fieldError("username_or_email", mode === "closed" ? "No account goes by that name." : "Usernames are letters, digits and underscores."));
+		if (mode === "closed") return respond(fieldError("username_or_email", "No account goes by that name."));
+		const problem = usernameProblem(name);
+		if (problem) return respond(fieldError("username_or_email", problem));
 		const token = crypto.randomUUID();
 		// came by an invite link (server.ts keeps its code in a cookie)
 		const linked = /(?:^|;\s*)xitter_invite=([^;]+)/.exec(req.headers.get("cookie") ?? "")?.[1];
@@ -379,12 +380,17 @@ export async function onboarding(req: Request, path: string): Promise<Response |
 	if (path === "/onboarding/web/actions/login_enter_password") {
 		const f = await form(req);
 		const username = String(f.username ?? "").trim().replace(/^@/, "");
-		// guessing one account's password from many addresses still runs out
-		if (username && !hit("password", username.toLowerCase()).ok) return respond(fieldError("password", "Too many tries for this account. Wait 15 minutes."));
+		// guessing one account's password from many addresses still runs out;
+		// only wrong passwords count, so signing in on several devices doesn't
+		const account = username.toLowerCase();
+		if (username && used("password", account)) return respond(fieldError("password", "Too many tries for this account. Wait 15 minutes."));
 		const challenge = username && f.password ? await startChallenge(username, f.password) : undefined;
 		if (challenge) return respond(fill(templates.twoFactor, { session_token: challenge }, TWO_FACTOR_TEXTS));
 		const session = username && f.password ? await login(username, f.password) : undefined;
-		if (!session) return respond(fieldError("password", "Wrong username or password."));
+		if (!session) {
+			if (username) hit("password", account);
+			return respond(fieldError("password", "Wrong username or password."));
+		}
 		const [user] = await sql`select screen_name from users where id = ${session.userId}::bigint`;
 		const headers = new Headers();
 		for (const c of await signInCookies(req, session)) headers.append("set-cookie", c);

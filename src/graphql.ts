@@ -2,6 +2,8 @@
 // with every build; the name after it is stable.
 
 import { ChatError, chatHandlers } from "./chat";
+import { delegationHandlers } from "./delegation";
+import { automationHandlers } from "./automation";
 import { analyticsHandlers } from "./analytics";
 import { bookmarkFolderHandlers } from "./bookmark-folders";
 import { communityHandlers } from "./communities";
@@ -28,7 +30,6 @@ import { isId, newId } from "./ids";
 import { attachMedia } from "./media";
 import { cursorEntry, feedEntry, gridAppend, gridEntry, pinnedEntry, replyEntry, tweetEntry, tweetResult, userEntry, userResult } from "./model";
 import {
-	MAX_POST_LENGTH,
 	PostError,
 	ancestors,
 	bookmarkedPosts,
@@ -39,9 +40,13 @@ import {
 	editPost,
 	feed,
 	getPost,
+	originalPostId,
 	likedPosts,
 	postsByIds,
 	replies,
+	hiddenReplies,
+	hasHiddenReplies,
+	setReplyHidden,
 	repost,
 	setMark,
 	setPinned,
@@ -69,6 +74,28 @@ const SUSPENDED_USER = {
 	unavailable_header: richText("Account suspended"),
 	unavailable_message: richText("This account broke the rules of this instance and was suspended."),
 };
+
+const PARODY_LABELS = new Set(["None", "Parody", "Commentary", "Fan"]);
+// the client's confirm dialog says a change locks the label for 48 hours
+const PARODY_LOCK_MS = 48 * 3600_000;
+async function parodySettings(userId: string) {
+	const [u] = await sql`select parody_label, parody_label_at from users where id = ${userId}::bigint`;
+	const left = u?.parody_label_at ? new Date(u.parody_label_at).getTime() + PARODY_LOCK_MS - Date.now() : 0;
+	const locked = left > 0;
+	return {
+		disabled_duration_msec: locked ? left : 0,
+		is_label_update_disabled: locked,
+		parody_commentary_fan_label: u?.parody_label ?? "None",
+		update_disabled_reason: locked ? `You changed your label recently. You can change it again in ${Math.ceil(left / 3600_000)} hours.` : null,
+	};
+}
+async function setParodyLabel(userId: string, label: unknown) {
+	if (typeof label !== "string" || !PARODY_LABELS.has(label)) throw new PostError("Pick Parody, Commentary, Fan or None.", 214);
+	const now = await parodySettings(userId);
+	if (now.parody_commentary_fan_label === label) return;
+	if (now.is_label_update_disabled) throw new PostError(now.update_disabled_reason!, 214);
+	await sql`update users set parody_label = ${label}, parody_label_at = now() where id = ${userId}::bigint`;
+}
 
 function postId(vars: Vars, key = "tweet_id"): string {
 	const id = vars[key];
@@ -184,7 +211,10 @@ const tweetDetail: Handler = async (viewer, vars) => {
 		const canPin = !focal.reply_to_id && focal.author.id === viewer.id;
 		let sort = BigInt(newId());
 		for (const p of above) entries.push(tweetEntry(p, (sort--).toString()));
-		entries.push(tweetEntry(focal, (sort--).toString()));
+		const focalEntry = tweetEntry(focal, (sort--).toString());
+		// the "View hidden replies" link under a conversation's first post
+		if (!focal.reply_to_id && (await hasHiddenReplies(id))) Object.assign(focalEntry.content.itemContent, { hasModeratedReplies: true });
+		entries.push(focalEntry);
 		for (const p of below) {
 			const isPinned = p.id === pinned;
 			entries.push(replyEntry(p, (sort--).toString(), { pinned: isPinned, ...(canPin ? { feedbackKey: isPinned ? PIN_KEYS.Pinned : PIN_KEYS.Pinnable } : {}) }));
@@ -252,7 +282,6 @@ const createTweet: Handler = async (viewer, vars) => {
 		.map((m: any) => String(m?.media_id ?? ""))
 		.filter(isId);
 	if (!text && !mediaIds.length) throw new PostError("Your post is empty.", 170);
-	if ([...text].length > MAX_POST_LENGTH) throw new PostError(`Posts are limited to ${MAX_POST_LENGTH} characters.`, 186);
 	const previous = vars.edit_options?.previous_tweet_id;
 	if (previous !== undefined) {
 		if (!isId(previous)) throw new PostError("Invalid post id.", 144);
@@ -367,8 +396,8 @@ const reactors = (kind: "reposts" | "likes", key: string): Handler => async (vie
 	if (!isId(vars.tweetId) || vars.cursor) return empty;
 	const rows =
 		kind === "reposts"
-			? await sql`select r.user_id::text as id from reposts r where r.post_id = ${vars.tweetId}::bigint and r.user_id not in ${blockedFor(viewer.id)} and r.user_id not in ${protectedFor(viewer.id)} order by r.created_at desc limit 100`
-			: await sql`select l.user_id::text as id from likes l where l.post_id = ${vars.tweetId}::bigint and l.user_id not in ${blockedFor(viewer.id)} and l.user_id not in ${protectedFor(viewer.id)} order by l.created_at desc limit 100`;
+			? await sql`select r.user_id::text as id from reposts r where r.post_id = ${vars.tweetId}::bigint and r.user_id not in ${blockedFor(viewer.id)} and r.user_id not in ${protectedFor(viewer.id)} and r.user_id not in ${outOfView(viewer.id)} order by r.created_at desc limit 100`
+			: await sql`select l.user_id::text as id from likes l where l.post_id = ${vars.tweetId}::bigint and l.user_id not in ${blockedFor(viewer.id)} and l.user_id not in ${protectedFor(viewer.id)} and l.user_id not in ${outOfView(viewer.id)} order by l.created_at desc limit 100`;
 	const users = await usersByIds(viewer.id, rows.map((r: any) => r.id));
 	const base = BigInt(newId());
 	const entries = rows.flatMap((r: any, i: number) => (users.has(r.id) ? [userEntry(users.get(r.id)!, (base - BigInt(i) - 1n).toString())] : []));
@@ -455,6 +484,16 @@ const handlers: Record<string, Handler> = {
 		};
 	},
 	// Settings > About your account: country or region on the About page, and the For you switch
+	// Settings > Your account > Profile label: parody, commentary or fan account
+	AccountParodyScreenImplV2ParodyLabelSettingQuery: async (v: Viewer) => ({ data: { get_parody_label_settings: await parodySettings(v.id) } }),
+	AccountParodyScreenImplV2ParodyLabelMutation: async (v: Viewer, vars: Vars) => {
+		await setParodyLabel(v.id, vars.parodyProfileLabel);
+		return { data: { update_parody_label: { __typename: "PCFLabelSettings", parody_commentary_fan_label: String(vars.parodyProfileLabel) } } };
+	},
+	AccountParodyUserMutation: async (v: Viewer, vars: Vars) => {
+		await setParodyLabel(v.id, vars.parodyProfileLabel);
+		return { data: { user_preferences_put: "Done" } };
+	},
 	UserPreferencesMutation: async (v: Viewer, vars: Vars) => {
 		const next: Record<string, unknown> = {};
 		if (vars.inferred_location_resolution_preference === "Country" || vars.inferred_location_resolution_preference === "Region" || vars.inferred_location_resolution_preference === "Unspecified")
@@ -510,8 +549,27 @@ const handlers: Record<string, Handler> = {
 	HomeTimeline: forYou,
 	HomeLatestTimeline: home(true),
 	TweetDetail: tweetDetail,
+	// Hide reply, and the "Hidden replies" page of a conversation
+	ModerateTweet: async (v, vars) => {
+		await setReplyHidden(v.id, postId(vars, "tweetId"), true);
+		return { data: { tweet_moderate_put: "Done" } };
+	},
+	UnmoderateTweet: async (v, vars) => {
+		await setReplyHidden(v.id, postId(vars, "tweetId"), false);
+		return { data: { tweet_unmoderate_put: "Done" } };
+	},
+	ModeratedTimeline: async (v, vars) => {
+		const root = postId(vars, "rootTweetId");
+		const posts = vars.cursor ? [] : await hiddenReplies(v.id, root);
+		const base = BigInt(newId());
+		const entries: unknown[] = posts.map((p, i) => tweetEntry(p, (base - BigInt(i) - 1n).toString()));
+		return { data: { tweet: { result: { __typename: "Tweet", rest_id: root, timeline_response: { timeline: { instructions: [{ type: "TimelineAddEntries", entries }] } } } } } };
+	},
 	Bookmarks: bookmarks,
 	CreateTweet: createTweet,
+	// the composer's long post (over 280 weighted characters): the same request,
+	// answered under notetweet_create. Bold and italic (richtext_options) aren't kept.
+	CreateNoteTweet: async (v, vars) => ({ data: { notetweet_create: ((await createTweet(v, vars)) as any).data.create_tweet } }),
 	DeleteTweet: async (v, vars) => {
 		await deletePost(v.id, postId(vars));
 		return { data: { delete_tweet: { tweet_results: {} } } };
@@ -529,9 +587,10 @@ const handlers: Record<string, Handler> = {
 		return { data: { tweet_bookmark_put: "Done" } };
 	},
 	DeleteBookmark: async (v, vars) => {
-		await setMark("bookmarks", v.id, postId(vars), false);
+		const id = await originalPostId(postId(vars));
+		await setMark("bookmarks", v.id, id, false);
 		// an unbookmarked post leaves the viewer's folders too
-		await sql`delete from bookmark_folder_posts where post_id = ${postId(vars)}::bigint and folder_id in (select id from bookmark_folders where user_id = ${v.id}::bigint)`;
+		await sql`delete from bookmark_folder_posts where post_id = ${id}::bigint and folder_id in (select id from bookmark_folders where user_id = ${v.id}::bigint)`;
 		return { data: { tweet_bookmark_delete: "Done" } };
 	},
 	CreateRetweet: async (v, vars) => {
@@ -539,7 +598,7 @@ const handlers: Record<string, Handler> = {
 		return { data: { create_retweet: { retweet_results: { result: { rest_id: id } } } } };
 	},
 	DeleteRetweet: async (v, vars) => {
-		const id = postId(vars, "source_tweet_id");
+		const id = await originalPostId(postId(vars, "source_tweet_id"));
 		await unrepost(v.id, id);
 		return { data: { unretweet: { source_tweet_results: { result: { rest_id: id } } } } };
 	},
@@ -793,7 +852,6 @@ const articleHandlers: Record<string, Handler> = {
 	}),
 	ArticleEntityPublish: async (v, vars) => {
 		const text = typeof vars.tweetText === "string" ? vars.tweetText : "";
-		if ([...text].length > MAX_POST_LENGTH) throw new PostError(`Posts are limited to ${MAX_POST_LENGTH} characters.`, 186);
 		const result = await withPost(v.id, await articles.publish(v.id, articleId(vars), text, (t, id) => createPost(v.id, t, { articleId: id, source: v.postSource })));
 		return { data: { articleentity_publish: { article_entity_results: { result } } } };
 	},
@@ -845,7 +903,7 @@ async function search(viewer: Viewer, vars: Vars) {
 	let next: string | undefined;
 
 	if (product === "People") {
-		const ids = await searchUsers(query, count, offset);
+		const ids = await searchUsers(viewer.id, query, count, offset);
 		const users = await usersByIds(viewer.id, ids);
 		ids.forEach((id, i) => users.get(id) && entries.push(userEntry(users.get(id)!, sort(i))));
 		if (ids.length === count) next = `o${offset + count}`;
@@ -864,7 +922,7 @@ async function search(viewer: Viewer, vars: Vars) {
 	} else if (product === "Latest" || product === "Top") {
 		const top = product === "Top";
 		if (top && !offset && !/(^|\s)-?\w+:/.test(query)) {
-			const userIds = await searchUsers(query, 3);
+			const userIds = await searchUsers(viewer.id, query, 3);
 			const users = await usersByIds(viewer.id, userIds);
 			const items = userIds.map((id) => users.get(id)).filter((u) => !!u);
 			if (items.length)
@@ -969,6 +1027,25 @@ Object.assign(handlers, bookmarkFolderHandlers);
 Object.assign(handlers, scheduledHandlers);
 Object.assign(handlers, gifHandlers);
 Object.assign(handlers, analyticsHandlers);
+Object.assign(handlers, delegationHandlers);
+
+// The signed-in account. The page carries it already (shell.ts); the client
+// asks when it builds its view of an account a delegate switches into, and
+// checks the answer is that account (delegation.ts).
+Object.assign(handlers, {
+	Viewer: async (v: Viewer) => {
+		const u = await userById(v.id, v.id);
+		if (!u) throw new PostError("User not found.", 50);
+		return {
+			data: {
+				is_super_follow_subscriber: false,
+				viewer: { create_community_action_result: { __typename: "CommunityCreateAction" }, user_features: [], user_results: { result: userResult(u) } },
+			},
+		};
+	},
+	GetUserClaims: () => ({ data: { viewer_v2: { claims: [] } } }),
+} satisfies Record<string, Handler>);
+Object.assign(handlers, automationHandlers);
 
 export const knownOperation = (name: string) => name in handlers;
 

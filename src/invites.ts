@@ -29,10 +29,21 @@ export async function createInvite(opts: { createdBy?: string; maxUses?: number;
 // Handles that would clash with the client's own pages (x.com/<name> is a
 // profile, so /home or /settings can't be one) or pretend to be staff.
 const RESERVED = new Set(
-	"home explore notifications messages chat settings search compose i login logout signup signin register admin root api public media abs abouts about tos privacy help support account accounts verified premium jobs grok lists bookmarks communities topics hashtag intent share oauth xitter twitter x moderator mod staff system".split(" "),
+	"all home explore notifications messages chat settings search compose i login logout signup signin register admin root api public media abs abouts about tos privacy help support account accounts verified premium jobs grok lists bookmarks communities topics hashtag intent share oauth xitter twitter x moderator mod staff system".split(" "),
 );
 
+export const isReserved = (name: string) => RESERVED.has(name.toLowerCase());
+
 export class SignupError extends Error {}
+
+// what's wrong with a new username, said plainly: "letters, digits and
+// underscores" alone reads as if the underscore were the problem
+export function usernameProblem(name: string): string | null {
+	if (/[^A-Za-z0-9_]/.test(name)) return "Usernames can only have letters, digits and underscores.";
+	if (name.length > 15) return `Usernames are at most 15 characters; this one has ${name.length}.`;
+	if (name.length < 1) return "Usernames are at least 1 character.";
+	return null;
+}
 
 // for the check while typing: same rules as signUp below
 export async function usernameState(raw: string): Promise<"available" | "taken" | "invalid"> {
@@ -54,7 +65,8 @@ export async function checkSignup(f: SignupForm) {
 	if (!EMAIL.test(email) || email.length > 254) throw new SignupError("Enter a valid email address.");
 	const screenName = f.screenName.trim().replace(/^@/, "");
 	const name = f.name.trim() || screenName;
-	if (!/^[A-Za-z0-9_]{1,15}$/.test(screenName)) throw new SignupError("Usernames are 1 to 15 letters, digits or underscores.");
+	const problem = usernameProblem(screenName);
+	if (problem) throw new SignupError(problem);
 	if (RESERVED.has(screenName.toLowerCase())) throw new SignupError("That username is reserved.");
 	// a blocked word in the handle or name (names.ts): no account at all
 	if (blockedNameIn(screenName, name)) throw new SignupError("That username isn't allowed here.");

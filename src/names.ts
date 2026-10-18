@@ -1,32 +1,114 @@
 // Blocked names (admin panel > Settings): words no handle or display name may
 // contain. Sign-up with one is refused; an account that renames itself to one
 // is suspended on the spot. Matching ignores case, accents, separators,
-// look-alike digits and symbols, and repeated letters, so "N_1-gg3rr" matches
-// "nigger".
+// look-alike digits and symbols, and extra repeats, so "N_1-gggg3rr" matches
+// "nigger". A doubled letter in the word still needs two in the name, or
+// "nigger" would block "Nigeria".
 
 import { sql } from "./db";
 import { newId } from "./ids";
-import { settings } from "./settings";
+import { hasBlockedPhrase, settings } from "./settings";
 
-const LOOKALIKE: Record<string, string> = { "0": "o", "1": "i", "!": "i", "|": "i", "3": "e", "4": "a", "@": "a", "5": "s", "$": "s", "7": "t", "8": "b", "9": "g", "6": "g", "+": "t" };
+// what else can stand for a letter; "1" is both i and l
+const LOOKALIKE: Record<string, string> = { a: "4@", b: "8", e: "3", g: "96", i: "1!|", l: "1|", o: "0", s: "5$", t: "7+", z: "2" };
 
-export function normalizeName(text: string): string {
+// Letters from other scripts that pass for Latin ones; NFKD already folds
+// full-width, bold/italic math and circled letters. Pairs: look-alike, Latin.
+const GLYPHS = Object.fromEntries(
+	[
+		// Cyrillic, including faux-Cyrillic (И for N, Я for R)
+		"аaвbеeёeкkмmнhоoрpсcтtуyхxіiїiјjѕsԁdьbъbпnиnйnяrгrшwщwцuчyзeэeдdлnғfқkңhүyұyһhӏl",
+		// Greek
+		"αaβbγyδdεeζzηnθoιiκkλnμuνvοoπnρpσoςcτtυuφoχxψwωw",
+		// small caps and other Latin look-alikes NFKD leaves alone
+		"ᴀaʙbᴄcᴅdᴇeɢgʜhɪiᴊjᴋkʟlᴍmɴnᴏoᴘpʀrꜱsᴛtᴜuᴠvᴡwʏyᴢzıiȷjłløođdħhŋnſsɑaɡgɩiʋvƒfßb",
+		// symbols that aren't letters but read as one
+		"∂d©c®r℗p∑e∆a∏n€e£l¢c¥y∅o⊂c∩n∪u∈e∃e∀a",
+	]
+		.join("")
+		.match(/../gsu)!
+		.map((pair) => [...pair] as [string, string]),
+);
+// capitals that look unlike their small letter (Σ is an E, σ an o)
+const CAPITALS: Record<string, string> = { Σ: "e", Δ: "a", Λ: "a", Ξ: "e", Η: "h", Υ: "y", Ν: "n", Μ: "m", Γ: "r" };
+// regional indicators (flag letters) 🇦..🇿
+const FLAG_A = 0x1f1e6;
+
+// NFKD, no accents, lowercase, every look-alike letter as its Latin one
+export function foldGlyphs(text: string): string {
 	return text
 		.normalize("NFKD")
 		.replace(/\p{M}/gu, "")
+		.replace(/[ΣΔΛΞΗΥΝΜΓ]/gu, (c) => CAPITALS[c])
 		.toLowerCase()
-		.replace(/[0-9!|@$+]/g, (c) => LOOKALIKE[c] ?? c)
-		.replace(/[^\p{L}]/gu, "")
-		.replace(/(\p{L})\1+/gu, "$1");
+		.replace(/[\u{1F1E6}-\u{1F1FF}]/gu, (c) => String.fromCharCode(97 + c.codePointAt(0)! - FLAG_A))
+		.replace(/[^\x00-\x7f]/gu, (c) => GLYPHS[c] ?? c);
+}
+
+// lowercase letters plus the look-alike digits and symbols; repeats are kept
+export function normalizeName(text: string): string {
+	return foldGlyphs(text).replace(/[^\p{L}0-9!|@$+]/gu, "");
+}
+
+// "nigger" -> n+[i1!|]+[g96]{2,}[e3]+r+
+function wordPattern(word: string): RegExp {
+	const letters = word.replace(/[^\p{L}]/gu, "");
+	return new RegExp(letters.replace(/(\p{L})\1*/gu, (run, c) => {
+		const cls = LOOKALIKE[c] ? `[${c}${LOOKALIKE[c].replace(/[|$+]/g, "\\$&")}]` : c;
+		return run.length > 1 ? `${cls}{${run.length},}` : `${cls}+`;
+	}), "u");
 }
 
 // the first blocked word the text contains, if any
 export function blockedNameIn(...texts: string[]): string | undefined {
-	const words = settings().operations.blocked_names.map(normalizeName).filter(Boolean);
+	const words = settings().operations.blocked_names.filter((w) => /\p{L}/u.test(normalizeName(w)));
 	if (!words.length) return undefined;
 	const all = texts.map(normalizeName);
-	return words.find((w) => all.some((t) => t.includes(w)));
+	return words.find((w) => {
+		const re = wordPattern(normalizeName(w));
+		return all.some((t) => re.test(t));
+	});
 }
+
+// Longer text (bio, location, links, list and community names) is read word
+// by word: ignoring spaces as for a name would find "coon" in "taco only".
+// Letters spelled out one at a time ("n i g g e r", "n.i.g.g.e.r") are joined
+// back into one word first.
+function wordsOf(text: string): string[] {
+	const parts = foldGlyphs(text)
+		.split(/[\s.,/\\?#&=:;()"'<>[\]{}*~^`-]+/u)
+		.map((p) => p.replace(/[^\p{L}0-9!|@$+]/gu, ""))
+		.filter(Boolean);
+	const out: string[] = [];
+	let run = "";
+	for (const p of parts) {
+		// one letter, maybe with a look-alike symbol stuck to it ("x!")
+		if ([...p].length <= 2 && [...p.replace(/[^\p{L}0-9]/gu, "")].length <= 1) {
+			run += p;
+			continue;
+		}
+		if (run) out.push(run);
+		run = "";
+		out.push(p);
+	}
+	if (run) out.push(run);
+	return out;
+}
+
+// the first blocked name word in longer text, if any
+export function blockedWordIn(...texts: string[]): string | undefined {
+	const words = settings().operations.blocked_names.filter((w) => /\p{L}/u.test(normalizeName(w)));
+	if (!words.length) return undefined;
+	const all = texts.flatMap(wordsOf);
+	return words.find((w) => {
+		const re = wordPattern(normalizeName(w));
+		return all.some((t) => re.test(t));
+	});
+}
+
+// text anyone may write that staff don't want on the instance: a blocked
+// phrase, or a blocked name word read word by word
+export const forbiddenText = (...texts: string[]) => texts.some((t) => hasBlockedPhrase(t)) || !!blockedWordIn(...texts);
 
 // An account that took a blocked name: suspended and signed out everywhere,
 // with a line in the audit log. Staff are left alone (the caller refuses).

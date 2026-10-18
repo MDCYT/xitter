@@ -2,6 +2,7 @@ import type { User } from "./auth";
 import { sql } from "./db";
 import { newId } from "./ids";
 import { hasBlockedPhrase } from "./settings";
+import { postLimitFor, weightedLength } from "./textlen";
 import type { PostRow } from "./model";
 import { articlesByIds } from "./articles";
 import { blockedFor, hasMutedWord, isBlockedEitherWay, mutedFor, outOfView, protectedFor, suspendedFor } from "./blocks";
@@ -11,10 +12,12 @@ import { webSource } from "./platforms";
 import { pollCard, pollsByIds } from "./polls";
 import { toUser, userCols, usersByIds } from "./users";
 
-export const MAX_POST_LENGTH = 280;
 // @name, not preceded by a word character (so e-mail addresses do not count)
 export const MENTION = /(?<![\w@])@(\w{1,15})/g;
 const NO_LIMIT = "9223372036854775807";
+
+// accounts whose likes, reposts and replies no longer count for anyone
+const SUSPENDED = sql`(select id from users where status = 'suspended')`;
 
 // every post query starts from this; callers append where/order/limit
 const select = (viewerId: string) => sql`
@@ -29,11 +32,11 @@ const select = (viewerId: string) => sql`
 		ru.id as reply_user_id, ru.screen_name as reply_screen_name,
 		${userCols(viewerId)},
 		-- staff can set the shown counts (admin panel); the lists behind them stay real
-		coalesce((p.count_overrides->>'likes')::int, (select count(*)::int from likes x where x.post_id = p.id)) as like_count,
-		coalesce((p.count_overrides->>'reposts')::int, (select count(*)::int from reposts x where x.post_id = p.id)) as repost_count,
+		coalesce((p.count_overrides->>'likes')::int, (select count(*)::int from likes x where x.post_id = p.id and x.user_id not in ${SUSPENDED})) as like_count,
+		coalesce((p.count_overrides->>'reposts')::int, (select count(*)::int from reposts x where x.post_id = p.id and x.user_id not in ${SUSPENDED})) as repost_count,
 		coalesce((p.count_overrides->>'bookmarks')::int, (select count(*)::int from bookmarks x where x.post_id = p.id)) as bookmark_count,
-		coalesce((p.count_overrides->>'replies')::int, (select count(*)::int from posts x where x.reply_to_id = p.id)) as reply_count,
-		coalesce((p.count_overrides->>'quotes')::int, (select count(*)::int from posts x where x.quote_id = p.id)) as quote_count,
+		coalesce((p.count_overrides->>'replies')::int, (select count(*)::int from posts x where x.reply_to_id = p.id and x.user_id not in ${SUSPENDED})) as reply_count,
+		coalesce((p.count_overrides->>'quotes')::int, (select count(*)::int from posts x where x.quote_id = p.id and x.user_id not in ${SUSPENDED})) as quote_count,
 		coalesce((p.count_overrides->>'views')::int, (select count(*)::int from post_views x where x.post_id = p.id)) as view_count,
 		p.notice,
 		exists (select 1 from likes x where x.post_id = p.id and x.user_id = ${viewerId}::bigint) as liked,
@@ -41,7 +44,7 @@ const select = (viewerId: string) => sql`
 		exists (select 1 from bookmarks x where x.post_id = p.id and x.user_id = ${viewerId}::bigint) as bookmarked
 	from posts p
 	join users u on u.id = p.user_id and (not p.hidden or exists (select 1 from users staff where staff.id = ${viewerId}::bigint and staff.role is not null))
-		and u.id not in ${protectedFor(viewerId)}
+		and u.id not in ${protectedFor(viewerId)} and u.id not in ${suspendedFor(viewerId)}
 	left join posts rp on rp.id = p.reply_to_id
 	left join users ru on ru.id = rp.user_id`;
 
@@ -149,10 +152,17 @@ const MAX_EDITS = 5;
 
 // Text changes only; media, replies and quotes stay as posted. The post keeps its
 // id and what it said before goes to post_versions.
+// the author's limit goes by their badge (textlen.ts, Admin > Settings)
+export async function checkLength(userId: string, text: string) {
+	const [u] = await sql`select verified_type from users where id = ${userId}::bigint`;
+	const limit = postLimitFor(u?.verified_type);
+	if (weightedLength(text) > limit) throw new PostError(`Posts are limited to ${limit.toLocaleString("en-US")} characters.`, 186);
+}
+
 export async function editPost(userId: string, postId: string, text: string): Promise<void> {
 	if (hasBlockedPhrase(text)) throw new PostError("Your post contains a phrase this instance doesn't allow.", 186);
 	if (!text.trim()) throw new PostError("Your post is empty.", 170);
-	if ([...text].length > MAX_POST_LENGTH) throw new PostError(`Posts are limited to ${MAX_POST_LENGTH} characters.`, 186);
+	await checkLength(userId, text);
 	const [post] = await sql`select p.id::text, p.text, p.created_at, p.edit_count, p.edited_at, u.status,
 			exists (select 1 from users x where x.id = p.user_id and x.pinned_post_id = p.id) as pinned
 		from posts p join users u on u.id = p.user_id where p.id = ${postId}::bigint and p.user_id = ${userId}::bigint`;
@@ -173,7 +183,18 @@ export async function editPost(userId: string, postId: string, text: string): Pr
 }
 
 export async function getPost(viewerId: string, id: string): Promise<PostRow | undefined> {
-	return (await postsByIds(viewerId, [id])).get(id);
+	const post = (await postsByIds(viewerId, [id])).get(id);
+	if (post) return post;
+	const original = await originalPostId(id);
+	return original === id ? undefined : (await postsByIds(viewerId, [original])).get(original);
+}
+
+// X's client acts on a repost by the repost's own id (like, bookmark, repost,
+// open); X takes it as the post that was reposted. Ids never collide: posts
+// and reposts draw from the same generator.
+export async function originalPostId(id: string): Promise<string> {
+	const [r] = await sql`select post_id::text from reposts where id = ${id}::bigint`;
+	return r?.post_id ?? id;
 }
 
 // One entry of a timeline: a post, or someone's repost of it. Reposts have
@@ -282,9 +303,32 @@ export async function ancestors(viewerId: string, replyToId: string): Promise<Po
 }
 
 export async function replies(viewerId: string, id: string, limit = 100): Promise<PostRow[]> {
-	const rows = await sql`${select(viewerId)} where p.reply_to_id = ${id}::bigint and p.user_id not in ${blockedFor(viewerId)} and p.user_id not in ${outOfView(viewerId)}
+	const rows = await sql`${select(viewerId)} where p.reply_to_id = ${id}::bigint and p.reply_hidden_at is null
+		and p.user_id not in ${blockedFor(viewerId)} and p.user_id not in ${outOfView(viewerId)}
 		and not ${hasMutedWord(viewerId, "tweet_replies", sql`p.id`)} order by p.id asc limit ${limit}`;
 	return hydrate(viewerId, rows.map(toRow));
+}
+
+// Hide reply: only the author of the conversation's first post may hide a
+// reply in it, or show it again.
+export async function setReplyHidden(viewerId: string, replyId: string, hidden: boolean): Promise<void> {
+	const [r] = await sql`select root.user_id::text as root_author from posts p join posts root on root.id = p.conversation_id
+		where p.id = ${replyId}::bigint and p.reply_to_id is not null`;
+	if (!r) throw new PostError("No status found with that ID.", 144);
+	if (r.root_author !== viewerId) throw new PostError("Only the author of the conversation can hide replies.", 200);
+	await sql`update posts set reply_hidden_at = ${hidden ? sql`now()` : null} where id = ${replyId}::bigint`;
+}
+
+// what the "Hidden replies" page lists, newest hidden first
+export async function hiddenReplies(viewerId: string, rootId: string, limit = 100): Promise<PostRow[]> {
+	const rows = await sql`${select(viewerId)} where p.conversation_id = ${rootId}::bigint and p.reply_hidden_at is not null
+		and p.user_id not in ${blockedFor(viewerId)} and p.user_id not in ${outOfView(viewerId)} order by p.reply_hidden_at desc limit ${limit}`;
+	return hydrate(viewerId, rows.map(toRow));
+}
+
+export async function hasHiddenReplies(rootId: string): Promise<boolean> {
+	const [r] = await sql`select 1 from posts where conversation_id = ${rootId}::bigint and reply_hidden_at is not null limit 1`;
+	return !!r;
 }
 
 export async function bookmarkedPosts(viewerId: string, limit = 100): Promise<PostRow[]> {
@@ -331,6 +375,7 @@ export async function createPost(userId: string, text: string, opts: { replyToId
 	if (hasBlockedPhrase(text)) throw new PostError("Your post contains a phrase this instance doesn't allow.", 186);
 	const [author] = await sql`select status from users where id = ${userId}::bigint`;
 	if (author?.status === "restricted") throw new PostError("Your account can't post right now.", 326);
+	await checkLength(userId, text);
 	const id = newId();
 	let conversationId = id;
 	if (opts.replyToId) {
@@ -403,6 +448,7 @@ export async function pinnedReplyOf(postId: string): Promise<string | null> {
 type Mark = "likes" | "bookmarks";
 
 export async function setMark(table: Mark, userId: string, postId: string, on: boolean) {
+	postId = await originalPostId(postId);
 	// a deleted post, or one this account can't see (blocked, protected,
 	// hidden): X's "not found", not a database error
 	if (on && !(await getPost(userId, postId))) throw new PostError("No status found with that ID.", 144);
@@ -416,6 +462,7 @@ export async function setMark(table: Mark, userId: string, postId: string, on: b
 }
 
 export async function repost(userId: string, postId: string): Promise<string> {
+	postId = await originalPostId(postId);
 	// a protected account's posts can't be passed on
 	const [owner] = await sql`select u.protected, u.id::text as owner from posts p join users u on u.id = p.user_id where p.id = ${postId}::bigint`;
 	if (!owner || !(await getPost(userId, postId))) throw new PostError("No status found with that ID.", 144);
@@ -427,6 +474,7 @@ export async function repost(userId: string, postId: string): Promise<string> {
 }
 
 export async function unrepost(userId: string, postId: string) {
+	postId = await originalPostId(postId);
 	await sql`delete from reposts where user_id = ${userId}::bigint and post_id = ${postId}::bigint`;
 }
 
