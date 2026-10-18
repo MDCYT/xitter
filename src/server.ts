@@ -350,7 +350,6 @@ async function route(req: Request): Promise<Response | undefined> {
 
 	// signed out: authenticated-only pages redirect to home
 	const isAuthOnly = (path: string) =>
-		path === "/home" ||
 		path === "/notifications" ||
 		path.startsWith("/notifications/") ||
 		path === "/messages" ||

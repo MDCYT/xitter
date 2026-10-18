@@ -140,7 +140,7 @@ const home =
 	const { count, at, newer } = pageOf(vars);
 	const items = await feed({
 		viewerId: viewer.id,
-		authors: following ? { following: true } : { all: true },
+		authors: following && viewer.id !== "0" ? { following: true } : { all: true },
 		replies: false,
 		kinds: "both",
 		limit: count,
@@ -973,6 +973,8 @@ Object.assign(handlers, analyticsHandlers);
 export const knownOperation = (name: string) => name in handlers;
 
 export const GUEST_ALLOWED_GQL = new Set([
+	"HomeTimeline",
+	"HomeLatestTimeline",
 	"TweetDetail",
 	"TweetResultByRestId",
 	"TweetResultsByRestIds",
@@ -997,6 +999,8 @@ export const GUEST_ALLOWED_GQL = new Set([
 	"SearchTimeline",
 	"ExplorePage",
 	"ExploreSidebar",
+	"SidebarUserRecommendations",
+	"ConnectTabTimeline",
 	"TopicByRestId",
 	"TopicToFollowSidebar",
 	"Retweeters",
