@@ -209,13 +209,28 @@ export const TIDY_SCRIPT = `(function(){
 			row.parentNode.insertBefore(box,row);
 		});
 	}
-	// the client opens links outside x.com in a new tab; our own pages outside
-	// the app (messages from staff) open in this one
+	// the client opens links outside x.com in a new tab; same-origin pages
+	// (staff messages, rules, local profiles) stay in this one
 	var open=window.open;
 	window.open=function(u){
-		try{var a=new URL(u,location.href);if(a.origin===location.origin&&a.pathname.indexOf("/account/")===0){location.assign(a.href);return null}}catch(e){}
+		try{var a=new URL(u,location.href);if(a.origin===location.origin){location.assign(a.href);return null}}catch(e){}
 		return open.apply(window,arguments);
 	};
+	document.addEventListener("click",function(e){
+		var a=e.target;
+		while(a&&a!==document.body){
+			if(a.tagName==="A"&&a.href){
+				try{
+					var u=new URL(a.href,location.href);
+					if(u.origin===location.origin&&a.target==="_blank"&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey&&e.button===0){
+						a.removeAttribute("target");
+					}
+				}catch(err){}
+				break;
+			}
+			a=a.parentElement;
+		}
+	},true);
 	// the code boxes cut a paste to their length before dropping what isn't a
 	// digit, so "1234-5678" would lose its last digit: paste only the digits
 	document.addEventListener("paste",function(e){

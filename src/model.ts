@@ -49,7 +49,7 @@ function verificationInfo(u: User) {
 	if (!isVerified(u)) return { is_identity_verified: false };
 	const instance = settings().instance_name;
 	const parts: (string | { text: string; url: string })[] = u.org
-		? ["This account is Premium because it’s an affiliate of ", { text: `@${u.org.screen_name}`, url: `https://x.com/${u.org.screen_name}` }, ` on ${instance}. `]
+		? ["This account is Premium because it’s an affiliate of ", { text: `@${u.org.screen_name}`, url: `${PUBLIC_ORIGIN}/${u.org.screen_name}` }, ` on ${instance}. `]
 		: u.verified_type === "business"
 			? [`This account is verified because it’s an organisation on ${instance}. `]
 			: u.verified_type === "government"
@@ -111,7 +111,7 @@ function badgeLabel(u: User) {
 		label: {
 			badge: { url: first.url },
 			description: first.description,
-			...(first.org ? { url: { url: `twitter://user?screen_name=${first.org}`, urlType: "DeepLink" } } : {}),
+			...(first.org ? { url: { url: `/${first.org}`, urlType: "ExternalUrl" } } : {}),
 			userLabelType: "BusinessLabel",
 			userLabelDisplayType: "Badge",
 		},
