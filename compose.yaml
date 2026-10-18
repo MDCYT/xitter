@@ -1,0 +1,55 @@
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-xitter}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Please set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-xitter}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-xitter} -d ${POSTGRES_DB:-xitter}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - xitter-net
+
+  xitter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: 3000
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-https://x.glitchprod.xyz}
+      DATABASE_URL: postgres://${POSTGRES_USER:-xitter}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-xitter}
+      ADMIN_ANY_IP: ${ADMIN_ANY_IP:-1}
+      SOURCE_URL: ${SOURCE_URL:-https://github.com/MDCYT/xitter}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      KLIPY_API_KEY: ${KLIPY_API_KEY:-}
+      LOG_REQUESTS: ${LOG_REQUESTS:-}
+      RATE_LIMITS: ${RATE_LIMITS:-}
+    ports:
+      - "${BIND_IP:-127.0.0.1}:${PORT_HOST:-3005}:3000"
+    volumes:
+      - xitter_client:/app/client
+      - xitter_media:/app/media
+      - xitter_data:/app/data
+    networks:
+      - xitter-net
+
+volumes:
+  postgres_data:
+  xitter_client:
+  xitter_media:
+  xitter_data:
+
+networks:
+  xitter-net:
+    driver: bridge
