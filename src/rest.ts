@@ -371,6 +371,7 @@ export async function restRoute(method: string, path: string, viewer: Viewer, re
 	if (path === "/fleets/v1/avatar_content") return Response.json({ users: {}, refresh_delay_secs: 0 });
 	if (path === "/1.1/friends/following/list.json") return Response.json(EMPTY_LIST);
 	if (path === "/1.1/live_pipeline/update_subscriptions") return Response.json({ subscriptions: { errors: [] } });
+	if (path === "/1.1/onboarding/sso_init.json") return Response.json({ status: "success", state: "guest" });
 	if (path.endsWith("/p2"))
 		return Response.json({ totalEvents: 0, eventsFailed: 0, shouldRetry: false, retryAfterMs: null, eventsFailedSequenceNumbers: null, message: null });
 	if (TELEMETRY.test(path)) return Response.json({});

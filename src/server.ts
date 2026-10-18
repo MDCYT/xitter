@@ -152,6 +152,7 @@ const GUEST_ALLOWED_REST = new Set([
 	"/1.1/live_pipeline/update_subscriptions",
 	"/1.1/mutes/keywords/discouraged.json",
 	"/1.1/mutes/advanced_filters.json",
+	"/1.1/onboarding/sso_init.json",
 	"/xitter/badges",
 	"/xitter/gif",
 	"/xitter/stickers",
