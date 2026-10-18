@@ -274,20 +274,6 @@ export const TIDY_SCRIPT = `(function(){
 		}
 		var input=document.querySelector('input[autocomplete="username"],input[name="username_or_email"]');
 		if(!input)return;
-		var buttons=document.querySelectorAll('button,[role="button"]');
-		var btn=null;
-		for(var i=0;i<buttons.length;i++){
-			var bEl=buttons[i];
-			if(bEl.id==="xitter-explore-btn")continue;
-			if(input.compareDocumentPosition(bEl)&Node.DOCUMENT_POSITION_FOLLOWING){
-				var txt=(bEl.textContent||"").trim();
-				if(txt&&txt.length<30){
-					btn=bEl;
-					break;
-				}
-			}
-		}
-		if(!btn)return;
 		var lang=((document.documentElement&&document.documentElement.lang)||navigator.language||"en").slice(0,2).toLowerCase();
 		var text=EXPLORE_LABELS[lang]||EXPLORE_LABELS.en;
 		var existing=document.querySelector("#xitter-explore-btn");
@@ -295,6 +281,48 @@ export const TIDY_SCRIPT = `(function(){
 			if(existing.textContent!==text)existing.textContent=text;
 			return;
 		}
+		var btn=null;
+		var leaves=document.querySelectorAll("span,div,button");
+		for(var i=0;i<leaves.length;i++){
+			var el=leaves[i];
+			if(el.id==="xitter-explore-btn")continue;
+			if(el.childElementCount===0&&(el.textContent||"").trim().toLowerCase()==="continue"){
+				if(input.compareDocumentPosition(el)&Node.DOCUMENT_POSITION_FOLLOWING){
+					var p=el;
+					while(p.parentElement&&p.parentElement.children.length===1&&p.parentElement!==document.body){
+						p=p.parentElement;
+					}
+					btn=p;
+					break;
+				}
+			}
+		}
+		if(!btn){
+			var buttons=document.querySelectorAll('button,[role="button"]');
+			for(var j=0;j<buttons.length;j++){
+				var bEl=buttons[j];
+				if(bEl.id==="xitter-explore-btn")continue;
+				if(input.compareDocumentPosition(bEl)&Node.DOCUMENT_POSITION_FOLLOWING){
+					var txt=(bEl.textContent||"").trim();
+					if(txt&&txt.length<30){
+						var q=bEl;
+						while(q.parentElement&&q.parentElement.children.length===1&&q.parentElement!==document.body){
+							q=q.parentElement;
+						}
+						btn=q;
+						break;
+					}
+				}
+			}
+		}
+		if(!btn){
+			var inpBox=input;
+			while(inpBox.parentElement&&inpBox.parentElement.children.length===1&&inpBox.parentElement!==document.body){
+				inpBox=inpBox.parentElement;
+			}
+			btn=inpBox;
+		}
+		if(!btn||!btn.parentNode)return;
 		var a=document.createElement("a");
 		a.id="xitter-explore-btn";
 		a.href="/home";
@@ -323,11 +351,7 @@ export const TIDY_SCRIPT = `(function(){
 		a.addEventListener("mouseenter",function(){a.style.backgroundColor=hoverBg});
 		a.addEventListener("mouseleave",function(){a.style.backgroundColor="transparent"});
 		a.addEventListener("click",function(e){e.preventDefault();location.assign("/home")});
-		var target=btn;
-		if(target.parentElement&&target.parentElement.children.length===1&&target.parentElement.parentElement&&target.parentElement.parentElement!==document.body){
-			target=target.parentElement;
-		}
-		target.parentNode.insertBefore(a,target.nextSibling);
+		btn.parentNode.insertBefore(a,btn.nextSibling);
 	}
 	function tidy(){
 		if(location.pathname.indexOf("/i/birdwatch")===0||location.pathname.indexOf("/i/communitynotes")===0)document.querySelectorAll("span").forEach(function(n){
