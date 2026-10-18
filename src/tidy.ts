@@ -277,7 +277,7 @@ export const TIDY_SCRIPT = `(function(){
 		var lang=((document.documentElement&&document.documentElement.lang)||navigator.language||"en").slice(0,2).toLowerCase();
 		var text=EXPLORE_LABELS[lang]||EXPLORE_LABELS.en;
 		var el=null;
-		var leaves=document.querySelectorAll("span,div,button");
+		var leaves=document.querySelectorAll("p,span,div,button,a");
 		for(var i=0;i<leaves.length;i++){
 			var node=leaves[i];
 			if(node.id==="xitter-explore-btn")continue;
@@ -288,23 +288,40 @@ export const TIDY_SCRIPT = `(function(){
 				}
 			}
 		}
-		if(!el)return;
-		var commonAncestor=null;
-		var p=input.parentElement;
-		var inputAncestors=new Set();
-		while(p){inputAncestors.add(p);p=p.parentElement;}
-		var q=el.parentElement;
-		while(q){
-			if(inputAncestors.has(q)){
-				commonAncestor=q;
-				break;
+		var continueBlock=null;
+		if(el){
+			var commonAncestor=null;
+			var p=input.parentElement;
+			var inputAncestors=new Set();
+			while(p){inputAncestors.add(p);p=p.parentElement;}
+			var q=el.parentElement;
+			while(q){
+				if(inputAncestors.has(q)){
+					commonAncestor=q;
+					break;
+				}
+				q=q.parentElement;
 			}
-			q=q.parentElement;
+			if(commonAncestor){
+				var block=el;
+				while(block.parentElement&&block.parentElement!==commonAncestor){
+					block=block.parentElement;
+				}
+				continueBlock=block;
+			}
 		}
-		if(!commonAncestor)return;
-		var continueBlock=el;
-		while(continueBlock.parentElement&&continueBlock.parentElement!==commonAncestor){
-			continueBlock=continueBlock.parentElement;
+		if(!continueBlock){
+			var label=input.closest("label");
+			if(label&&label.parentElement){
+				var sib=label.nextElementSibling;
+				while(sib){
+					if((sib.textContent||"").toLowerCase().indexOf("continue")>=0||sib.querySelector('button,[role="button"]')){
+						continueBlock=sib;
+						break;
+					}
+					sib=sib.nextElementSibling;
+				}
+			}
 		}
 		if(!continueBlock||!continueBlock.parentNode)return;
 		var existing=document.querySelector("#xitter-explore-btn");
