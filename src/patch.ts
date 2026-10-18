@@ -17,7 +17,7 @@ const API_HOSTS = ["api", "upload", "caps", "jf"].flatMap((s) => [`${s}.x.com`, 
 // an address as it appears inside a regular expression literal: /https:\/\/a\.b/
 const inRegex = (url: string) => url.replace(/[/.]/g, (c) => "\\" + c);
 
-export const PATCH_VERSION = "20261018e";
+export const PATCH_VERSION = "20261018f";
 
 const RULES: [RegExp, string][] = [
 	// Chat is a separate app (module federation): its manifest comes from
@@ -114,6 +114,15 @@ const RULES: [RegExp, string][] = [
 	[
 		/fab:\(0,(\w+)\.jsx\)\((\w+)\.A,\{history:(\w+)\}\)/g,
 		'fab:l?null:(0,$1.jsx)($2.A,{history:$3})',
+	],
+	// Hide Following tab on HomeTimeline for logged-out guests (only show For You and All)
+	[
+		/,\{featureSwitches:(\w+)\}=\(0,(\w+)\.Af\)\(\),/g,
+		',{featureSwitches:$1,viewerUserId:_guestHomeUserId}=(0,$2.Af)(),',
+	],
+	[
+		/\bet=r\.useMemo\(\(\)=>(\w+)\.map\((\w+)=>\{let \w+=\w+\(\2\),f="home_latest"!==\2\.timeline\.type/g,
+		'et=r.useMemo(()=>$1.filter($2=>_guestHomeUserId?true:$2.timeline?.type!=="home_latest").map($2=>{let c=h($2),f="home_latest"!==$2.timeline.type',
 	],
 	// Rewrite mobile.twitter.com and m.x.com links to instance origin
 	[

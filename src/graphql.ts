@@ -520,6 +520,12 @@ const handlers: Record<string, Handler> = {
 			viewer: { user_results: { result: { __typename: "User", id: userGlobalId(v.id), legacy_extended_profile: { birthdate: null } } } },
 		},
 	}),
+	fetchDownloadSettingAllowedQuery: async (v: Viewer) => ({
+		data: {
+			user_preferences: { allow_video_downloads: true },
+			viewer: { user_results: { result: { __typename: "User", id: userGlobalId(v?.id ?? "0"), legacy_extended_profile: { birthdate: null } } } },
+		},
+	}),
 	UserSessionsList: async (v: Viewer) => ({
 		data: { viewer: { user_results: { result: { __typename: "User", id: userGlobalId(v.id), sessions_list: await sessionsList(v) } } } },
 	}),
@@ -1116,6 +1122,7 @@ export const GUEST_ALLOWED_GQL = new Set([
 	"CommunityMediaTimeline",
 	"NflScoresSidebarFollow",
 	"SportsLeagueFollow",
+	"fetchDownloadSettingAllowedQuery",
 ]);
 
 // an operation's result as the client would get it, for the public API
