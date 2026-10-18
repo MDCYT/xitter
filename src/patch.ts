@@ -65,6 +65,21 @@ const RULES: [RegExp, string][] = [
 		/(\w+)=(\w+)\.toDataURL\("image\/jpeg",(\w+)\),(\w+)=\1\.split\(";base64,"\)/g,
 		'$1=$2.toDataURL(function(c){try{var p=c.getContext("2d").getImageData(0,0,c.width,c.height).data;for(var i=3;i<p.length;i+=4)if(p[i]<255)return"image/png"}catch(e){}return"image/jpeg"}($2),$3),$4=$1.split(";base64,")',
 	],
+	// Allow logged-out guests to view /home with the HomeTimeline feed instead of redirecting to login landing page
+	[
+		/\(0,(\w+)\.jsx\)\((\w+)\.Route,\{component:(\w+),exact:!0,path:"\/"\},"home_lo"\),\(0,\1\.jsx\)\(\w+\.A,\{exact:!0,from:"\/home",to:"\/"\},"home_redirect_lo"\)/g,
+		'(0,$1.jsx)($2.Route,{component:$3,exact:!0,path:"/"},"home_lo"),(0,$1.jsx)($2.Route,{component:n(188314).P,exact:!0,path:"/home"},"home_timeline_lo")',
+	],
+	// Show Home tab in navigation bar even when logged out
+	[
+		/\btd=localStorage\?\.getItem\("premium_business_nav_indicator_clicked"\),tp=\w+\?\{component:/g,
+		'td=localStorage?.getItem("premium_business_nav_indicator_clicked"),tp=true?{component:',
+	],
+	// Logo link points to /home instead of / when clicked
+	[
+		/\blink:o\|\|\(_\?"\/home":"\/"\)/g,
+		'link:o||"/home"',
+	],
 ];
 
 // Only for the chat app's files: its own list of API hosts, which it sends the
