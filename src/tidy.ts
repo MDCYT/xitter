@@ -249,6 +249,86 @@ export const TIDY_SCRIPT = `(function(){
 		if(nav)document.documentElement.toggleAttribute("data-wide-nav",nav.getBoundingClientRect().width>=180);
 	}
 	window.addEventListener("resize",navWidth);
+	var EXPLORE_LABELS = {
+		es: "Explorar sin registrarse",
+		en: "Explore without an account",
+		pt: "Explorar sem entrar",
+		fr: "Explorer sans compte",
+		de: "Ohne Konto erkunden",
+		it: "Esplora senza account",
+		ja: "アカウントなしで探索",
+		ru: "Продолжить без входа",
+		zh: "免登录浏览",
+		ko: "계정 없이 둘러보기",
+		ar: "استكشف بدون حساب",
+		tr: "Hesap olmadan keşfet",
+		nl: "Verkennen zonder account",
+		pl: "Przeglądaj bez konta",
+		uk: "Перегляд без облікового запису"
+	};
+	function exploreButton(){
+		if(location.pathname!=="/"){
+			var old=document.querySelector("#xitter-explore-btn");
+			if(old)old.remove();
+			return;
+		}
+		var input=document.querySelector('input[autocomplete="username"],input[name="username_or_email"]');
+		if(!input)return;
+		var buttons=document.querySelectorAll('button,[role="button"]');
+		var btn=null;
+		for(var i=0;i<buttons.length;i++){
+			var bEl=buttons[i];
+			if(bEl.id==="xitter-explore-btn")continue;
+			if(input.compareDocumentPosition(bEl)&Node.DOCUMENT_POSITION_FOLLOWING){
+				var txt=(bEl.textContent||"").trim();
+				if(txt&&txt.length<30){
+					btn=bEl;
+					break;
+				}
+			}
+		}
+		if(!btn)return;
+		var lang=((document.documentElement&&document.documentElement.lang)||navigator.language||"en").slice(0,2).toLowerCase();
+		var text=EXPLORE_LABELS[lang]||EXPLORE_LABELS.en;
+		var existing=document.querySelector("#xitter-explore-btn");
+		if(existing){
+			if(existing.textContent!==text)existing.textContent=text;
+			return;
+		}
+		var a=document.createElement("a");
+		a.id="xitter-explore-btn";
+		a.href="/home";
+		a.textContent=text;
+		var isLight=getComputedStyle(document.body).backgroundColor==="rgb(255, 255, 255)";
+		var fg=isLight?"rgb(15, 20, 25)":"rgb(239, 243, 244)";
+		var border=isLight?"1px solid rgb(207, 217, 222)":"1px solid rgb(83, 100, 113)";
+		var hoverBg=isLight?"rgba(15, 20, 25, 0.1)":"rgba(239, 243, 244, 0.1)";
+		a.style.display="flex";
+		a.style.alignItems="center";
+		a.style.justifyContent="center";
+		a.style.marginTop="12px";
+		a.style.marginBottom="12px";
+		a.style.height="40px";
+		a.style.borderRadius="9999px";
+		a.style.border=border;
+		a.style.backgroundColor="transparent";
+		a.style.color=fg;
+		a.style.font="bold 15px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+		a.style.textDecoration="none";
+		a.style.cursor="pointer";
+		a.style.transition="background-color 0.2s, border-color 0.2s";
+		a.style.width="100%";
+		a.style.maxWidth=btn.offsetWidth?btn.offsetWidth+"px":"300px";
+		a.style.boxSizing="border-box";
+		a.addEventListener("mouseenter",function(){a.style.backgroundColor=hoverBg});
+		a.addEventListener("mouseleave",function(){a.style.backgroundColor="transparent"});
+		a.addEventListener("click",function(e){e.preventDefault();location.assign("/home")});
+		var target=btn;
+		if(target.parentElement&&target.parentElement.children.length===1&&target.parentElement.parentElement&&target.parentElement.parentElement!==document.body){
+			target=target.parentElement;
+		}
+		target.parentNode.insertBefore(a,target.nextSibling);
+	}
 	function tidy(){
 		if(location.pathname.indexOf("/i/birdwatch")===0||location.pathname.indexOf("/i/communitynotes")===0)document.querySelectorAll("span").forEach(function(n){
 			if(n.childElementCount)return;
@@ -261,6 +341,7 @@ export const TIDY_SCRIPT = `(function(){
 		menuLinks();
 		navWidth();
 		announce();
+		exploreButton();
 		if(!T.imageGen)document.querySelectorAll('[role="dialog"] button').forEach(function(b){
 			if(b.innerText.trim()!=="Edit Photo")return;
 			var box=b;

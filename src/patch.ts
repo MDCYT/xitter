@@ -98,20 +98,11 @@ const RULES: [RegExp, string][] = [
 	// Hide tweet composer and FAB on HomeTimeline for logged-out guests
 	[
 		/\{featureSwitches:(\w+),isRestrictedSession:(\w+),userClaims:(\w+)\}=\(0,(\w+)\.Af\)\(\)/g,
-		'{featureSwitches:$1,isRestrictedSession:$2,userClaims:$3,viewerUserId:vu}=(0,$4.Af)(),$2=$2||!vu',
+		'{featureSwitches:$1,isRestrictedSession:_$2,userClaims:$3,viewerUserId:_viewerId}=(0,$4.Af)(),$2=_$2||!_viewerId',
 	],
 	[
 		/fab:\(0,(\w+)\.jsx\)\((\w+)\.A,\{history:(\w+)\}\)/g,
 		'fab:l?null:(0,$1.jsx)($2.A,{history:$3})',
-	],
-	// Add "Explorar sin registrarse" button on landing page (bundle.LoggedOutHome)
-	[
-		/\(0,(\w+)\.jsx\)\((\w+)\.Ay,\{link:\{pathname:"\/login",query:this\.props\.location\?\.query\},onPress:this\._handleLoginButton,size:"medium",style:\[(\w+),"tablet"===(\w+)&&(\w+)\.ctaButtonSplitSpacing,\5\.ssoButtonStyles\],testID:(\w+),type:"primaryOutlined",children:(\w+)\}\)/g,
-		'$&,(0,$1.jsx)($2.Ay,{link:{pathname:"/home"},size:"medium",style:[$3,"tablet"===$4&&$5.ctaButtonSplitSpacing,$5.ssoButtonStyles,{marginTop:12}],type:"primaryOutlined",children:"Explorar sin registrarse"})',
-	],
-	[
-		/\(0,(\w+)\.jsx\)\((\w+)\.Ay,\{fontWeight:"medium",link:\{pathname:"\/login",query:this\.props\.location\?\.query\},onPress:this\._handleLoginButton,style:\[(\w+),"tablet"===(\w+)&&(\w+)\.ctaButtonSplitSpacing,\5\.ssoButtonStyles,\5\.redesignedSSOButtonStyles,\5\.redesignedSignInButton\],testID:(\w+),type:"primaryFilled",children:(\w+)\}\)/g,
-		'$&,(0,$1.jsx)($2.Ay,{fontWeight:"medium",link:{pathname:"/home"},style:[$3,"tablet"===$4&&$5.ctaButtonSplitSpacing,$5.ssoButtonStyles,$5.redesignedSSOButtonStyles,{marginTop:12}],type:"primaryOutlined",children:"Explorar sin registrarse"})',
 	],
 ];
 
