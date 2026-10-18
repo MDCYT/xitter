@@ -83,10 +83,10 @@ async function servePublic(p: string): Promise<Response> {
 	if (!/^[\w.-]+\.(png|svg|ico|webp)$/.test(name)) return new Response("not found", { status: 404 });
 	// a logo uploaded in the admin panel replaces the shipped one
 	const uploaded = brandingFile(name);
-	if (uploaded && (await uploaded.file.exists())) return new Response(uploaded.file, { headers: { "content-type": uploaded.type, "cache-control": "no-cache" } });
+	if (uploaded && (await uploaded.file.exists())) return new Response(uploaded.file, { headers: { "content-type": uploaded.type, "cache-control": "public, max-age=86400, stale-while-revalidate=604800" } });
 	const file = Bun.file(`${PUBLIC_DIR}/${name}`);
 	if (!(await file.exists())) return new Response("not found", { status: 404 });
-	return new Response(file, { headers: { "cache-control": "no-cache" } });
+	return new Response(file, { headers: { "cache-control": "public, max-age=86400, stale-while-revalidate=604800" } });
 }
 
 const API_PREFIX = /^\/(i\/api\/|i\/jfapi\/|i\/media\/|1\.1\/|2\/|graphql\/|fleets\/|live_pipeline\/)/;
@@ -133,7 +133,11 @@ async function serveClient(req: Request, pathname: string): Promise<Response> {
 		etags.set(body, etag);
 	}
 	if (req.headers.get("if-none-match") === etag) return new Response(null, { status: 304, headers: { etag } });
-	return new Response(new Uint8Array(body), { headers: { "content-type": type, "cache-control": "no-cache, no-store, must-revalidate", "pragma": "no-cache", etag } });
+	const hasVersion = req.url.includes("?v=") || req.url.includes("&v=");
+	const cacheControl = hasVersion
+		? "public, max-age=2592000, immutable"
+		: "public, max-age=3600, must-revalidate";
+	return new Response(new Uint8Array(body), { headers: { "content-type": type, "cache-control": cacheControl, etag } });
 }
 
 const MAX_API_BODY = 2 * 1024 * 1024;

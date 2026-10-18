@@ -17,7 +17,7 @@ const API_HOSTS = ["api", "upload", "caps", "jf"].flatMap((s) => [`${s}.x.com`, 
 // an address as it appears inside a regular expression literal: /https:\/\/a\.b/
 const inRegex = (url: string) => url.replace(/[/.]/g, (c) => "\\" + c);
 
-export const PATCH_VERSION = "20261018d";
+export const PATCH_VERSION = "20261018e";
 
 const RULES: [RegExp, string][] = [
 	// Chat is a separate app (module federation): its manifest comes from
