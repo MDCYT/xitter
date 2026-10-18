@@ -165,6 +165,7 @@ async function serveApi(req: Request, url: URL, viewer: Viewer | undefined): Pro
 
 	const path = url.pathname.replace(/^\/i\/(jf)?api/, "");
 	const parts = path.split("/").filter(Boolean);
+	const gql = parts.indexOf("graphql");
 	const operation = gql >= 0 ? parts[parts.length - 1] : undefined;
 
 	if (!viewer) {
