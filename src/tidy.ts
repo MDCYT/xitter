@@ -339,10 +339,34 @@ export const TIDY_SCRIPT = `(function(){
 			if(old)old.remove();
 			return;
 		}
-		var input=document.querySelector('input[autocomplete="username"],input[name="username_or_email"]');
-		if(!input)return;
 		var lang=((document.documentElement&&document.documentElement.lang)||navigator.language||"en").slice(0,2).toLowerCase();
 		var text=EXPLORE_LABELS[lang]||EXPLORE_LABELS.en;
+		var input=document.querySelector('input[autocomplete="username"],input[name="username_or_email"]');
+		if(!input){
+			var mobileSignIn=document.querySelector('a[href*="/i/flow/login"]');
+			if(mobileSignIn&&!document.querySelector('a[href="/home"]')&&!document.querySelector("#xitter-explore-btn")){
+				var mBtn=document.createElement("a");
+				mBtn.id="xitter-explore-btn";
+				mBtn.href="/home";
+				mBtn.textContent=text;
+				mBtn.style.display="flex";
+				mBtn.style.alignItems="center";
+				mBtn.style.justifyContent="center";
+				mBtn.style.margin="12px 0";
+				mBtn.style.height="44px";
+				mBtn.style.borderRadius="9999px";
+				mBtn.style.backgroundColor="#fff";
+				mBtn.style.color="#000";
+				mBtn.style.font="bold 15px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+				mBtn.style.textDecoration="none";
+				mBtn.style.width="100%";
+				mBtn.style.maxWidth="300px";
+				mBtn.style.boxSizing="border-box";
+				mBtn.addEventListener("click",function(e){e.preventDefault();location.assign("/home")});
+				mobileSignIn.parentElement.insertBefore(mBtn,mobileSignIn);
+			}
+			return;
+		}
 		var el=null;
 		var leaves=document.querySelectorAll("p,span,div,button,a");
 		for(var i=0;i<leaves.length;i++){

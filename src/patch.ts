@@ -17,7 +17,7 @@ const API_HOSTS = ["api", "upload", "caps", "jf"].flatMap((s) => [`${s}.x.com`, 
 // an address as it appears inside a regular expression literal: /https:\/\/a\.b/
 const inRegex = (url: string) => url.replace(/[/.]/g, (c) => "\\" + c);
 
-export const PATCH_VERSION = "20261018h";
+export const PATCH_VERSION = "20261018i";
 
 const RULES: [RegExp, string][] = [
 	// Chat is a separate app (module federation): its manifest comes from
@@ -153,6 +153,25 @@ const RULES: [RegExp, string][] = [
 	[
 		/\bsetLocation\(e\)\{document\.location=e\}/g,
 		'setLocation(e){if(!e||e.startsWith("twitter:")||e.startsWith("market:")||e.includes("apple.com")||e.includes("redirect.x.com"))return;document.location=e}',
+	],
+	// Disable goToAppStore and openApp across client bundles
+	[
+		/goToAppStore\(\w*,\w*\)\{[^}]*\},openApp\(\w*=[^)]*\)\{[^}]*\}/g,
+		'goToAppStore(){},openApp(){}',
+	],
+	// Disable mobile navigation drawer app download banner (Never miss what\'s happening)
+	[
+		/,(\w+)=\(0,\w+\.SF\)\("rweb_dash_menu_app_redirect_footer_enabled"\)/g,
+		',$1=false',
+	],
+	// Replace "Get the app" on mobile logged-out landing page with "Explore without an account" linking to /home
+	[
+		/icon:\w+\.Ay\.isIOS\(\)\?\(0,\w+\.jsx\)\(\w+\.default,\{\}\):void 0,onPress:\(\)=>\w+\.A\.goToAppStore\(\w+\),/g,
+		'link:{pathname:"/home"},',
+	],
+	[
+		/\bZ=\w+\(\)\.d8cb989e\b/g,
+		'Z=((e)=>({es:"Explorar sin registrarse",pt:"Explorar sem entrar",fr:"Explorer sans compte",de:"Ohne Konto erkunden",it:"Esplora senza account",ja:"アカウントなしで探索",ru:"Продолжить без входа",zh:"免登录浏览"}[e]||"Explore without an account"))((document.documentElement&&document.documentElement.lang||navigator.language||"en").slice(0,2).toLowerCase())',
 	],
 	// Append patch version to dynamic chunk loading in Webpack runtime
 	[

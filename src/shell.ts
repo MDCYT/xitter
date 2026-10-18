@@ -129,6 +129,8 @@ const ownSwitches = (): Record<string, { value: unknown }> => ({
 	responsive_web_service_worker_update_toast_interval_hours: { value: 168 },
 	// on, it drops every post label but reposts, pins and communities, topics included
 	rweb_home_mixer_enable_social_context_filter_social_contexts: { value: false },
+	// mobile navigation drawer app download banner (Never miss what's happening)
+	rweb_dash_menu_app_redirect_footer_enabled: { value: false },
 	// the captured "see_more" links a topic label to a topic page this client no
 	// longer has; any other value gives the label an inline Follow button instead
 	topics_context_controls_followed_variation: { value: "follow_button" },
