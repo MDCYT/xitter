@@ -1028,6 +1028,8 @@ export const GUEST_ALLOWED_GQL = new Set([
 	"CommunityTweetsTimeline",
 	"CommunityTweetsRankedTimeline",
 	"CommunityMediaTimeline",
+	"NflScoresSidebarFollow",
+	"SportsLeagueFollow",
 ]);
 
 // an operation's result as the client would get it, for the public API

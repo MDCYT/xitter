@@ -90,6 +90,11 @@ const RULES: [RegExp, string][] = [
 		/:\(0,(\w+)\.jsx\)\((\w+)\.A,\{to:(\w+)\((\w+)\.location\)\}\)\}n\.d\((\w+),\["v",0,/g,
 		':$4.location?.pathname==="/home"?(0,$1.jsx)(t,{...$4}):(0,$1.jsx)($2.A,{to:$3($4.location)})}n.d($5,["v",0,',
 	],
+	// RichHomeTimeline: allow logged-out guests without viewerUserId
+	[
+		/if\(!(\w+)\)throw (?:new )?Error\("RichHomeTimeline: useModule requires a viewerUserId"\);/g,
+		'if(!$1)$1="0";',
+	],
 ];
 
 // Only for the chat app's files: its own list of API hosts, which it sends the
