@@ -104,6 +104,21 @@ const RULES: [RegExp, string][] = [
 		/fab:\(0,(\w+)\.jsx\)\((\w+)\.A,\{history:(\w+)\}\)/g,
 		'fab:l?null:(0,$1.jsx)($2.A,{history:$3})',
 	],
+	// Rewrite mobile.twitter.com and m.x.com links to instance origin
+	[
+		/https:\/\/(?:m|mobile)\.(?:x|twitter)\.com(?=["'`$/?#])/g,
+		PUBLIC_ORIGIN,
+	],
+	// Disable mobile app upsell covers (ProfileCover "See full profile", PostModal, CommunityCover, ListCover) and bottom banner ("See more on X", "Get the app")
+	[
+		/,827425\((\w+),(\w+),(\w+)\)\{(?:"use strict";)?\3\.d\(\2,\{V:\(\)=>\w+\}\)/g,
+		',827425($1,$2,$3){$3.d($2,{V:()=>()=>null})',
+	],
+	// Top nav on mobile: show Sign up instead of Open app button
+	[
+		/\bo=\w+\.Ay\.isAndroid\(\)\|\|\w+\.Ay\.isIOS\(\)/g,
+		'o=!1',
+	],
 ];
 
 // Only for the chat app's files: its own list of API hosts, which it sends the
