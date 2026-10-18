@@ -37,7 +37,7 @@ export class SignupError extends Error {}
 // for the check while typing: same rules as signUp below
 export async function usernameState(raw: string): Promise<"available" | "taken" | "invalid"> {
 	const screenName = raw.trim().replace(/^@/, "");
-	if (!/^[A-Za-z0-9_]{4,15}$/.test(screenName)) return "invalid";
+	if (!/^[A-Za-z0-9_]{1,15}$/.test(screenName)) return "invalid";
 	if (RESERVED.has(screenName.toLowerCase())) return "taken";
 	const [taken] = await sql`select 1 from users where lower(screen_name) = lower(${screenName})`;
 	return taken ? "taken" : "available";
@@ -54,7 +54,7 @@ export async function checkSignup(f: SignupForm) {
 	if (!EMAIL.test(email) || email.length > 254) throw new SignupError("Enter a valid email address.");
 	const screenName = f.screenName.trim().replace(/^@/, "");
 	const name = f.name.trim() || screenName;
-	if (!/^[A-Za-z0-9_]{4,15}$/.test(screenName)) throw new SignupError("Usernames are 4 to 15 letters, digits or underscores.");
+	if (!/^[A-Za-z0-9_]{1,15}$/.test(screenName)) throw new SignupError("Usernames are 1 to 15 letters, digits or underscores.");
 	if (RESERVED.has(screenName.toLowerCase())) throw new SignupError("That username is reserved.");
 	// a blocked word in the handle or name (names.ts): no account at all
 	if (blockedNameIn(screenName, name)) throw new SignupError("That username isn't allowed here.");

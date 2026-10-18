@@ -63,6 +63,19 @@ function codeLength(messages: Message[], length: number): Message[] {
 	return without(messages, ["Didn't receive a code? Retry in  "], 25739);
 }
 
+function replaceKey(obj: any, from: string, to: string): any {
+	if (Array.isArray(obj)) return obj.map((x) => replaceKey(x, from, to));
+	if (obj && typeof obj === "object" && typeof obj !== "bigint") {
+		const out: any = {};
+		for (const [k, v] of Object.entries(obj)) {
+			if (k === "key" && v === from) out[k] = to;
+			else out[k] = replaceKey(v, from, to);
+		}
+		return out;
+	}
+	return obj;
+}
+
 // The setup screen has name, username and password. Email goes under the name:
 // a copy of the name block (label, input, error slot) with its texts changed.
 function withEmailField(messages: Message[]): Message[] {
@@ -85,6 +98,12 @@ function withEmailField(messages: Message[]): Message[] {
 			if (t !== undefined && t in swap) {
 				root.props.push([0, swap[t]]);
 				props.set(k, root.props.length - 1);
+			} else if (root.props[p]) {
+				const replaced = replaceKey(root.props[p], "name", "email");
+				if (JSON.stringify(replaced, (_, v) => (typeof v === "bigint" ? v.toString() : v)) !== JSON.stringify(root.props[p], (_, v) => (typeof v === "bigint" ? v.toString() : v))) {
+					root.props.push(replaced);
+					props.set(k, root.props.length - 1);
+				}
 			}
 		}
 		const fresh = { ...old, props, children: [] as number[] };
@@ -97,6 +116,11 @@ function withEmailField(messages: Message[]): Message[] {
 	const at = copy(block);
 	const siblings = root.els[holder].children;
 	siblings.splice(siblings.indexOf(block) + 1, 0, at);
+	for (const p of root.props) {
+		if (p[0] === 30 && p[1][1] instanceof Map && !p[1][1].has("email")) {
+			p[1][1].set("email", "");
+		}
+	}
 	return messages;
 }
 
