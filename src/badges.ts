@@ -34,29 +34,49 @@ export const BADGES_SCRIPT = String.raw`(function(){
 		var spans=box.querySelectorAll("span");
 		for(var i=0;i<spans.length;i++){var m=/^@([^\s\/\?#@%,:]{1,50})$/.exec(spans[i].textContent);if(m)return m[1].toLowerCase()}
 		// a profile's top bar has the name but no handle: the page's address does
-		if(box.tagName==="H2"&&box.querySelector('div[style*="height: calc(1.0625em)"]')){var p=/^\/([^\/?#]{1,150})(?:\/|$)/.exec(location.pathname);if(p)try{return decodeURIComponent(p[1]).toLowerCase()}catch(e){}}
+		if(box.tagName==="H2"&&box.querySelector('div[style*="height: calc(1.0625em)"]')){
+			var p=/^\/([^\/?#]{1,150})(?:\/|$)/.exec(location.pathname);
+			if(p&&!/^(home|explore|notifications|messages|bookmarks|settings|search|i)$/i.test(p[1]))try{return decodeURIComponent(p[1]).toLowerCase()}catch(e){}
+		}
+	}
+	function getBadges(box){
+		var list=[].slice.call(box.querySelectorAll("[data-xitter-badges]"));
+		var slot=box.querySelector('div[style*="height: calc(1.0625em)"]');
+		if(slot&&slot.parentElement&&slot.parentElement.nextElementSibling&&slot.parentElement.nextElementSibling.hasAttribute("data-xitter-badges")){
+			var sib=slot.parentElement.nextElementSibling;
+			if(list.indexOf(sib)===-1)list.push(sib);
+		}
+		return list;
+	}
+	function cleanup(box,name){
+		getBadges(box).forEach(function(el){
+			if(el.getAttribute("data-xitter-badges")!==name)el.remove();
+		});
 	}
 	function draw(box,name){
+		cleanup(box,name);
 		var k=known[name];
+		if(!k)return;
 		// the translator globe X draws (its label is the client's "Translator account")
 		if(k.gold)box.querySelectorAll('svg[aria-label="Translator account"]').forEach(function(g){g.style.setProperty("color","#d4a72c","important")});
-		if(!k.badges.length)return;
+		if(!k.badges||!k.badges.length)return;
+		var existing=getBadges(box);
+		if(existing.length&&existing[0].getAttribute("data-xitter-badges")===name)return;
+
 		// X's own badge: a square box sized to the text, after the name
 		var slot=box.querySelector('div[style*="height: calc(1.0625em)"]');
 		var holder,inside;
 		if(slot){
 			holder=slot.parentElement;
-			var old=holder.nextElementSibling;
-			if(old&&old.hasAttribute("data-xitter-badges"))return;
 		}else{
 			// no check and the slot taken by a label (automated, parody, staff-made):
 			// X draws no badge box, so the badges go at the end of the name itself
 			var nameDiv=box.querySelector('div[dir="ltr"]');
 			inside=nameDiv&&nameDiv.firstElementChild;
-			if(!inside||inside.querySelector("[data-xitter-badges]"))return;
+			if(!inside)return;
 		}
 		var row=document.createElement("span");
-		row.setAttribute("data-xitter-badges","");
+		row.setAttribute("data-xitter-badges",name);
 		row.style.cssText="display:inline-flex;align-items:center;vertical-align:text-bottom";
 		k.badges.forEach(function(b){
 			var img=document.createElement("img");
@@ -70,16 +90,17 @@ export const BADGES_SCRIPT = String.raw`(function(){
 		document.querySelectorAll(SEL).forEach(function(box){
 			var name=handle(box);
 			if(!name)return;
-			if(known[name]){draw(box,name);return}
-			if(known[name]===undefined&&!waiting[name]){waiting[name]=true;queue.push(name)}
+			cleanup(box,name);
+			if(known[name]!==undefined){draw(box,name);return}
+			if(!waiting[name]){waiting[name]=true;queue.push(name)}
 		});
 		if(queue.length)load();
 	}
 	function load(){
 		var names=queue.splice(0,50);
-		fetch("/i/api/xitter/badges?names="+names.join(","),{credentials:"same-origin"})
+		fetch("/i/api/xitter/badges?names="+names.map(encodeURIComponent).join(","),{credentials:"same-origin"})
 			.then(function(r){return r.json()})
-			.then(function(d){names.forEach(function(n){known[n]=d[n]||null;delete waiting[n]});scan()})
+			.then(function(d){names.forEach(function(n){known[n]=d[n]||{badges:[],gold:false};delete waiting[n]});scan()})
 			.catch(function(){names.forEach(function(n){delete waiting[n]})});
 	}
 	new MutationObserver(function(){if(!timer)timer=setTimeout(function(){timer=null;scan()},120)}).observe(document.documentElement,{childList:true,subtree:true});
