@@ -17,6 +17,8 @@ const API_HOSTS = ["api", "upload", "caps", "jf"].flatMap((s) => [`${s}.x.com`, 
 // an address as it appears inside a regular expression literal: /https:\/\/a\.b/
 const inRegex = (url: string) => url.replace(/[/.]/g, (c) => "\\" + c);
 
+export const PATCH_VERSION = "20261018c";
+
 const RULES: [RegExp, string][] = [
 	// Chat is a separate app (module federation): its manifest comes from
 	// chat.x.com, its files from abs.twimg.com, and both are checked by pattern
@@ -145,8 +147,6 @@ const RULES: [RegExp, string][] = [
 		PUBLIC_ORIGIN,
 	],
 ];
-
-export const PATCH_VERSION = "20261018c";
 
 // Only for the chat app's files: its own list of API hosts, which it sends the
 // csrf header to, and the pattern its files' address must match. The same
