@@ -260,7 +260,7 @@ ${STICKER_PICKER_CSS}</style>
 </head><body><div id="react-root" style="height:100%;display:flex;"></div>
 <script>window.__INITIAL_STATE__=${inline(initialState(user, build.featureSwitch, inCommunity, educationFlags))};window.__META_DATA__=${inline(meta)};</script>
 <script>window.__XITTER__=${inline({ ...flagPickerData(user?.flag ?? null), tidy: tidyData(links) })};
-${user ? ERROR_SCRIPT : ""}
+${ERROR_SCRIPT}
 ${TIDY_SCRIPT}
 ${FRESH_SCRIPT}
 ${FORGOT_SCRIPT}

@@ -975,6 +975,8 @@ export const knownOperation = (name: string) => name in handlers;
 export const GUEST_ALLOWED_GQL = new Set([
 	"HomeTimeline",
 	"HomeLatestTimeline",
+	"PinnedTimelines",
+	"PinnableTimelines",
 	"TweetDetail",
 	"TweetResultByRestId",
 	"TweetResultsByRestIds",

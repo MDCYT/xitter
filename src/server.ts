@@ -21,7 +21,7 @@ import { chatMediaRoute, chatSocket, juiceboxProxy, socketUser } from "./chat";
 import { loadBuild } from "./build";
 import { MEDIA_DIR, mediaUpload, serveMedia } from "./media";
 import { resumeVideos } from "./video";
-import { livePipeline, restRoute } from "./rest";
+import { livePipeline, restRoute, TELEMETRY } from "./rest";
 import { shell } from "./shell";
 import { platformSource } from "./platforms";
 import { badgeImage, expireSanctions } from "./moderation";
@@ -167,7 +167,7 @@ async function serveApi(req: Request, url: URL, viewer: Viewer | undefined): Pro
 
 	if (!viewer) {
 		const isGuestGql = !!opName && GUEST_ALLOWED_GQL.has(opName);
-		const isGuestRest = GUEST_ALLOWED_REST.has(path) || path === "/live_pipeline/events" || (req.method === "POST" && path === "/xitter/client_error");
+		const isGuestRest = GUEST_ALLOWED_REST.has(path) || TELEMETRY.test(path) || path === "/live_pipeline/events" || (req.method === "POST" && path === "/xitter/client_error");
 		if (isGuestGql || isGuestRest) {
 			viewer = GUEST_VIEWER;
 		} else {
