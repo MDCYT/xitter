@@ -419,7 +419,7 @@ const likes: Handler = async (viewer, vars) => {
 };
 
 const follows =
-	(kind: "following" | "followers" | "verified_followers"): Handler =>
+	(kind: "following" | "followers" | "verified_followers" | "followers_you_follow"): Handler =>
 	async (viewer, vars) => {
 		const users = vars.cursor ? [] : await followList(viewer.id, userId(vars), kind);
 		const base = BigInt(newId());
@@ -747,6 +747,7 @@ const handlers: Record<string, Handler> = {
 	Favoriters: reactors("likes", "favoriters_timeline"),
 	Following: follows("following"),
 	Followers: follows("followers"),
+	FollowersYouKnow: follows("followers_you_follow"),
 	BlueVerifiedFollowers: follows("verified_followers"),
 	UserMedia: userMedia("any"),
 	UserPhotoTimeline: userMedia("photo"),
@@ -1101,6 +1102,7 @@ export const GUEST_ALLOWED_GQL = new Set([
 	"Favoriters",
 	"Following",
 	"Followers",
+	"FollowersYouKnow",
 	"Likes",
 	"DataSaverMode",
 	"SupportedLanguages",

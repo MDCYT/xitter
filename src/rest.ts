@@ -26,7 +26,7 @@ import { exploreSettings, searchLocations, setExploreSettings } from "./explore-
 import { loginHistory } from "./login-history";
 import { emailInfo, resendConfirmation } from "./email-address";
 import { pushSettingsRoute } from "./push";
-import { answerRequest, pendingRequests, setFollow, setProtected, suggestedUsers, updateFriendship, userById, userByName, usersByIds } from "./users";
+import { answerRequest, followersYouFollow, pendingRequests, setFollow, setProtected, suggestedUsers, updateFriendship, userById, userByName, usersByIds } from "./users";
 
 // friendships/show's shape, from the viewer's side (source) and the other account's (target)
 async function relationship(viewer: Viewer, targetId: string) {
@@ -384,7 +384,29 @@ export async function restRoute(method: string, path: string, viewer: Viewer, re
 	if (path === "/1.1/help/settings.json") return Response.json({});
 	if (path === "/fleets/v1/fleetline") return Response.json({ threads: [], hydrated_threads: [], refresh_delay_secs: 300 });
 	if (path === "/fleets/v1/avatar_content") return Response.json({ users: {}, refresh_delay_secs: 0 });
-	if (path === "/1.1/friends/following/list.json") return Response.json(EMPTY_LIST);
+	if (path === "/1.1/friends/following/list.json") {
+		if (method !== "GET" || !isId(viewer.id)) {
+			return Response.json(EMPTY_LIST, { headers: { "cache-control": "no-cache, no-store, must-revalidate" } });
+		}
+		const q = new URL(req.url).searchParams;
+		const targetId = q.get("user_id") || (q.get("screen_name") ? (await userByName(viewer.id, q.get("screen_name")!))?.id : undefined);
+		if (!targetId || !isId(targetId) || targetId === viewer.id) {
+			return Response.json(EMPTY_LIST, { headers: { "cache-control": "no-cache, no-store, must-revalidate" } });
+		}
+		const count = Math.min(Math.max(Number(q.get("count")) || 3, 1), 100);
+		const { users, totalCount } = await followersYouFollow(viewer.id, targetId, count);
+		return Response.json(
+			{
+				users: users.map(legacyUser),
+				next_cursor: 0,
+				next_cursor_str: "0",
+				previous_cursor: 0,
+				previous_cursor_str: "0",
+				total_count: totalCount,
+			},
+			{ headers: { "cache-control": "no-cache, no-store, must-revalidate" } }
+		);
+	}
 	if (path === "/1.1/live_pipeline/update_subscriptions") return Response.json({ subscriptions: { errors: [] } });
 	if (path === "/1.1/onboarding/sso_init.json") return Response.json({ status: "success", state: "guest" });
 	if (path.endsWith("/p2"))

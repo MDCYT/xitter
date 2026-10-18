@@ -235,6 +235,7 @@ export function legacyUser(u: User) {
 	return {
 		name: u.name,
 		screen_name: u.screen_name,
+		id: u.id,
 		id_str: u.id,
 		favourites_count: u.stats?.likes ?? 0,
 		creator_subscriptions_count: 0,
