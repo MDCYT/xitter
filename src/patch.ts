@@ -124,12 +124,29 @@ const RULES: [RegExp, string][] = [
 		/function ec\(\w+,\w+,\w+\)\{var \w+,\w+;let \w+;[\s\S]*?window\.location\.href=\w+\}/g,
 		'function ec(){}',
 	],
+	// Disable iOS 17 external webview detector so it never triggers ec()
+	[
+		/async function ei\(\)\{[\s\S]*?await et\(\)\)\}/g,
+		'async function ei(){return !1}',
+	],
+	// Prevent app store and twitter:// navigation in LoggedOutRoutes setLocation
+	[
+		/\bsetLocation\(e\)\{document\.location=e\}/g,
+		'setLocation(e){if(!e||e.startsWith("twitter:")||e.startsWith("market:")||e.includes("apple.com")||e.includes("redirect.x.com"))return;document.location=e}',
+	],
+	// Append patch version to dynamic chunk loading in Webpack runtime
+	[
+		/,c\.src=e(?=[,;])/g,
+		',c.src=e+(e.indexOf("?")<0?"?v=' + PATCH_VERSION + '":"&v=' + PATCH_VERSION + '")',
+	],
 	// Rewrite redirect.x.com to instance origin
 	[
 		/https:\/\/redirect\.x\.com(?=["'`$/?#])/g,
 		PUBLIC_ORIGIN,
 	],
 ];
+
+export const PATCH_VERSION = "20261018c";
 
 // Only for the chat app's files: its own list of API hosts, which it sends the
 // csrf header to, and the pattern its files' address must match. The same

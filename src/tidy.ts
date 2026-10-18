@@ -165,6 +165,18 @@ export const FORGOT_SCRIPT = `(function(){
 
 export const TIDY_SCRIPT = `(function(){
 	var T=(window.__XITTER__||{}).tidy||{menuItems:[]};
+	document.addEventListener("click",function(e){
+		var el=e.target;
+		while(el&&el!==document.body){
+			if(el.tagName==="A"&&el.href){
+				var h=el.href;
+				if(h.indexOf("twitter://")===0||h.indexOf("market://")===0||h.indexOf("redirect.x.com")!==-1||h.indexOf("apps.apple.com")!==-1||h.indexOf("itunes.apple.com")!==-1){
+					e.preventDefault();e.stopPropagation();return;
+				}
+			}
+			el=el.parentElement;
+		}
+	},true);
 	// X's old sign-up flow talks to its servers; ours is in the dialog on the signed-out home page
 	function ownScreens(){
 		var p=location.pathname;

@@ -130,7 +130,7 @@ async function serveClient(req: Request, pathname: string): Promise<Response> {
 		etags.set(body, etag);
 	}
 	if (req.headers.get("if-none-match") === etag) return new Response(null, { status: 304, headers: { etag } });
-	return new Response(new Uint8Array(body), { headers: { "content-type": type, "cache-control": "no-cache", etag } });
+	return new Response(new Uint8Array(body), { headers: { "content-type": type, "cache-control": "no-cache, no-store, must-revalidate", "pragma": "no-cache", etag } });
 }
 
 function parseJson(text: string | null): any {

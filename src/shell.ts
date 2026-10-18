@@ -12,7 +12,7 @@ import { BADGES_SCRIPT } from "./badges";
 import { FLAG_PICKER_CSS, FLAG_PICKER_SCRIPT, flagPickerData } from "./flag-picker";
 import { PUBLIC_ORIGIN } from "./config";
 import { legacyUser } from "./model";
-import { patchText } from "./patch";
+import { patchText, PATCH_VERSION } from "./patch";
 
 // account settings as the client expects them
 export function settingsFor(user: User): Record<string, unknown> {
@@ -247,7 +247,7 @@ export function shell(user: User | null, multi = false, inCommunity = false, edu
 	const chatBuild = build.meta.xchatEmbedBuild;
 	const meta = { ...build.meta, ...(typeof chatBuild === "string" ? { xchatEmbedBuild: patchText(chatBuild) } : {}), sha: build.sha, isLoggedIn: !!user, userId: user?.id ?? null, hasMultiAccountCookie: !!user && multi, serverDate: Date.now() };
 	const scripts = build.scripts
-		.map((p) => `<script defer charset="utf-8" crossorigin="anonymous" src="${PUBLIC_ORIGIN}/abs${p}"></script>`)
+		.map((p) => `<script defer charset="utf-8" crossorigin="anonymous" src="${PUBLIC_ORIGIN}/abs${p}?v=${PATCH_VERSION}"></script>`)
 		.join("");
 	return `<!DOCTYPE html><html dir="ltr" lang="en"><head><meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=0,viewport-fit=cover" />
