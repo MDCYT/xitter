@@ -7,43 +7,12 @@
 
 import { sql } from "./db";
 import { newId } from "./ids";
+import { LOOKALIKE, foldGlyphs } from "./fold";
+import { hateIn } from "./hate";
+import { shutOut } from "./moderation";
 import { hasBlockedPhrase, settings } from "./settings";
 
-// what else can stand for a letter; "1" is both i and l
-const LOOKALIKE: Record<string, string> = { a: "4@", b: "8", e: "3", g: "96", i: "1!|", l: "1|", o: "0", s: "5$", t: "7+", z: "2" };
-
-// Letters from other scripts that pass for Latin ones; NFKD already folds
-// full-width, bold/italic math and circled letters. Pairs: look-alike, Latin.
-const GLYPHS = Object.fromEntries(
-	[
-		// Cyrillic, including faux-Cyrillic (И for N, Я for R)
-		"аaвbеeёeкkмmнhоoрpсcтtуyхxіiїiјjѕsԁdьbъbпnиnйnяrгrшwщwцuчyзeэeдdлnғfқkңhүyұyһhӏl",
-		// Greek
-		"αaβbγyδdεeζzηnθoιiκkλnμuνvοoπnρpσoςcτtυuφoχxψwωw",
-		// small caps and other Latin look-alikes NFKD leaves alone
-		"ᴀaʙbᴄcᴅdᴇeɢgʜhɪiᴊjᴋkʟlᴍmɴnᴏoᴘpʀrꜱsᴛtᴜuᴠvᴡwʏyᴢzıiȷjłløođdħhŋnſsɑaɡgɩiʋvƒfßb",
-		// symbols that aren't letters but read as one
-		"∂d©c®r℗p∑e∆a∏n€e£l¢c¥y∅o⊂c∩n∪u∈e∃e∀a",
-	]
-		.join("")
-		.match(/../gsu)!
-		.map((pair) => [...pair] as [string, string]),
-);
-// capitals that look unlike their small letter (Σ is an E, σ an o)
-const CAPITALS: Record<string, string> = { Σ: "e", Δ: "a", Λ: "a", Ξ: "e", Η: "h", Υ: "y", Ν: "n", Μ: "m", Γ: "r" };
-// regional indicators (flag letters) 🇦..🇿
-const FLAG_A = 0x1f1e6;
-
-// NFKD, no accents, lowercase, every look-alike letter as its Latin one
-export function foldGlyphs(text: string): string {
-	return text
-		.normalize("NFKD")
-		.replace(/\p{M}/gu, "")
-		.replace(/[ΣΔΛΞΗΥΝΜΓ]/gu, (c) => CAPITALS[c])
-		.toLowerCase()
-		.replace(/[\u{1F1E6}-\u{1F1FF}]/gu, (c) => String.fromCharCode(97 + c.codePointAt(0)! - FLAG_A))
-		.replace(/[^\x00-\x7f]/gu, (c) => GLYPHS[c] ?? c);
-}
+export { foldGlyphs };
 
 // lowercase letters plus the look-alike digits and symbols; repeats are kept
 export function normalizeName(text: string): string {
@@ -108,12 +77,13 @@ export function blockedWordIn(...texts: string[]): string | undefined {
 
 // text anyone may write that staff don't want on the instance: a blocked
 // phrase, or a blocked name word read word by word
-export const forbiddenText = (...texts: string[]) => texts.some((t) => hasBlockedPhrase(t)) || !!blockedWordIn(...texts);
+export const forbiddenText = (...texts: string[]) => texts.some((t) => hasBlockedPhrase(t)) || !!blockedWordIn(...texts) || !!hateIn(...texts);
 
 // An account that took a blocked name: suspended and signed out everywhere,
 // with a line in the audit log. Staff are left alone (the caller refuses).
 export async function suspendForName(userId: string, name: string) {
-	await sql`update users set status = 'suspended', status_until = null where id = ${userId}::bigint and role is null`;
-	await sql`delete from sessions where user_id = ${userId}::bigint and exists (select 1 from users where id = ${userId}::bigint and role is null)`;
+	await sql`update users set status = 'suspended', status_until = null, status_restore = null, deactivated_at = null where id = ${userId}::bigint and role is null`;
+	const [member] = await sql`select 1 from users where id = ${userId}::bigint and role is null`;
+	if (member) await shutOut(userId);
 	await sql`insert into audit_log (id, actor_id, action, target, detail) values (${newId()}::bigint, null, 'auto_suspend_name', ${userId}, ${JSON.stringify({ name })}::text::jsonb)`;
 }

@@ -3,7 +3,7 @@
 // replaced whenever the panel saves one.
 
 import { sql } from "./db";
-import { foldGlyphs } from "./names";
+import { foldGlyphs } from "./fold";
 
 export type SignupMode = "invite" | "open" | "closed";
 
@@ -70,6 +70,7 @@ const DEFAULTS = {
 		promoted_trends: [] as string[],
 		global_pin: null as string | null,
 	},
+	automod: { enabled: true, strike_days: 365, ladder: [0, 24, 168, 720, -1] as number[] },
 	// the admin panel itself (admin.ts staffGate): staff must have two-factor on;
 	// only these addresses (IPs or CIDR ranges) reach it, none meaning any
 	security: { staff_2fa: false, admin_ips: [] as string[] },

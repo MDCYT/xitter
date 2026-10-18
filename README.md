@@ -164,6 +164,7 @@ scripts/fetch-client.ts --latest` re-pins the build.
 | `SOURCE_URL` | this repository | The source link shown to users |
 | `LOG_REQUESTS` | unset | `1` logs every API call, `errors` also prints the client's error reports |
 | `RATE_LIMITS` | on | `off` turns the rate limits off (for the test scripts; limits are in `src/ratelimit.ts`, `scripts/test-ratelimit.ts` checks them) |
+| `EMBED_PROXY` | `https://cors.estrogen.delivery/` | where link previews are fetched from and their images served, as `<proxy>?url=<link>`, so neither the instance nor its readers reach the linked site |
 | `JUICEBOX_URL` | `http://localhost:8580` | Private address of the key-backup realm, proxied through `/juicebox/` |
 | `CHAT_TOKEN_SECRET` | saved in `data/chat-secrets.json` | Signing secret for chat socket tokens |
 | `JUICEBOX_REALM_ID`, `JUICEBOX_TENANT_SECRET` | saved in `data/chat-secrets.json` | Stable realm identity and tenant signing secret |
@@ -249,6 +250,20 @@ accounts custom badges and delete uploads. Settings also hold maintenance mode
 (everyone but staff sees a message), blocked phrases, hidden and promoted
 trends, and a post pinned to the top of every home timeline.
 `bun scripts/test-admin-extra.ts` checks these.
+
+The automod (`src/hate.ts`) refuses slurs, explicit hate, transphobia and
+abuse like "kill yourself" in posts, replies, scheduled posts, profiles, names,
+polls, image descriptions, lists, communities, articles and Community Notes.
+It reads through look-alike letters from other alphabets, Unicode styles,
+leetspeak, invisible characters, accents, repeated letters, letters spelled
+out one by one and reversed or upside-down text. Reclaimed queer words pass
+unless the text attacks someone, and NSFW text isn't touched. DMs are end-to-end
+encrypted, so the server can't read them. Each refusal is an appealable
+strike, and strikes, from staff or automatic, follow a ladder set in
+Settings > Automod (by default a warning, a day, a week, 30 days, then
+permanent). `bun test ./scripts/test-hate.ts` checks evasions and false
+positives without a server; `bun scripts/test-automod.ts` checks the ladder,
+expiry, write paths and request limits against one.
 
 - `GET /_debug/unknown` lists the client calls no handler answers yet, most
   frequent first. Start there when a screen is empty.
