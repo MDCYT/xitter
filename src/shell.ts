@@ -83,9 +83,9 @@ const HERO = 'main div:has(> svg > path[d^="M285.38 207.711"])';
 // X's code field is sized for 6 boxes; the 8-digit invite code's boxes share the width
 const CODE_BOXES = ".jf-code-input-wrapper:has(> .jf-code-box:nth-child(7))";
 const LOGO_CSS = `${LOGO} svg{opacity:0}
-${LOGO}{background:url(/public/icon-light.png) center/36px no-repeat}
+${LOGO}{background:url(/public/icon-light.png) center/38px no-repeat}
 ${DARK} ${LOGO}{background-image:url(/public/icon-dark.png)}
-${WIDE} ${LOGO}{width:150px;background-image:url(/public/logo-light.png);background-size:128px auto;background-position:10px center}
+${WIDE} ${LOGO}{width:95px;height:52px;background-image:url(/public/logo-light.png);background-size:auto 44px;background-position:8px center;background-repeat:no-repeat}
 ${WIDE}${DARK} ${LOGO}{background-image:url(/public/logo-dark.png)}
 ${DIALOG_LOGO}{background:url(/public/icon-light.png) center/contain no-repeat}
 ${DARK} ${DIALOG_LOGO}{background-image:url(/public/icon-dark.png)}
