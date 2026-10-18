@@ -80,6 +80,16 @@ const RULES: [RegExp, string][] = [
 		/\blink:o\|\|\(_\?"\/home":"\/"\)/g,
 		'link:o||"/home"',
 	],
+	// Remove withAuth wrapper from HomeTimeline (module 188314) so it renders directly without login redirect
+	[
+		/then\(\(\)=>(\w+)\(379178\)\),o=\(0,\w+\.v\)\(\(0,(\w+)\.g\)\((\w+)\)\);(\w+)\.d\((\w+),\["P",0,o,"b",0,\3\]\)/g,
+		'then(()=>$1(379178)),o=(0,$2.g)($3);$4.d($5,["P",0,o,"b",0,$3])',
+	],
+	// Bypass withAuth redirect in module 618803 if pathname is /home
+	[
+		/:\(0,(\w+)\.jsx\)\((\w+)\.A,\{to:(\w+)\((\w+)\.location\)\}\)\}n\.d\((\w+),\["v",0,/g,
+		':$4.location?.pathname==="/home"?(0,$1.jsx)(t,{...$4}):(0,$1.jsx)($2.A,{to:$3($4.location)})}n.d($5,["v",0,',
+	],
 ];
 
 // Only for the chat app's files: its own list of API hosts, which it sends the
