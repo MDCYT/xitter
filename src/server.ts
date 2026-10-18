@@ -43,6 +43,7 @@ import { hashflagAsset } from "./hashflags";
 import { startMailDigests } from "./mail-digest";
 import { SERVICE_WORKER, startPush } from "./push";
 import { emailRoute } from "./email-address";
+import { embedImage, linkPreview, oembed } from "./embeds";
 
 const MIME: Record<string, string> = {
 	js: "text/javascript; charset=utf-8",
@@ -368,6 +369,9 @@ async function route(req: Request): Promise<Response | undefined> {
 	if (p === "/account/automation" && viewer) return automationRoute(req, viewer);
 	if (p === "/account/organisation" && viewer) return orgRoute(req, viewer);
 	if (p.startsWith("/i/ton/data/xchat_media/")) return chatMediaRoute(req, viewer, url);
+	// pictures and oEmbed for previews of public posts in other apps (embeds.ts)
+	if (p.startsWith("/embed/")) return embedImage(p);
+	if (p === "/oembed") return oembed(url);
 	if (p.startsWith("/media/")) return serveMedia(req, p);
 	// the admin panel: staff only; everyone else gets the client's not-found page
 	if (p.startsWith("/admin/api/")) return adminApi(req, p.slice("/admin/api/".length), viewer);
@@ -390,6 +394,15 @@ async function route(req: Request): Promise<Response | undefined> {
 		// the event stream must outlive the default idle timeout
 		if (p.endsWith("/live_pipeline/events")) server.timeout(req, 0);
 		return serveApi(req, url, viewer);
+	}
+
+	// signed out: a public post or profile gives other apps' link fetchers its preview
+	if (!viewer && req.method === "GET") {
+		const isBot = /bot|facebookexternalhit|whatsapp|telegram|slack|discord|twitterbot|meta-externalagent|crawler|preview/i.test(req.headers.get("user-agent") ?? "");
+		if (isBot) {
+			const preview = await linkPreview(p);
+			if (preview) return preview;
+		}
 	}
 
 	// signed out: authenticated-only pages redirect to home
