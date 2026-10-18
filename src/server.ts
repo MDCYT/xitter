@@ -12,7 +12,7 @@ import { flagSvg } from "./flags";
 import { onboarding } from "./onboarding";
 import { cachedPatch, patchFile, patchText } from "./patch";
 import { clientError, recordError } from "./errors";
-import { staffGate } from "./staff-access";
+import { asRequest, markStaff, staffGate } from "./staff-access";
 import { backupPath, startBackups } from "./backups";
 import { memberInvitesRoute } from "./member-invites";
 import { orgRoute } from "./org-manage";
@@ -218,13 +218,13 @@ async function serveApi(req: Request, url: URL, viewer: Viewer | undefined): Pro
 		if (!delegateMay(acting.actor!.role, req.method, path, operation)) return apiError(403, 200, "Delegates can't do this for the account.");
 		viewer = acting;
 	}
+	const limited = limitApi(viewer, req.method, path, operation, url);
+	if (limited) return limited;
 	if (path === "/xitter/moderation") return noticesApi(req, viewer);
 	if (path === "/xitter/badges") return extraBadges(viewer.id, url);
 	if (path === "/xitter/gif") return gifProxy(url);
 	if (path === "/xitter/stickers") return Response.json(await stickerPacks());
 	if (path === "/xitter/client_error" && req.method === "POST") return clientError(req, viewer);
-	const limited = limitApi(viewer, req.method, path, operation, url);
-	if (limited) return limited;
 	if (viewer.status === "restricted" && bucketsFor(req.method, path, operation, url).some((b) => b === "post" || b === "dm"))
 		return apiError(403, 326, "Your account can't post or send messages right now.");
 	if (req.method !== "GET" && !/^\/(i|1\.1)\/media\/upload2?\.json$/.test(path) && Number(req.headers.get("content-length") ?? 0) > MAX_API_BODY)
@@ -283,7 +283,7 @@ await resumeVideos(MEDIA_DIR);
 // the request; caught here it is logged with its path and account
 async function handle(req: Request): Promise<Response | undefined> {
 	try {
-		return await route(req);
+		return await asRequest(() => route(req));
 	} catch (e) {
 		const viewer = await getViewer(req).catch(() => undefined);
 		await recordError("server", e, { path: `${req.method} ${new URL(req.url).pathname}`, userId: viewer?.id });
@@ -295,6 +295,12 @@ async function route(req: Request): Promise<Response | undefined> {
 	rememberIp(req, server.requestIP(req)?.address);
 	const url = new URL(req.url);
 	const p = url.pathname;
+	if (req.method !== "GET" && req.method !== "HEAD" && req.headers.has("cookie")) {
+		const site = req.headers.get("sec-fetch-site");
+		const origin = req.headers.get("origin");
+		if (site ? site !== "same-origin" && site !== "none" : origin && origin !== PUBLIC_ORIGIN && origin !== url.origin)
+			return new Response("This request came from another site.", { status: 403 });
+	}
 	if (p.startsWith("/abs/")) return serveClient(req, p);
 	// chat: the live socket (its token from GenerateXChatTokenMutation) and
 	// the way to the key backup realm
@@ -358,6 +364,7 @@ async function route(req: Request): Promise<Response | undefined> {
 	if (p === "/manifest.json") return new Response(null, { status: 404 });
 
 	const viewer = await getViewer(req);
+	if (viewer?.role && !(await staffGate(req, viewer))) markStaff();
 	// a suspended account can't sign in, so it appeals here with its password
 	if (p === "/appeal") return appealRoute(req, server.requestIP(req)?.address ?? "");
 	// maintenance: staff carry on, everyone else signed in waits
@@ -384,7 +391,8 @@ async function route(req: Request): Promise<Response | undefined> {
 	// pictures and oEmbed for previews of public posts in other apps (embeds.ts)
 	if (p.startsWith("/embed/")) return embedImage(p);
 	if (p === "/oembed") return oembed(url);
-	if (p.startsWith("/media/")) return serveMedia(req, p);
+	// uploads stay inside the instance: protected media is restricted to followers, public media is open
+	if (p.startsWith("/media/")) return serveMedia(req, p, viewer ?? GUEST_VIEWER);
 	// the admin panel: staff only; everyone else gets the client's not-found page
 	if (p.startsWith("/admin/api/")) return adminApi(req, p.slice("/admin/api/".length), viewer);
 	if (p === "/admin/flags.json" && viewer?.role) return Response.json(flagPickerData(null).flags);
