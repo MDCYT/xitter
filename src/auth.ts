@@ -61,6 +61,20 @@ export type User = {
 
 export type Viewer = User & { csrf: string; token: string; postSource?: string };
 
+export const GUEST_VIEWER: Viewer = {
+	id: "0",
+	screen_name: "",
+	name: "",
+	bio: "",
+	location: "",
+	avatar_url: null,
+	banner_url: null,
+	verified_type: null,
+	created_at: new Date(0),
+	csrf: "",
+	token: "",
+};
+
 export const SECURE = PUBLIC_ORIGIN.startsWith("https:") ? "; Secure" : "";
 const YEAR = 60 * 60 * 24 * 365;
 const randomHex = (bytes: number) => Buffer.from(crypto.getRandomValues(new Uint8Array(bytes))).toString("hex");

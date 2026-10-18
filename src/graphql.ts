@@ -563,7 +563,7 @@ const handlers: Record<string, Handler> = {
 		// staff too: they look a suspended account up in the admin panel
 		if (user.status === "suspended") return { data: { user: { result: SUSPENDED_USER } } };
 		// a visit for the profile's analytics, once a day per visitor
-		if (user.id !== v.id) sql`insert into profile_visits (profile_id, visitor_id) values (${user.id}::bigint, ${v.id}::bigint) on conflict do nothing`.catch(() => {});
+		if (v.id !== "0" && user.id !== v.id) sql`insert into profile_visits (profile_id, visitor_id) values (${user.id}::bigint, ${v.id}::bigint) on conflict do nothing`.catch(() => {});
 		return { data: { user: { result: userResult(user) } } };
 	},
 	// "About this account" (/<name>/about)
@@ -971,6 +971,58 @@ Object.assign(handlers, gifHandlers);
 Object.assign(handlers, analyticsHandlers);
 
 export const knownOperation = (name: string) => name in handlers;
+
+export const GUEST_ALLOWED_GQL = new Set([
+	"TweetDetail",
+	"TweetResultByRestId",
+	"TweetResultsByRestIds",
+	"TweetEditHistory",
+	"UserByScreenName",
+	"UserByRestId",
+	"UsersByRestIds",
+	"UsersVerifiedAvatars",
+	"UserTweets",
+	"UserOriginalsTimeline",
+	"UserTweetsAndReplies",
+	"UserMedia",
+	"UserPhotoTimeline",
+	"UserVideoTimeline",
+	"UserRepliesTimeline",
+	"UserHighlightsTweets",
+	"UserArticlesTweets",
+	"UserRepostsTimeline",
+	"UserBusinessProfileTeamTimeline",
+	"ProfileSpotlightsQuery",
+	"AboutAccountQuery",
+	"SearchTimeline",
+	"ExplorePage",
+	"ExploreSidebar",
+	"TopicByRestId",
+	"TopicToFollowSidebar",
+	"Retweeters",
+	"Favoriters",
+	"Following",
+	"Followers",
+	"Likes",
+	"DataSaverMode",
+	"SupportedLanguages",
+	"getAltTextPromptPreference",
+	"grokAccountJwtQuery",
+	"useStoryTopicQuery",
+	"useFetchProductSubscriptionsQuery",
+	"ConversationControlsQuery",
+	"UserSportsProfile",
+	"isEligibleForVoButtonUpsellQuery",
+	"ArticleEntityResultByRestId",
+	"ArticleRedirectScreenQuery",
+	"ArticleEntitiesSlice",
+	"CommunityByRestId",
+	"CommunitiesFetchOneQuery",
+	"CommunityQuery",
+	"CommunityTweetsTimeline",
+	"CommunityTweetsRankedTimeline",
+	"CommunityMediaTimeline",
+]);
 
 // an operation's result as the client would get it, for the public API
 // (public-api.ts); errors are thrown as they are

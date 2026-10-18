@@ -1,8 +1,8 @@
-import { type Viewer, getViewer, parseCookies } from "./auth";
+import { type Viewer, GUEST_VIEWER, getViewer, parseCookies } from "./auth";
 import { getClientFile } from "./client-cache";
 import { PORT, PUBLIC_ORIGIN } from "./config";
 import { migrate, sql } from "./db";
-import { knownOperation, runOperation } from "./graphql";
+import { GUEST_ALLOWED_GQL, knownOperation, runOperation } from "./graphql";
 import { brandingFile } from "./branding";
 import { handleLogin, maintenancePage, rulesPage } from "./login";
 import { adminApi, audit } from "./admin";
@@ -142,27 +142,50 @@ function parseJson(text: string | null): any {
 	}
 }
 
+const GUEST_ALLOWED_REST = new Set([
+	"/1.1/search/typeahead.json",
+	"/1.1/hashflags.json",
+	"/1.1/help/settings.json",
+	"/1.1/friends/following/list.json",
+	"/fleets/v1/fleetline",
+	"/fleets/v1/avatar_content",
+	"/1.1/live_pipeline/update_subscriptions",
+	"/1.1/mutes/keywords/discouraged.json",
+	"/1.1/mutes/advanced_filters.json",
+	"/xitter/badges",
+	"/xitter/gif",
+	"/xitter/stickers",
+]);
+
 async function serveApi(req: Request, url: URL, viewer: Viewer | undefined): Promise<Response> {
-	// the signed-out home page asks for a guest token first; it gets one, but
-	// nothing is readable without signing in. Signed in, a guest token would make
-	// the client act as a guest and stop sending its csrf header.
 	if (!viewer && url.pathname.endsWith("/1.1/guest/activate.json")) return Response.json({ guest_token: "1" });
-	if (!viewer) return apiError(401, 32, "Could not authenticate you.");
-	const source = await platformSource(req);
-	if (source === null) return apiError(401, 32, "Invalid or revoked client token.");
-	viewer = { ...viewer, postSource: source };
-	if (req.method !== "GET" && req.headers.get("x-csrf-token") !== viewer.csrf)
-		return apiError(403, 353, "This request requires a matching csrf cookie and header.");
 
 	const path = url.pathname.replace(/^\/i\/(jf)?api/, "");
+	const parts = path.split("/").filter(Boolean);
+	const gql = parts.indexOf("graphql");
+	const opName = gql >= 0 ? parts[parts.length - 1] : undefined;
+
+	if (!viewer) {
+		const isGuestGql = !!opName && GUEST_ALLOWED_GQL.has(opName);
+		const isGuestRest = GUEST_ALLOWED_REST.has(path) || path === "/live_pipeline/events" || (req.method === "POST" && path === "/xitter/client_error");
+		if (isGuestGql || isGuestRest) {
+			viewer = GUEST_VIEWER;
+		} else {
+			return apiError(401, 32, "Could not authenticate you.");
+		}
+	}
+
+	const source = await platformSource(req);
+	if (source === null && viewer.id !== "0") return apiError(401, 32, "Invalid or revoked client token.");
+	viewer = { ...viewer, postSource: source ?? undefined };
+	if (req.method !== "GET" && viewer.id !== "0" && req.headers.get("x-csrf-token") !== viewer.csrf)
+		return apiError(403, 353, "This request requires a matching csrf cookie and header.");
 	if (path === "/xitter/moderation") return noticesApi(req, viewer);
 	if (path === "/xitter/badges") return extraBadges(viewer.id, url);
 	if (path === "/xitter/gif") return gifProxy(url);
 	if (path === "/xitter/stickers") return Response.json(await stickerPacks());
 	if (path === "/xitter/client_error" && req.method === "POST") return clientError(req, viewer);
-	const parts = path.split("/").filter(Boolean);
-	const gql = parts.indexOf("graphql");
-	const limited = limitApi(viewer, req.method, path, gql >= 0 ? parts[parts.length - 1] : undefined, url);
+	const limited = limitApi(viewer, req.method, path, opName, url);
 	if (limited) return limited;
 	if (process.env.LOG_REQUESTS) console.log(`api ${req.method} ${gql >= 0 ? `graphql:${parts[parts.length - 1]}` : path}`);
 	// the client reports its own render errors through telemetry
@@ -301,8 +324,7 @@ async function route(req: Request): Promise<Response | undefined> {
 	if (p === "/account/api" && viewer) return apiTokensRoute(req, viewer);
 	if (p === "/account/organisation" && viewer) return orgRoute(req, viewer);
 	if (p.startsWith("/i/ton/data/xchat_media/")) return chatMediaRoute(req, viewer, url);
-	// uploads stay inside the instance: only signed-in users get them
-	if (p.startsWith("/media/")) return viewer ? serveMedia(req, p) : new Response("not found", { status: 404 });
+	if (p.startsWith("/media/")) return serveMedia(req, p);
 	// the admin panel: staff only; everyone else gets the client's not-found page
 	if (p.startsWith("/admin/api/")) return adminApi(req, p.slice("/admin/api/".length), viewer);
 	if (p === "/admin/flags.json" && viewer?.role) return Response.json(flagPickerData(null).flags);
@@ -326,8 +348,23 @@ async function route(req: Request): Promise<Response | undefined> {
 		return serveApi(req, url, viewer);
 	}
 
-	// signed out: X's own home page with its sign-in form, and the dialog
-	if (!viewer && p !== "/" && !p.startsWith("/i/jf/onboarding")) return Response.redirect("/", 302);
+	// signed out: authenticated-only pages redirect to home
+	const isAuthOnly = (path: string) =>
+		path === "/home" ||
+		path === "/notifications" ||
+		path.startsWith("/notifications/") ||
+		path === "/messages" ||
+		path.startsWith("/messages/") ||
+		path === "/bookmarks" ||
+		path.startsWith("/bookmarks/") ||
+		path === "/admin" ||
+		path.startsWith("/admin/") ||
+		path.startsWith("/settings") ||
+		path.startsWith("/account") ||
+		path.startsWith("/i/xchat") ||
+		path.startsWith("/xchat") ||
+		path.startsWith("/i/bookmarks");
+	if (!viewer && isAuthOnly(p)) return Response.redirect("/", 302);
 	const inCommunity = viewer ? (await sql`select 1 from community_members where user_id = ${viewer.id}::bigint limit 1`).length > 0 : false;
 	const [flagRow] = viewer ? await sql`select education_flags from users where id = ${viewer.id}::bigint` : [];
 	const page = shell(viewer ?? null, !!parseCookies(req).auth_multi, inCommunity, flagRow?.education_flags ?? {}, viewer ? await menuLinks(viewer.id) : []);

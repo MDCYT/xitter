@@ -51,8 +51,8 @@ export function searchLocations(q: string) {
 // whether the people they follow weigh more.
 export async function trendScope(userId: string): Promise<{ country: string | null; followedBy?: string; label: string }> {
 	const s = await stored(userId);
-	const personalized = s.use_personalized_trends ?? true;
+	const personalized = userId !== "0" && (s.use_personalized_trends ?? true);
 	const country = personalized || s.use_current_location ? s.country : s.place && isCountry(s.place) ? s.place : null;
 	const name = country && isCountry(country) ? countryName(country) : undefined;
-	return { country: name ? country : null, ...(personalized ? { followedBy: userId } : {}), label: name ? `Trending in ${name}` : "Trending" };
+	return { country: name ? country : null, ...(personalized && userId !== "0" ? { followedBy: userId } : {}), label: name ? `Trending in ${name}` : "Trending" };
 }

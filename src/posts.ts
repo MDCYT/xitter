@@ -129,7 +129,7 @@ export async function postsByIds(viewerId: string, ids: string[], quotes = true)
 	const posts = await hydrate(viewerId, rows.map(toRow), quotes);
 	// being shown a post counts once per viewer; nobody waits for it
 	const seen = posts.filter((p) => p.author.id !== viewerId).map((p) => p.id);
-	if (seen.length)
+	if (seen.length && viewerId !== "0")
 		void sql`insert into post_views (post_id, user_id) select x, ${viewerId}::bigint from unnest(${sql.array(seen, "INT8")}::bigint[]) x on conflict do nothing`.catch(() => {});
 	const out = new Map(posts.map((p) => [p.id, p]));
 	const unknown = ids.filter((id) => !out.has(id));

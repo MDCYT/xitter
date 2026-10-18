@@ -93,8 +93,9 @@ export function bucketsFor(method: string, path: string, operation: string | und
 // Counts an API request; a response when one of its limits is used up.
 export function limitApi(viewer: Viewer, method: string, path: string, operation: string | undefined, url: URL): Response | undefined {
 	if (viewer.role) return undefined;
+	const who = viewer.id === "0" ? "guest" : viewer.id;
 	for (const bucket of ["read", ...bucketsFor(method, path, operation, url)] as Bucket[]) {
-		const h = hit(bucket, viewer.id);
+		const h = hit(bucket, who);
 		if (!h.ok) return limitedResponse(h);
 	}
 }
