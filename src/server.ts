@@ -30,6 +30,8 @@ import { forgotRoute, resetRoute } from "./password-reset";
 import { twoFactorRoute } from "./two-factor";
 import { extraBadges } from "./badges";
 import { startScheduler } from "./scheduled";
+import { federationRoute, startFederation } from "./federation-routes";
+import { acceptTicket, superadminHomeRoute } from "./superadmin";
 import { gifProxy } from "./gifs";
 import { cardImage } from "./explore-cards";
 import { rememberIp, requestIp } from "./login-history";
@@ -42,6 +44,7 @@ import { apiDocsPage } from "./api-docs";
 import { hashflagAsset } from "./hashflags";
 import { startMailDigests } from "./mail-digest";
 import { SERVICE_WORKER, startPush } from "./push";
+import { manifest } from "./pwa";
 import { emailRoute } from "./email-address";
 import { embedImage, linkPreview, oembed } from "./embeds";
 
@@ -295,6 +298,7 @@ async function route(req: Request): Promise<Response | undefined> {
 	rememberIp(req, server.requestIP(req)?.address);
 	const url = new URL(req.url);
 	const p = url.pathname;
+	if (p === "/federation/superadmin/accept") return acceptTicket(req, requestIp(req) ?? "unknown");
 	if (req.method !== "GET" && req.method !== "HEAD" && req.headers.has("cookie")) {
 		const site = req.headers.get("sec-fetch-site");
 		const origin = req.headers.get("origin");
@@ -302,6 +306,10 @@ async function route(req: Request): Promise<Response | undefined> {
 			return new Response("This request came from another site.", { status: 403 });
 	}
 	if (p.startsWith("/abs/")) return serveClient(req, p);
+	if (p === "/.well-known/xitter" || p.startsWith("/federation/v1/")) {
+		const answer = await federationRoute(req, url);
+		if (answer) return answer;
+	}
 	// chat: the live socket (its token from GenerateXChatTokenMutation) and
 	// the way to the key backup realm
 	if (p === "/xchat/ws") {
@@ -361,7 +369,7 @@ async function route(req: Request): Promise<Response | undefined> {
 	if (p.startsWith("/public/")) return servePublic(p);
 	if (p === "/favicon.ico") return servePublic("/public/favicon.png");
 	if (p === "/sw.js") return new Response(SERVICE_WORKER, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } });
-	if (p === "/manifest.json") return new Response(null, { status: 404 });
+	if (p === "/manifest.json") return manifest();
 
 	const viewer = await getViewer(req);
 	if (viewer?.role && !(await staffGate(req, viewer))) markStaff();
@@ -372,6 +380,7 @@ async function route(req: Request): Promise<Response | undefined> {
 		if (API_PREFIX.test(p) || req.method !== "GET") return apiError(503, 130, settings().operations.message);
 		return maintenancePage();
 	}
+	if (p === "/federation/superadmin" || p.startsWith("/federation/superadmin/")) return superadminHomeRoute(req, url, viewer);
 	if (p === "/account/reset") return resetRoute(req, url);
 	if (p === "/account/forgot") {
 		if (req.method === "POST") {
@@ -424,7 +433,6 @@ async function route(req: Request): Promise<Response | undefined> {
 			if (preview) return preview;
 		}
 	}
-
 	// signed out: authenticated-only pages redirect to home
 	const isAuthOnly = (path: string) =>
 		path === "/notifications" ||
@@ -441,9 +449,14 @@ async function route(req: Request): Promise<Response | undefined> {
 		path.startsWith("/xchat") ||
 		path.startsWith("/i/bookmarks");
 	if (!viewer && isAuthOnly(p)) return Response.redirect("/", 302);
-	const inCommunity = viewer ? (await sql`select 1 from community_members where user_id = ${viewer.id}::bigint limit 1`).length > 0 : false;
-	const [flagRow] = viewer ? await sql`select education_flags from users where id = ${viewer.id}::bigint` : [];
-	const page = shell(viewer ?? null, !!parseCookies(req).auth_multi, inCommunity, flagRow?.education_flags ?? {}, viewer ? await menuLinks(viewer.id) : []);
+	const [communityRows, flagRows, links] = viewer
+		? await Promise.all([
+			sql`select 1 from community_members where user_id = ${viewer.id}::bigint limit 1`,
+			sql`select education_flags from users where id = ${viewer.id}::bigint`,
+			menuLinks(viewer.id),
+		])
+		: [[], [], []];
+	const page = shell(viewer ?? null, !!parseCookies(req).auth_multi, communityRows.length > 0, flagRows[0]?.education_flags ?? {}, links);
 	if (!page) return new Response("no pinned client build: run scripts/fetch-client.ts --token or --har", { status: 500 });
 	const headers = new Headers({ "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": PAGE_CSP });
 	// a guest token left from the signed-out page makes the signed-in client act
@@ -464,6 +477,7 @@ const server = Bun.serve({
 });
 
 startScheduler();
+await startFederation();
 startMailDigests();
 startBackups();
 startPush();

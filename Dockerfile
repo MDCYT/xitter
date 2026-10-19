@@ -24,7 +24,7 @@ COPY . .
 # Ensure entrypoint is executable
 RUN chmod +x docker-entrypoint.sh
 
-# Expose server port
+ENV PORT=3000
 EXPOSE 3000
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
