@@ -1,12 +1,19 @@
 {
 	"version": 1,
-	"sequence": 6,
+	"sequence": 7,
 	"instances": [
 		{
 			"id": "social.opsex.best",
 			"name": "Xitter",
 			"source_url": "https://github.com/gabytz777/xitter",
 			"public_key": "aE7RikVEmC2lKQPAkfVtNk1GpJtx87H7PYaLxHxbZTM",
+			"state": "active"
+		},
+		{
+			"id": "x.glitchprod.xyz",
+			"name": "Digital Circus",
+			"source_url": "https://github.com/MDCYT/xitter",
+			"public_key": "L2-aSa8he-ufDfTVKQdosl2vW0JyWZMiGae3qhTt1a8",
 			"state": "active"
 		},
 		{
