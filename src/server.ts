@@ -28,7 +28,9 @@ import { badgeImage, expireSanctions } from "./moderation";
 import { appealRoute, noticesApi, noticesPage } from "./staff-notices";
 import { forgotRoute, resetRoute } from "./password-reset";
 import { twoFactorRoute } from "./two-factor";
-import { extraBadges } from "./badges";
+import { extraBadges, instanceCard } from "./badges";
+import { decorationFile, decorationsFor } from "./decorations";
+import { decorationRoute } from "./decoration-settings";
 import { startScheduler } from "./scheduled";
 import { federationRoute, startFederation } from "./federation-routes";
 import { acceptTicket, superadminHomeRoute } from "./superadmin";
@@ -228,6 +230,8 @@ async function serveApi(req: Request, url: URL, viewer: Viewer | undefined): Pro
 	if (limited) return limited;
 	if (path === "/xitter/moderation") return noticesApi(req, viewer);
 	if (path === "/xitter/badges") return extraBadges(viewer.id, url);
+	if (path === "/xitter/decorations") return decorationsFor(url);
+	if (path === "/xitter/instance") return instanceCard(viewer.id, url);
 	if (path === "/xitter/gif") return gifProxy(url);
 	if (path === "/xitter/stickers") return Response.json(await stickerPacks());
 	if (path === "/xitter/client_error" && req.method === "POST") return clientError(req, viewer);
@@ -302,6 +306,7 @@ async function route(req: Request): Promise<Response | undefined> {
 	const url = new URL(req.url);
 	const p = url.pathname;
 	if (p === "/federation/superadmin/accept") return acceptTicket(req, requestIp(req) ?? "unknown");
+	if (p.startsWith("/i/xitter/decoration/")) return (await decorationFile(url)) ?? new Response("not found", { status: 404 });
 	if (req.method !== "GET" && req.method !== "HEAD" && req.headers.has("cookie")) {
 		const site = req.headers.get("sec-fetch-site");
 		const origin = req.headers.get("origin");
@@ -404,6 +409,7 @@ async function route(req: Request): Promise<Response | undefined> {
 	if (p === "/account/notes/appeals" && viewer) return noteAppealsRoute(req, viewer);
 	if (p === "/account/automation" && viewer) return automationRoute(req, viewer);
 	if (p === "/account/instances" && viewer) return instancesRoute(req, viewer);
+	if (p === "/account/decoration" && viewer) return decorationRoute(req, viewer);
 	if (p === "/account/organisation" && viewer) return orgRoute(req, viewer);
 	if (p.startsWith("/i/ton/data/xchat_media/")) return chatMediaRoute(req, viewer, url);
 	// pictures and oEmbed for previews of public posts in other apps (embeds.ts)
