@@ -29,6 +29,17 @@ export const suspendedFor = (viewerId: string) =>
 	sql`(select id from users where ${gone}
 		and not ${staffViewer(viewerId)})`;
 
+// Accounts from other instances, for a viewer who hid them (Settings > Other
+// instances): they stay out of timelines, replies, search and suggestions, except
+// the ones the viewer follows. A search naming a full handle still finds them.
+export const federatedHiddenFor = (viewerId: string) =>
+	sql`(select u.id from users u where u.instance is not null
+		and exists (select 1 from users me where me.id = ${viewerId}::bigint and me.preferences->>'hide_federated' = 'true')
+		and u.id not in (select followee_id from follows where follower_id = ${viewerId}::bigint))`;
+
+// a search that names someone on another instance (@name@example.org, from:name@example.org)
+export const namesOtherInstance = (query: string) => /\w@[a-z0-9-]+(\.[a-z0-9-]+)+/i.test(query);
+
 export const mutedFor = (viewerId: string) => sql`(select muted_id from mutes where muter_id = ${viewerId}::bigint)`;
 
 export type Surface = "home_timeline" | "notifications";
@@ -59,8 +70,16 @@ export async function setBlock(blockerId: string, blockedId: string, on: boolean
 	return true;
 }
 
-export async function isBlockedEitherWay(a: string, b: string): Promise<boolean> {
-	const rows = await sql`select 1 from blocks where (blocker_id = ${a}::bigint and blocked_id = ${b}::bigint)
+export async function replyLimited(conversationId: string, userId: string, db: typeof sql = sql): Promise<boolean> {
+	const [limited] = await db`select exists (select 1 from posts r where r.id = ${conversationId}::bigint and r.reply_policy is not null and r.user_id <> ${userId}::bigint and not (
+			(r.reply_policy = 'Community' and exists (select 1 from follows f where f.follower_id = r.user_id and f.followee_id = ${userId}::bigint))
+			or (r.reply_policy = 'ByInvitation' and exists (select 1 from post_mentions m where m.post_id = r.id and m.user_id = ${userId}::bigint))
+			or (r.reply_policy = 'Verified' and exists (select 1 from users x where x.id = ${userId}::bigint and (x.verified_type is not null or exists (select 1 from affiliations af where af.user_id = x.id)))))) as no`;
+	return limited.no;
+}
+
+export async function isBlockedEitherWay(a: string, b: string, db: typeof sql = sql): Promise<boolean> {
+	const rows = await db`select 1 from blocks where (blocker_id = ${a}::bigint and blocked_id = ${b}::bigint)
 		or (blocker_id = ${b}::bigint and blocked_id = ${a}::bigint) limit 1`;
 	return rows.length > 0;
 }

@@ -38,8 +38,10 @@ import { rememberIp, requestIp } from "./login-history";
 import { bucketsFor, hit, isMutation, limitApi, limitedResponse } from "./ratelimit";
 import { actingViewer, delegateMay } from "./delegation";
 import { automationRoute } from "./automation";
+import { instancesRoute } from "./federation-settings";
 import { stickerImage, stickerPacks } from "./stickers";
 import { apiTokensRoute, publicApi } from "./public-api";
+import { connectedAppsRoute, developerAppsRoute, oauthAuthorize, oauthToken } from "./oauth";
 import { apiDocsPage } from "./api-docs";
 import { hashflagAsset } from "./hashflags";
 import { startMailDigests } from "./mail-digest";
@@ -47,6 +49,7 @@ import { SERVICE_WORKER, startPush } from "./push";
 import { manifest } from "./pwa";
 import { emailRoute } from "./email-address";
 import { embedImage, linkPreview, oembed } from "./embeds";
+import { noteAppealsRoute } from "./note-appeals";
 
 const MIME: Record<string, string> = {
 	js: "text/javascript; charset=utf-8",
@@ -329,6 +332,7 @@ async function route(req: Request): Promise<Response | undefined> {
 	}
 	// the public API signs in with its own tokens, never cookies
 	if (p.startsWith("/api/v1/") || p === "/api/v1") return publicApi(req, url);
+	if (p === "/oauth/token") return oauthToken(req);
 	if (p === "/api" || p === "/api/") return apiDocsPage(req);
 	if (req.method === "OPTIONS") return new Response(null, { status: 204 });
 	if (p === "/login" && req.method === "POST") {
@@ -380,6 +384,9 @@ async function route(req: Request): Promise<Response | undefined> {
 		if (API_PREFIX.test(p) || req.method !== "GET") return apiError(503, 130, settings().operations.message);
 		return maintenancePage();
 	}
+	if (p === "/oauth/authorize") return oauthAuthorize(req, url, viewer);
+	if (p === "/account/apps" && viewer) return connectedAppsRoute(req, viewer);
+	if (p === "/account/apps/developer" && viewer) return developerAppsRoute(req, viewer);
 	if (p === "/federation/superadmin" || p.startsWith("/federation/superadmin/")) return superadminHomeRoute(req, url, viewer);
 	if (p === "/account/reset") return resetRoute(req, url);
 	if (p === "/account/forgot") {
@@ -394,7 +401,9 @@ async function route(req: Request): Promise<Response | undefined> {
 	if (p === "/account/notices" && viewer) return noticesPage(req, viewer);
 	if (p === "/account/invites" && viewer) return memberInvitesRoute(req, viewer);
 	if (p === "/account/api" && viewer) return apiTokensRoute(req, viewer);
+	if (p === "/account/notes/appeals" && viewer) return noteAppealsRoute(req, viewer);
 	if (p === "/account/automation" && viewer) return automationRoute(req, viewer);
+	if (p === "/account/instances" && viewer) return instancesRoute(req, viewer);
 	if (p === "/account/organisation" && viewer) return orgRoute(req, viewer);
 	if (p.startsWith("/i/ton/data/xchat_media/")) return chatMediaRoute(req, viewer, url);
 	// pictures and oEmbed for previews of public posts in other apps (embeds.ts)

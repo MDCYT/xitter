@@ -12,7 +12,10 @@ import { toUser, userCols } from "./users";
 // only accounts that wear more than one badge, or a gold translator globe
 // (X's yellow "moderator" globe, recoloured for translator moderators)
 export async function extraBadges(viewerId: string, url: URL): Promise<Response> {
-	const names = [...new Set((url.searchParams.get("names") ?? "").split(",").map((n) => n.trim().toLowerCase()).filter((n) => STAFF_HANDLE.test(n)))].slice(0, 50);
+	const names = [...new Set((url.searchParams.get("names") ?? "").split(",").map((n) => n.trim().toLowerCase()).filter((n) => {
+		const at = n.indexOf("@");
+		return at < 0 ? STAFF_HANDLE.test(n) : STAFF_HANDLE.test(n.slice(0, at)) && /^[a-z0-9.-]{1,253}(?::\d{1,5})?$/.test(n.slice(at + 1));
+	}))].slice(0, 50);
 	const out: Record<string, { badges: { url: string; description: string }[]; gold: boolean }> = {};
 	if (names.length) {
 		const rows = await sql`select ${userCols(viewerId)} from users u where lower(u.screen_name) = any(${sql.array(names, "TEXT")})`;
@@ -32,7 +35,7 @@ export const BADGES_SCRIPT = String.raw`(function(){
 	var SEL='[data-testid="User-Name"],[data-testid="UserName"],[data-testid="UserCell"],[data-testid="HoverCard"],[data-testid="SideNav_AccountSwitcher_Button"],[data-testid="primaryColumn"] h2';
 	function handle(box){
 		var spans=box.querySelectorAll("span");
-		for(var i=0;i<spans.length;i++){var m=/^@([^\s\/\?#@%,:]{1,50})$/.exec(spans[i].textContent);if(m)return m[1].toLowerCase()}
+		for(var i=0;i<spans.length;i++){var full=spans[i].getAttribute("data-xitter-handle");if(full)return full;var m=/^@([^\s\/\?#@%,:]{1,50}(?:@[a-zA-Z0-9.-]{1,253}(?::\d{1,5})?)?)$/.exec(spans[i].textContent);if(m)return m[1].toLowerCase()}
 		// a profile's top bar has the name but no handle: the page's address does
 		if(box.tagName==="H2"&&box.querySelector('div[style*="height: calc(1.0625em)"]')){
 			var p=/^\/([^\/?#]{1,150})(?:\/|$)/.exec(location.pathname);
@@ -53,6 +56,22 @@ export const BADGES_SCRIPT = String.raw`(function(){
 			if(el.getAttribute("data-xitter-badges")!==name)el.remove();
 		});
 	}
+	// names show "@name" for someone from another instance; the whole handle
+	// stays on the element (and its tooltip), and the globe badge says where
+	// they're from. Only the text changes, in place, so the client's own copy
+	// of it stays its own: when it writes the long one back, it's shortened again.
+	function shorten(box){
+		var spans=[box].concat([].slice.call(box.querySelectorAll("span, a")));
+		for(var i=0;i<spans.length;i++){
+			var t=spans[i].firstChild;
+			if(!t||t.nodeType!==3||spans[i].childNodes.length!==1)continue;
+			var m=/^@([^\s\/\?#@%,:]{1,50})@([a-zA-Z0-9.-]{1,253}(?::\d{1,5})?)$/.exec(t.nodeValue);
+			if(!m)continue;
+			spans[i].setAttribute("data-xitter-handle",(m[1]+"@"+m[2]).toLowerCase());
+			spans[i].title="@"+m[1]+"@"+m[2];
+			t.nodeValue="@"+m[1];
+		}
+	}
 	function draw(box,name){
 		cleanup(box,name);
 		var k=known[name];
@@ -68,6 +87,9 @@ export const BADGES_SCRIPT = String.raw`(function(){
 		var holder,inside;
 		if(slot){
 			holder=slot.parentElement;
+			// anywhere in the row, not only right after: the client can draw its
+			// translator globe between X's badge and ours, and ours came twice
+			if(holder.parentElement&&holder.parentElement.querySelector(":scope > [data-xitter-badges]"))return;
 		}else{
 			// no check and the slot taken by a label (automated, parody, staff-made):
 			// X draws no badge box, so the badges go at the end of the name itself
@@ -88,12 +110,17 @@ export const BADGES_SCRIPT = String.raw`(function(){
 	}
 	function scan(){
 		document.querySelectorAll(SEL).forEach(function(box){
+			shorten(box);
 			var name=handle(box);
 			if(!name)return;
 			cleanup(box,name);
 			if(known[name]!==undefined){draw(box,name);return}
 			if(!waiting[name]){waiting[name]=true;queue.push(name)}
 		});
+		// the accounts under the search box carry no badge, only the handle
+		document.querySelectorAll('[data-testid="TypeaheadUser"]').forEach(shorten);
+		// "Replying to @name@example.org" on posts: links to accounts from other instances
+		document.querySelectorAll('article[data-testid="tweet"] a[href*="@"]').forEach(shorten);
 		if(queue.length)load();
 	}
 	function load(){
@@ -103,5 +130,5 @@ export const BADGES_SCRIPT = String.raw`(function(){
 			.then(function(d){names.forEach(function(n){known[n]=d[n]||{badges:[],gold:false};delete waiting[n]});scan()})
 			.catch(function(){names.forEach(function(n){delete waiting[n]})});
 	}
-	new MutationObserver(function(){if(!timer)timer=setTimeout(function(){timer=null;scan()},120)}).observe(document.documentElement,{childList:true,subtree:true});
+	new MutationObserver(function(){if(!timer)timer=setTimeout(function(){timer=null;scan()},120)}).observe(document.documentElement,{childList:true,subtree:true,characterData:true});
 })();`;

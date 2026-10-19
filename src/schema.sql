@@ -12,6 +12,10 @@ create table if not exists users (
 	created_at timestamptz not null default now()
 );
 create unique index if not exists users_screen_name_key on users (lower(screen_name));
+create extension if not exists pg_trgm;
+create index if not exists users_handle_trgm_idx on users using gin (screen_name gin_trgm_ops);
+create index if not exists users_name_trgm_idx on users using gin (name gin_trgm_ops);
+create index if not exists users_bio_trgm_idx on users using gin (bio gin_trgm_ops);
 
 create table if not exists sessions (
 	token text primary key,
@@ -35,6 +39,11 @@ drop index if exists posts_reply_to_idx;
 alter table posts drop constraint if exists posts_reply_to_id_fkey;
 alter table posts add column if not exists reply_to_user_id bigint;
 create index if not exists posts_user_idx on posts (user_id, id desc);
+-- trends read the last days' posts; without it every refresh read the whole table
+create index if not exists posts_created_idx on posts (created_at);
+-- The search box uses ILIKE %term% and regex hashtag matches. Trigram GIN
+-- supports both without changing the search language or result ordering.
+create index if not exists posts_text_trgm_idx on posts using gin (text gin_trgm_ops);
 -- replies to an account's posts, newest first (notifications.ts)
 create index if not exists posts_reply_user_idx on posts (reply_to_user_id, created_at) where reply_to_user_id is not null;
 
@@ -103,6 +112,18 @@ create unique index if not exists users_email_idx on users (lower(email));
 alter table users add column if not exists status_restore text;
 alter table posts add column if not exists hidden boolean not null default false;
 alter table posts add column if not exists sensitive boolean not null default false;
+alter table users add column if not exists never_sensitive boolean not null default false;
+alter table users add column if not exists remote_badges jsonb;
+alter table users add column if not exists remote_counts jsonb;
+alter table posts add column if not exists remote_counts jsonb;
+do $$ begin
+	if not exists (select 1 from information_schema.columns where table_name = 'posts' and column_name = 'received_at') then
+		alter table posts add column received_at timestamptz;
+		update posts set received_at = created_at;
+		alter table posts alter column received_at set default now();
+		alter table posts alter column received_at set not null;
+	end if;
+end $$;
 alter table sessions add column if not exists id uuid not null default gen_random_uuid();
 create unique index if not exists sessions_id_key on sessions(id);
 alter table sessions add column if not exists last_seen_at timestamptz not null default now();
@@ -169,6 +190,17 @@ create table if not exists community_note_ratings (
 );
 create index if not exists community_note_ratings_user_idx on community_note_ratings(user_id);
 alter table community_note_ratings add column if not exists data_v2 jsonb not null default '{}';
+create table if not exists community_note_appeals (
+	note_id bigint primary key references community_notes(id) on delete cascade,
+	author_id bigint not null references users(id) on delete cascade,
+	reason text not null check (char_length(reason) between 20 and 1000),
+	status text not null default 'open' check (status in ('open', 'accepted', 'rejected')),
+	created_at timestamptz not null default now(),
+	reviewed_by bigint references users(id) on delete set null,
+	reviewed_at timestamptz,
+	resolution text
+);
+create index if not exists community_note_appeals_open_idx on community_note_appeals (created_at) where status = 'open';
 create table if not exists community_note_requests (
 	post_id bigint not null references posts(id) on delete cascade,
 	user_id bigint not null references users(id) on delete cascade,
@@ -244,6 +276,7 @@ create table if not exists media (
 	created_at timestamptz not null default now()
 );
 create index if not exists media_post_idx on media (post_id, position);
+create index if not exists media_user_idx on media (user_id, id);
 alter table media add column if not exists detached boolean not null default false;
 create or replace function media_detached() returns trigger language plpgsql as $$
 begin
@@ -607,6 +640,8 @@ create table if not exists polls (
 );
 -- an image poll: one uploaded photo per choice, in choice order
 alter table polls add column if not exists choice_media bigint[];
+create index if not exists polls_user_idx on polls (user_id, id);
+create index if not exists polls_choice_media_idx on polls using gin (choice_media) where choice_media is not null;
 
 create table if not exists poll_votes (
 	poll_id bigint not null references polls (id) on delete cascade,
@@ -617,6 +652,8 @@ create table if not exists poll_votes (
 );
 
 alter table posts add column if not exists poll_id bigint references polls (id) on delete set null;
+create index if not exists poll_votes_user_idx on poll_votes (user_id, created_at, poll_id);
+create index if not exists posts_poll_idx on posts (poll_id) where poll_id is not null;
 
 -- scheduled posts and drafts, kept as the composer sent them
 create table if not exists scheduled_posts (
@@ -630,6 +667,7 @@ create table if not exists scheduled_posts (
 create index if not exists scheduled_posts_due_idx on scheduled_posts (execute_at) where kind = 'scheduled';
 create index if not exists scheduled_posts_user_idx on scheduled_posts (user_id, kind);
 alter table scheduled_posts add column if not exists attempts int not null default 0;
+alter table scheduled_posts add column if not exists last_error text;
 
 alter table posts add column if not exists place_id text;
 
@@ -672,6 +710,7 @@ create table if not exists bookmark_folder_posts (
 	created_at timestamptz not null default now(),
 	primary key (folder_id, post_id)
 );
+create index if not exists bookmark_folder_posts_page_idx on bookmark_folder_posts (folder_id, created_at desc, post_id desc);
 
 -- the reply the conversation's author pinned under their post
 alter table posts add column if not exists pinned_reply_id bigint references posts (id) on delete set null;
@@ -911,6 +950,30 @@ create table if not exists api_tokens (
 	last_used_at timestamptz
 );
 create index if not exists api_tokens_user_idx on api_tokens (user_id);
+-- Public OAuth clients use authorization-code + PKCE. They never receive a
+-- client secret; users can revoke grants independently of personal tokens.
+create table if not exists oauth_clients (
+	id bigint primary key,
+	owner_id bigint not null references users(id) on delete cascade,
+	name text not null check (char_length(name) between 1 and 80),
+	redirect_uri text not null,
+	revoked boolean not null default false,
+	created_at timestamptz not null default now()
+);
+create index if not exists oauth_clients_owner_idx on oauth_clients(owner_id);
+create table if not exists oauth_codes (
+	code_hash text primary key,
+	client_id bigint not null references oauth_clients(id) on delete cascade,
+	user_id bigint not null references users(id) on delete cascade,
+	redirect_uri text not null,
+	scope text not null check (scope in ('read', 'write')),
+	code_challenge text not null,
+	expires_at timestamptz not null
+);
+create index if not exists oauth_codes_expires_idx on oauth_codes(expires_at);
+alter table api_tokens add column if not exists client_id bigint references oauth_clients(id) on delete cascade;
+alter table api_tokens add column if not exists expires_at timestamptz;
+create index if not exists api_tokens_client_idx on api_tokens(client_id, user_id) where client_id is not null;
 
 -- Branded hashtags (X's hashflags): for a while, posts with the hashtag get a
 -- custom like animation (Lottie JSON), and the hashtag an emoji after it.
@@ -1247,8 +1310,9 @@ begin
 	return new;
 end $$;
 create or replace trigger federation_post_insert after insert on posts for each row execute function federation_post_changed();
-create or replace trigger federation_post_update after update of text, hidden, edited_at, sensitive on posts for each row
-	when (old.text is distinct from new.text or old.hidden is distinct from new.hidden or old.edited_at is distinct from new.edited_at or old.sensitive is distinct from new.sensitive)
+create or replace trigger federation_post_update after update of text, hidden, edited_at, sensitive, count_overrides on posts for each row
+	when (old.text is distinct from new.text or old.hidden is distinct from new.hidden or old.edited_at is distinct from new.edited_at or old.sensitive is distinct from new.sensitive
+		or old.count_overrides is distinct from new.count_overrides)
 	execute function federation_post_changed();
 create or replace trigger federation_post_delete before delete on posts for each row execute function federation_post_changed();
 
@@ -1283,11 +1347,19 @@ begin
 	return new;
 end $$;
 create or replace trigger federation_user_insert after insert on users for each row execute function federation_user_changed();
-create or replace trigger federation_user_update after update of screen_name, name, bio, location, avatar_url, banner_url, protected, status, deactivated_at on users for each row
-	when (old.screen_name is distinct from new.screen_name or old.name is distinct from new.name or old.bio is distinct from new.bio or old.location is distinct from new.location
+create or replace trigger federation_user_update after update of screen_name, name, bio, location, website, avatar_url, banner_url, protected, status, deactivated_at, verified_type, translator, flag, parody_label, count_overrides on users for each row
+	when (old.screen_name is distinct from new.screen_name or old.name is distinct from new.name or old.bio is distinct from new.bio or old.location is distinct from new.location or old.website is distinct from new.website
 		or old.avatar_url is distinct from new.avatar_url or old.banner_url is distinct from new.banner_url or old.protected is distinct from new.protected
-		or old.status is distinct from new.status or old.deactivated_at is distinct from new.deactivated_at)
+		or old.status is distinct from new.status or old.deactivated_at is distinct from new.deactivated_at or old.verified_type is distinct from new.verified_type
+		or old.translator is distinct from new.translator or old.flag is distinct from new.flag or old.parody_label is distinct from new.parody_label
+		or old.count_overrides is distinct from new.count_overrides)
 	execute function federation_user_changed();
+create or replace function federation_badges_changed() returns trigger language plpgsql as $$
+begin
+	insert into federation_outbox (kind, a) select 'user', u.id from users u where u.id = coalesce(new.user_id, old.user_id) and u.instance is null;
+	return null;
+end $$;
+create or replace trigger federation_user_badges after insert or delete on user_badges for each row execute function federation_badges_changed();
 create or replace trigger federation_user_delete before delete on users for each row execute function federation_user_changed();
 
 do $$ begin
@@ -1296,6 +1368,23 @@ do $$ begin
 		insert into federation_outbox (kind, a) select 'post', p.id from posts p join users u on u.id = p.user_id
 			where u.instance is null and not u.protected and p.created_at > now() - interval '30 days' order by p.id;
 		insert into schema_steps (name) values ('federation_backfill');
+	end if;
+end $$;
+
+create or replace function federated_object_gone() returns trigger language plpgsql as $$
+begin
+	delete from federated_objects where kind = tg_argv[0] and local_id = old.id;
+	return old;
+end $$;
+create or replace trigger federated_user_gone after delete on users for each row when (old.instance is not null) execute function federated_object_gone('user');
+create or replace trigger federated_post_gone after delete on posts for each row execute function federated_object_gone('post');
+create or replace trigger federated_media_gone after delete on media for each row when (old.remote_instance is not null) execute function federated_object_gone('media');
+do $$ begin
+	if not exists (select 1 from schema_steps where name = 'federated_objects_prune') then
+		delete from federated_objects f where kind = 'user' and not exists (select 1 from users where id = f.local_id);
+		delete from federated_objects f where kind = 'post' and not exists (select 1 from posts where id = f.local_id);
+		delete from federated_objects f where kind = 'media' and not exists (select 1 from media where id = f.local_id);
+		insert into schema_steps (name) values ('federated_objects_prune');
 	end if;
 end $$;
 

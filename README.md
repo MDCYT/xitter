@@ -10,8 +10,11 @@ copy during setup, and it stays on that machine.
 ## What works
 
 - Posting, replies, quotes, reposts, likes, bookmarks (with folders), pinned
-  posts, pinned replies, highlights, @mentions and hashtags; editing posts, polls, scheduling,
-  places
+  posts, pinned replies, highlights, @mentions and hashtags; editing posts, polls,
+  scheduled threads (up to 26 posts), places
+- Scheduled threads publish together. Failed threads retry; permanent failures
+  or exhausted retries return the complete thread to drafts. Each account can
+  queue 100 future posts.
 - Who can reply (everyone, followed accounts, verified, mentioned), post views,
   reposts, likes and quotes lists
 - Images, GIFs and video (converted with ffmpeg), alt text, content warnings on
@@ -25,8 +28,11 @@ copy during setup, and it stays on that machine.
 - Notifications with unread counts, browser push (with the instance's own VAPID
   key, made on first start in `data/push-vapid.json`); the profile bell (new posts from that
   account arrive as notifications) and turning an account's reposts off
-- Search with X's operators, trends, Explore; trends by location (Explore
-  settings: worldwide, a country, or yours with "Trends for you")
+- Search with X's operators, including full federated handles, trends, Explore;
+  trends by location (Explore settings: worldwide, a country, or yours with
+  "Trends for you")
+- PostgreSQL trigram indexes for post text and account search; startup installs
+  the `pg_trgm` extension and builds the indexes on existing data once
 - News and sports cards at the top of Explore, written by staff (Admin >
   Explore cards); sports cards are scoreboards you update as the game goes
 - Topics: staff define them with keywords; people follow them from "Topics to
@@ -41,7 +47,10 @@ copy during setup, and it stays on that machine.
   when mail is set up; Settings > Email changes it by a confirmation link), pride flag badges, organisations
   with affiliates, several signed-in accounts
 - Account settings: password change, username change, language, deactivation
-  (reactivates on sign-in within 30 days), data archive, email notification
+  (reactivates on sign-in within 30 days), downloadable JSON and offline HTML
+  data archives (including drafts,
+  scheduled posts, polls, media metadata, bookmark folders and visible encrypted
+  chat history without decryption keys), email notification
   settings (activity and new-message digests, sent while you're away), sessions
   list with revoke, account access history (each sign-in
   with its app and address), two-factor sign-in with an
@@ -64,7 +73,14 @@ copy during setup, and it stays on that machine.
 - Admin > Feature switches: any of the client's own switches, set for everyone
 - Rate limits per account and address (`src/ratelimit.ts`)
 - A public JSON API under `/api/v1` with personal tokens (`/account/api`,
-  read or read and write); `/api` documents it
+  read or read and write), including chunked video uploads with progress and
+  retry support; `/api` documents it. Pending uploads expire after one hour and
+  are lost if the server restarts. Changing or resetting a password revokes all
+  of that account's API tokens.
+- Connected apps: developers register a public client at `/account/apps/developer`,
+  users approve read or read-and-write access with OAuth 2 authorization code
+  and mandatory PKCE, and revoke access at `/account/apps`. Tokens expire after
+  30 days; `/api` documents the flow.
 - An admin panel at `/admin`: users, standing (restrict, limit, suspend),
   badges (blue, gold organisation, grey government organisation or official),
   translator globes (blue translator, gold translator moderator, yellow approver),
@@ -76,11 +92,11 @@ copy during setup, and it stays on that machine.
   and who sees IP addresses, email addresses, invite codes and server errors
   (`src/staff-permissions.ts`; `bun scripts/test-staff-permissions.ts` checks it)
 
-Not built yet: Spaces and live video, Moments, signing in other apps (Connected
-apps stays empty). Email is sent through
-[Resend](https://resend.com) when `RESEND_API_KEY` is set; Admin > Email sends
-a test mail (it shows Resend's answer, e.g. an unverified domain) and lists
-every mail tried.
+Not built yet: Spaces and live video, Moments. Email is sent over SMTP to your own mail server when
+`SMTP_URL` is set, or through [Resend](https://resend.com) when
+`RESEND_API_KEY` is (with both, Resend catches what SMTP refused); Admin >
+Email sends a test mail (it shows the server's answer) and lists every mail
+tried.
 
 ## Running it locally
 
@@ -190,8 +206,9 @@ cache and autovacuum settings; adjust them for the host's memory and workload.
 | `CHAT_TOKEN_SECRET` | saved in `data/chat-secrets.json` | Signing secret for chat socket tokens |
 | `JUICEBOX_REALM_ID`, `JUICEBOX_TENANT_SECRET` | saved in `data/chat-secrets.json` | Stable realm identity and tenant signing secret |
 | `MAX_CHAT_MEDIA_MB` | `200` | Maximum encrypted chat attachment size |
-| `RESEND_API_KEY` | unset | Resend key for password-reset and notification mail; without it nothing is sent |
-| `MAIL_FROM` | `Xitter <noreply@xit.chococat.lol>` | Sender of that mail (the domain must be verified in Resend) |
+| `SMTP_URL` | unset | Own mail server for sign-up codes, password resets and notifications: `smtp://user:pass@host:587` (STARTTLS) or `smtps://user:pass@host:465`; percent-encode `@` in the user; the host must be the name on the server's certificate |
+| `RESEND_API_KEY` | unset | Resend key, used when `SMTP_URL` isn't set or refused a mail; without either nothing is sent |
+| `MAIL_FROM` | `Xitter <noreply@xit.chococat.lol>` | Sender of that mail (its domain must be the mail server's, or verified in Resend) |
 | `KLIPY_API_KEY` | unset | GIF search through [Klipy](https://klipy.com) (see `src/gifs.ts`); without it or `TENOR_API_KEY` the GIF button is hidden |
 | `TENOR_API_KEY` | unset | GIF search through Tenor's v2 API instead, used when `KLIPY_API_KEY` isn't set |
 
@@ -201,8 +218,8 @@ logos) is set in the admin panel.
 ## Federation
 
 Instances listed in `instances.json` share public accounts and posts with each
-other. [FEDERATION.md](FEDERATION.md) covers the list, the protocol,
-defederation and superadmins.
+other. [FEDERATION.md](FEDERATION.md) explains how to set up an instance and
+join the list.
 
 ## Encrypted chat and key backup
 
@@ -257,10 +274,13 @@ own notes. Requests and ratings are deduplicated. Authors can delete their notes
 admins and moderators can remove notes, with staff removals recorded in the audit
 log. Blocked accounts cannot interact through notes.
 
-The current local scoring rule needs at least three ratings, with two thirds
-Helpful, before a misleading-post note is displayed as native context. Ratings
-from suspended accounts are excluded. This is not X's matrix-factorization scoring
-system. Media-match notes, automated translation and appeals are not implemented.
+The local scoring rule needs at least five active ratings and a 95% Wilson
+lower bound above 50% before a misleading-post note is displayed as native
+context. Ratings from suspended accounts are excluded. Authors can appeal a
+Not Helpful note at `/account/notes/appeals`; admins and moderators review
+appeals there, with decisions recorded in the audit log. A staff decision does
+not change the reader score. This is not X's matrix-factorization scoring
+system. Media-match notes and automated translation are not implemented.
 
 Run `bun scripts/test-notes.ts` against the development server with the existing
 `pozo`/`goldcorp` test accounts. It creates temporary posts, tokens and voters,
@@ -297,6 +317,18 @@ expiry, write paths and request limits against one.
 
 - `GET /_debug/unknown` (admins only) lists the client calls no handler answers yet, most
   frequent first. Start there when a screen is empty.
+- `bun run test:unit` discovers and runs the scripts that use `bun:test`, without
+  needing a server. `.github/workflows/tests.yml` runs these on pushes and pull
+  requests, then checks password and two-factor concurrency, poll visibility,
+  search operators, API request limits, email confirmations, data exports,
+  scheduled threads and quotas, bookmark pagination, media privacy, chunked
+  video uploads, account settings and encrypted chat
+  against a fresh PostgreSQL 18 database and a local server. The pinned client
+  is not downloaded; checks that need it report a skip.
+- The `test-*-concurrency.ts`, `test-poll-visibility.ts` and
+  `test-search-operators.ts` scripts can also run against a dedicated migrated
+  test database without a server. Set `DATABASE_URL` to that database; each
+  script creates and removes its own test accounts.
 - `scripts/test-*.ts` check each feature end to end against a running server,
   for example `bun scripts/test-posts.ts <user A> <user B> <password>`. Each
   script's first lines give its arguments.

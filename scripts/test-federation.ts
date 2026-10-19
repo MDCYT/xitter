@@ -54,8 +54,15 @@ try {
 	check("B keeps a copy of alice", !!aliceOnB);
 	const [handle] = aliceOnB ? await B.db`select screen_name from users where id = ${aliceOnB}::bigint` : [];
 	check("named with her instance", handle?.screen_name === `${alice.name}@${idOf(A.origin)}`, handle?.screen_name);
+	const preview = await fetch(`${B.origin}/${alice.name}@${idOf(A.origin)}`, { redirect: "manual" });
+	check("B previews her for link fetchers by her full handle", preview.status === 200 && (await preview.text()).includes("og:title"), preview.status);
 	const mirror = await until(async () => (await B.db`select local_id::text from federated_objects where instance = ${idOf(A.origin)} and kind = 'post' and remote_id = ${postId}::bigint`)[0]?.local_id as string);
 	check("and her post", !!mirror);
+	const syncStatus = await until(async () => {
+		const doc = (await (await fetch(`${B.origin}/.well-known/xitter`)).json()) as any;
+		return doc.federation?.peers?.find((p: any) => p.id === idOf(A.origin) && p.federating && p.last_sync_at);
+	}, 60);
+	check("B's public status shows when it last synced with A", !!syncStatus, syncStatus);
 
 	const found = await bob.get("UserByScreenName", { screen_name: `${alice.name}@${idOf(A.origin)}`, withSafetyModeUserFields: true });
 	check("bob finds alice by her handle", found.data?.user?.result?.rest_id === aliceOnB, found.data?.user?.result?.rest_id);
@@ -71,12 +78,81 @@ try {
 	await bob.gql("FavoriteTweet", { tweet_id: mirror });
 	check("A sees bob's like", !!(await until(async () => (await A.db`select 1 from likes where user_id = ${bobOnA ?? "0"}::bigint and post_id = ${postId}::bigint`).length > 0)));
 
+	await A.db`update posts set count_overrides = '{"likes": 4242}'::jsonb where id = ${postId}::bigint`;
+	const shown = await until(async () => (await B.db`select remote_counts from posts where id = ${mirror ?? "0"}::bigint and (remote_counts->>'likes')::int = 4242`)[0]);
+	check("counts set at home show on the copy", !!shown);
+	await A.db`update users set count_overrides = '{"followers": 777}'::jsonb where id = ${alice.id}::bigint`;
+	check("and so do an account's", !!(await until(async () => (await B.db`select 1 from users where id = ${aliceOnB ?? "0"}::bigint and (remote_counts->>'followers')::int = 777`).length > 0)));
+
 	const reply = await bob.gql("CreateTweet", { tweet_text: `hi alice ${stamp}`, reply: { in_reply_to_tweet_id: mirror } });
 	const replyId = reply.data?.create_tweet?.tweet_results?.result?.rest_id as string;
 	check("bob replies on B", !!replyId, reply.errors);
 	const replyOnA = await until(async () => (await A.db`select local_id::text from federated_objects where instance = ${idOf(B.origin)} and kind = 'post' and remote_id = ${replyId}::bigint`)[0]?.local_id as string);
 	const [threaded] = replyOnA ? await A.db`select reply_to_id::text, reply_to_user_id::text from posts where id = ${replyOnA}::bigint` : [];
 	check("A threads bob's reply under alice's post", threaded?.reply_to_id === postId && threaded?.reply_to_user_id === alice.id, threaded);
+
+	const linking = await bob.gql("CreateTweet", { tweet_text: `look ${A.origin}/${alice.name}/status/${postId} and ${A.origin}/${alice.name}` });
+	const linkingId = linking.data?.create_tweet?.tweet_results?.result?.rest_id as string;
+	const shownLink = (await bob.get("TweetResultByRestId", { tweetId: linkingId ?? "0" })).data?.tweetResult?.result;
+	check("a link to a post on another instance shows its copy here as a quote", shownLink?.quoted_status_result?.result?.rest_id === mirror, shownLink?.quoted_status_result?.result?.rest_id);
+	const linkTargets = (shownLink?.legacy?.entities?.urls ?? []).map((u: any) => u.expanded_url);
+	check("and its links open the copies here", linkTargets.includes(`${B.origin}/${alice.name}@${idOf(A.origin)}/status/${mirror}`) && linkTargets.includes(`${B.origin}/${alice.name}@${idOf(A.origin)}`), linkTargets);
+
+	const mentionA = await alice.gql("CreateTweet", { tweet_text: `hey @${bob.name}@${idOf(B.origin)}, I'm @${alice.name} ${stamp}` });
+	const mentionId = mentionA.data?.create_tweet?.tweet_results?.result?.rest_id as string;
+	const mentionsHere = await A.db`select user_id::text from post_mentions where post_id = ${mentionId ?? "0"}::bigint order by user_id`;
+	check("a mention by full handle points at the copy, not a local namesake", mentionsHere.some((m: any) => m.user_id === bobOnA), mentionsHere);
+	const entities = mentionA.data?.create_tweet?.tweet_results?.result?.legacy?.entities?.user_mentions ?? [];
+	const fullEntity = entities.find((m: any) => m.id_str === bobOnA);
+	check("and its entity covers the whole handle", fullEntity?.screen_name === `${bob.name}@${idOf(B.origin)}` && fullEntity.indices[1] - fullEntity.indices[0] === `@${bob.name}@${idOf(B.origin)}`.length, entities);
+	const mentionOnB = await until(async () => (await B.db`select local_id::text from federated_objects where instance = ${idOf(A.origin)} and kind = 'post' and remote_id = ${mentionId ?? "0"}::bigint`)[0]?.local_id as string);
+	const mentionsOf = async () => (mentionOnB ? (await B.db`select user_id::text from post_mentions where post_id = ${mentionOnB}::bigint`).map((m: any) => m.user_id as string) : []);
+	const mentionsThere = (await until(async () => {
+		const m = await mentionsOf();
+		return m.includes(bob.id) && m.includes(aliceOnB) ? m : undefined;
+	}, 10)) ?? (await mentionsOf());
+	check("on B it mentions bob himself and alice's copy", mentionsThere.includes(bob.id) && mentionsThere.includes(aliceOnB), mentionsThere);
+	const bobNotified = await until(async () => {
+		const n = await bob.get("NotificationsTimeline", { timeline_type: "Mentions", count: 20 });
+		return JSON.stringify(n).includes(mentionOnB ?? "none");
+	}, 10);
+	check("and bob gets the mention", !!bobNotified);
+
+	await A.db`update users set bio = ${`me: @${alice.name}, pal: @${bob.name}@${idOf(B.origin)}, see https://example.org/@${bob.name}`}, website = 'https://example.org' where id = ${alice.id}::bigint`;
+	const bioOnB = await until(async () => {
+		const r = await bob.get("UserByScreenName", { screen_name: `${alice.name}@${idOf(A.origin)}`, withSafetyModeUserFields: true });
+		const result = r.data?.user?.result;
+		return result?.profile_bio?.description?.startsWith("me:") ? result.profile_bio : undefined;
+	});
+	const bioMentions = bioOnB?.entities?.description?.user_mentions?.map((m: any) => m.screen_name) ?? [];
+	check("a bare @name in a copied bio points at its home account", bioMentions.includes(`${alice.name}@${idOf(A.origin)}`), bioMentions);
+	check("and @name@<this instance> points at the local account", bioMentions.includes(bob.name), bioMentions);
+	check("and @names inside links are left alone", bioMentions.length === 2, bioMentions);
+	const badgeId = newId();
+	await A.db`insert into custom_badges (id, name, image, mime) values (${badgeId}::bigint, ${`fed badge ${stamp}`}, ${Buffer.from("png")}, 'image/png')`;
+	await A.db`insert into user_badges (user_id, badge_id, position) values (${alice.id}::bigint, ${badgeId}::bigint, 0)`;
+	await A.db`update users set verified_type = 'blue' where id = ${alice.id}::bigint`;
+	const looks = await until(async () => (await B.db`select verified_type, remote_badges from users where id = ${aliceOnB ?? "0"}::bigint and verified_type is not null and remote_badges <> '[]'::jsonb`)[0]);
+	check("her checkmark and custom badges travel", looks?.verified_type === "blue" && looks.remote_badges?.[0]?.url === `${A.origin}/public/badge-${badgeId}.png`, looks);
+	await A.db`delete from custom_badges where id = ${badgeId}::bigint`;
+	check("the website travels too", (await B.db`select website from users where id = ${aliceOnB ?? "0"}::bigint`)[0]?.website === "https://example.org");
+	const ownHost = await bob.get("UserByScreenName", { screen_name: `${bob.name}@${idOf(B.origin)}`, withSafetyModeUserFields: true });
+	check("a handle naming this instance finds the local account", ownHost.data?.user?.result?.rest_id === bob.id, ownHost.data?.user?.result?.rest_id);
+
+	await A.db`update posts set text = text || ' (edited)', edited_at = now() where id = ${mentionId ?? "0"}::bigint`;
+	const versions = await until(async () => (await B.db`select count(*)::int as n from post_versions where post_id = ${mentionOnB ?? "0"}::bigint`)[0]?.n);
+	const [edited] = await B.db`select edit_count, text from posts where id = ${mentionOnB ?? "0"}::bigint`;
+	check("an edit at home keeps the old text in the copy's history", versions === 1 && edited?.edit_count === 1 && edited.text.endsWith("(edited)"), { versions, edited });
+
+	const limited = await alice.gql("CreateTweet", { tweet_text: `only people I mention ${stamp}` });
+	const limitedId = limited.data?.create_tweet?.tweet_results?.result?.rest_id as string;
+	await A.db`update posts set reply_policy = 'ByInvitation' where id = ${limitedId ?? "0"}::bigint`;
+	const limitedOnB = await until(async () => (await B.db`select local_id::text from federated_objects where instance = ${idOf(A.origin)} and kind = 'post' and remote_id = ${limitedId ?? "0"}::bigint`)[0]?.local_id as string);
+	await bob.gql("CreateTweet", { tweet_text: `sneaking in ${stamp}`, reply: { in_reply_to_tweet_id: limitedOnB } });
+	const marker = await bob.gql("CreateTweet", { tweet_text: `marker ${stamp}` });
+	const markerId = marker.data?.create_tweet?.tweet_results?.result?.rest_id as string;
+	await until(async () => (await A.db`select 1 from federated_objects where instance = ${idOf(B.origin)} and kind = 'post' and remote_id = ${markerId ?? "0"}::bigint`).length > 0);
+	check("a reply the home's reply limit forbids is dropped there", !(await A.db`select 1 from posts where reply_to_id = ${limitedId ?? "0"}::bigint`).length);
 
 	const mediaId = newId();
 	const picture = Buffer.from(`GIF89a-${stamp}`);
@@ -95,8 +171,49 @@ try {
 	await alice.gql("DeleteTweet", { tweet_id: postId });
 	check("a deleted post goes from B", !!(await until(async () => !(await B.db`select 1 from posts where id = ${mirror ?? "0"}::bigint`).length)));
 
+	const parent = (await alice.gql("CreateTweet", { tweet_text: `parent ${stamp}` })).data?.create_tweet?.tweet_results?.result?.rest_id as string;
+	const orphan = (await alice.gql("CreateTweet", { tweet_text: `orphan ${stamp}`, reply: { in_reply_to_tweet_id: parent } })).data?.create_tweet?.tweet_results?.result?.rest_id as string;
+	await alice.gql("DeleteTweet", { tweet_id: parent });
+	const orphanOnB = await until(async () => (await B.db`select p.reply_to_id::text from posts p join federated_objects f on f.kind = 'post' and f.local_id = p.id where f.instance = ${idOf(A.origin)} and f.remote_id = ${orphan ?? "0"}::bigint`)[0]);
+	check("a reply whose parent was deleted stays a reply on B", !!orphanOnB?.reply_to_id, orphanOnB);
+
+	const hidden = (await alice.gql("CreateTweet", { tweet_text: `not for peers ${stamp}` })).data?.create_tweet?.tweet_results?.result?.rest_id as string;
+	await A.db`update posts set hidden = true where id = ${hidden ?? "0"}::bigint`;
+	const quoting = (await alice.gql("CreateTweet", { tweet_text: `quoting ${stamp}`, attachment_url: `${A.origin}/${alice.name}/status/${hidden}` })).data?.create_tweet?.tweet_results?.result?.rest_id as string;
+	const quoteOnB = await until(async () => (await B.db`select p.text, p.quote_id::text from posts p join federated_objects f on f.kind = 'post' and f.local_id = p.id where f.instance = ${idOf(A.origin)} and f.remote_id = ${quoting ?? "0"}::bigint`)[0]);
+	check("a quote of a post that can't federate links to it on B", !quoteOnB?.quote_id && quoteOnB?.text?.includes(`${A.origin}/${alice.name}/status/${hidden}`), quoteOnB);
+
+	const closedPost = (await alice.gql("CreateTweet", { tweet_text: `soon protected ${stamp}` })).data?.create_tweet?.tweet_results?.result?.rest_id as string;
+	const closedOnB = await until(async () => (await B.db`select local_id::text from federated_objects where instance = ${idOf(A.origin)} and kind = 'post' and remote_id = ${closedPost ?? "0"}::bigint`)[0]?.local_id as string);
+	const quiet = (on: boolean) => A.db.begin(async (tx) => {
+		await tx`set local session_replication_role = replica`;
+		await tx`update users set protected = ${on} where id = ${alice.id}::bigint`;
+	});
+	await quiet(true);
+	const erin = await account(A, `fe${stamp}`);
+	const dave = await account(B, `fd${stamp}`);
+	made.push({ side: A, id: erin.id }, { side: B, id: dave.id });
+	const refused = await erin.gql("CreateTweet", { tweet_text: `let me in ${stamp}`, reply: { in_reply_to_tweet_id: closedPost } });
+	check("someone who doesn't follow a protected account can't reply to it", !refused.data?.create_tweet?.tweet_results?.result?.rest_id && !!refused.errors, refused.errors);
+	if (closedOnB) await B.db`insert into posts (id, user_id, text, reply_to_id, conversation_id) values (${newId()}::bigint, ${dave.id}::bigint, ${`sneaky ${stamp}`}, ${closedOnB}::bigint, ${closedOnB}::bigint)`;
+	const daveOnA = await until(async () => (await A.db`select id::text from users where instance = ${idOf(B.origin)} and remote_id = ${dave.id}::bigint`)[0]?.id as string);
+	await Bun.sleep(3000);
+	check("nor can someone from another instance", !!closedOnB && !!daveOnA && !(await A.db`select 1 from posts where reply_to_id = ${closedPost ?? "0"}::bigint and user_id = ${daveOnA}::bigint`).length, { closedOnB, daveOnA });
+	await quiet(false);
+
 	await A.db`update users set protected = true where id = ${alice.id}::bigint`;
 	check("a protected account's posts go from B", !!(await until(async () => !(await B.db`select 1 from posts where user_id = ${aliceOnB ?? "0"}::bigint`).length)));
+
+	const carol = await account(A, `fc${stamp}`);
+	made.push({ side: A, id: carol.id });
+	const carolOnB = await until(async () => (await B.db`select id::text from users where screen_name = ${`${carol.name}@${idOf(A.origin)}`}`)[0]?.id as string | undefined);
+	await A.db`update users set status = 'suspended' where id = ${carol.id}::bigint`;
+	check("a suspended account goes from B", !!carolOnB && !!(await until(async () => !(await B.db`select 1 from users where id = ${carolOnB ?? "0"}::bigint`).length)));
+	await A.db`update users set status = 'active' where id = ${carol.id}::bigint`;
+	const carolBack = await until(async () => (await B.db`select id::text from users where screen_name = ${`${carol.name}@${idOf(A.origin)}`}`)[0]?.id as string | undefined);
+	check("and comes back when it's lifted", !!carolBack, carolBack);
+	await A.db`delete from users where id = ${carol.id}::bigint`;
+	check("a deleted account goes from B", !!(await until(async () => !(await B.db`select 1 from users where screen_name = ${`${carol.name}@${idOf(A.origin)}`}`).length)));
 
 	const forged = await fetch(`${A.origin}/federation/v1/events?after=0`, {
 		headers: { "x-xitter-from": idOf(B.origin), "x-xitter-to": idOf(A.origin), "x-xitter-timestamp": String(Date.now()), "x-xitter-nonce": "AAAAAAAAAAAAAAAAAAAAAA", "x-xitter-signature": "x".repeat(86) },
@@ -124,11 +241,21 @@ try {
 	const blocked = await adminApi(A, adminCookies, "federationBlock", { instance: idOf(B.origin), reason: "test" });
 	check("an admin defederates B", blocked.status === 200, blocked.body);
 	check("B's accounts drop out of view on A", (await A.db`select instance_blocked from users where id = ${bobOnA ?? "0"}::bigint`)[0]?.instance_blocked === true);
+	const hiddenPreview = await fetch(`${A.origin}/${bob.name}@${idOf(B.origin)}`, { redirect: "manual" });
+	check("and out of A's link previews", hiddenPreview.status === 302, hiddenPreview.status);
 	await bob.gql("CreateTweet", { tweet_text: `after the block ${stamp}` });
 	await Bun.sleep(20_000);
 	check("nothing new arrives from B", !(await A.db`select 1 from posts where user_id = ${bobOnA ?? "0"}::bigint and text like 'after the block%'`).length);
 	await adminApi(A, adminCookies, "federationUnblock", { instance: idOf(B.origin) });
 	check("lifting it catches up", !!(await until(async () => (await A.db`select 1 from posts where user_id = ${bobOnA ?? "0"}::bigint and text like 'after the block%'`).length > 0)));
+
+	const editCopy = await adminApi(A, adminCookies, "updateUser", { id: bobOnA, name: "renamed here" });
+	check("admins can't edit a copy of another instance's account", editCopy.status === 403 && /lives on/.test(editCopy.body.error ?? ""), editCopy.body);
+	const roleCopy = await adminApi(A, adminCookies, "setRole", { id: bobOnA, role: "admin" });
+	check("or make it staff", roleCopy.status === 403, roleCopy.body);
+	const suspendCopy = await adminApi(A, adminCookies, "setStatus", { id: bobOnA, status: "suspended" });
+	check("but they can suspend it here", suspendCopy.status === 200, suspendCopy.body);
+	await adminApi(A, adminCookies, "setStatus", { id: bobOnA, status: "active" });
 
 	const meowId = newId();
 	const secret = newSecret();
@@ -140,10 +267,11 @@ try {
 	await A.db`insert into sessions (token, user_id, csrf) values (${meowToken}, ${meowId}::bigint, 'meowcsrf')`;
 	const meowCookies = `auth_token=${meowToken}; ct0=meowcsrf`;
 	const ask = (path: string, form: Record<string, string>) => fetch(`${A.origin}${path}`, { method: "POST", headers: { cookie: meowCookies }, body: new URLSearchParams(form), redirect: "manual" });
-	const page = await (await ask("/federation/superadmin/enter", { instance: idOf(B.origin), password: "testpass123", code: codeAt(secret, Math.floor(Date.now() / 30000)) })).text();
+	const firstCode = codeAt(secret, Math.floor(Date.now() / 30000));
+	const page = await (await ask("/federation/superadmin/enter", { instance: idOf(B.origin), password: "testpass123", code: firstCode })).text();
 	const ticket = /name="ticket" value="([^"]+)"/.exec(page)?.[1]?.replaceAll("&quot;", '"').replaceAll("&amp;", "&");
 	check("meow gets a ticket after password and code", !!ticket, page.slice(0, 200));
-	const replay = await (await ask("/federation/superadmin/enter", { instance: idOf(B.origin), password: "testpass123", code: codeAt(secret, Math.floor(Date.now() / 30000)) })).text();
+	const replay = await (await ask("/federation/superadmin/enter", { instance: idOf(B.origin), password: "testpass123", code: firstCode })).text();
 	check("the same code can't be used twice", !replay.includes('name="ticket"'));
 	const wrong = await (await ask("/federation/superadmin/enter", { instance: idOf(B.origin), password: "wrong", code: "000000" })).text();
 	check("a wrong password gets no ticket", !wrong.includes('name="ticket"'));
@@ -166,6 +294,18 @@ try {
 	const [bSession] = await B.db`select token, csrf from sessions where user_id = ${bAdmin.id}::bigint`;
 	const demote = await adminApi(B, `auth_token=${bSession.token}; ct0=${bSession.csrf}`, "setStatus", { id: superOnB?.id, status: "suspended" });
 	check("B's own admins can't act on the superadmin", demote.status === 403, demote.body);
+
+	if (process.env.FED_D_DB) {
+		const D = new SQL(process.env.FED_D_DB);
+		const paused = await until(async () => {
+			const e = (await D`select last_error from federation_peers where instance = ${idOf(A.origin)}`)[0]?.last_error ?? "";
+			return /paused/.test(e) ? e : undefined;
+		}, 60);
+		check("an instance over its hourly budget is paused", /paused/.test(paused ?? ""), paused);
+		const [{ cursor }] = await D`select cursor::text from federation_peers where instance = ${idOf(A.origin)}`;
+		const [{ head }] = await A.db`select max(seq)::text as head from federation_outbox`;
+		check("and it stops reading before the end, after the events it applied", BigInt(cursor) > 0n && BigInt(cursor) < BigInt(head), { cursor, head });
+	}
 
 	const sent = await (await ask("/federation/superadmin/emergency", { instance: "localhost:3043", action: "block", reason: "test emergency", password: "testpass123", code: codeAt(secret, Math.floor(Date.now() / 30000) + 1) })).text();
 	check("meow sends an emergency defederation", sent.includes("Sent."), sent.slice(0, 300));
@@ -204,32 +344,23 @@ try {
 		list.sequence += 1;
 		for (const i of list.instances) if (i.id === idOf(A.origin)) i.public_key = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 		await Bun.write(forgedList, JSON.stringify(list));
-		const probe = () => {
-			const run = Bun.spawnSync(["bun", "-e", `import { refreshRegistry, keyFor, pendingKeyChange } from "./src/federation"; await refreshRegistry(); console.log(JSON.stringify({ key: await keyFor(${JSON.stringify(idOf(A.origin))}), pending: await pendingKeyChange(${JSON.stringify(idOf(A.origin))}) })); process.exit(0);`], {
+		const probe = (clear = false) => {
+			const run = Bun.spawnSync(["bun", "-e", `import { sql } from "./src/db"; import { refreshRegistry, keyFor, pendingKeyChange } from "./src/federation"; await refreshRegistry(); ${clear ? `await sql\`update federation_peers set key = null where instance = \${${JSON.stringify(idOf(A.origin))}}\`;` : ""} console.log(JSON.stringify({ key: await keyFor(${JSON.stringify(idOf(A.origin))}), pending: await pendingKeyChange(${JSON.stringify(idOf(A.origin))}) })); process.exit(0);`], {
 				env: { ...process.env, DATABASE_URL: process.env.FED_B_DB ?? "postgres://tiago@127.0.0.1:5432/fed_b", PUBLIC_ORIGIN: B.origin, FEDERATION_REGISTRY_URL: forgedList, FEDERATION_KEY_FILE: process.env.FED_B_KEY_FILE, FEDERATION_ALLOW_HTTP: "1", XITTER_TEST_SUPERADMINS: `meow@${idOf(A.origin)}` },
 			});
 			return { stdout: run.stdout, stderr: run.stderr };
 		};
 		const firstProbe = probe();
-		await B.db`update federation_peers set key = null where instance = ${idOf(A.origin)}`;
-		const fresh = JSON.parse(probe().stdout.toString().trim().split("\n").pop() || "{}");
+		const fresh = JSON.parse(probe(true).stdout.toString().trim().split("\n").pop() || "{}");
 		const [afterFresh] = await B.db`select key from federation_peers where instance = ${idOf(A.origin)}`;
 		await B.db`update federation_peers set key = ${pinnedOnB?.key ?? null} where instance = ${idOf(A.origin)}`;
 		await B.db`delete from federation_state where key = 'registry'`;
-		check("on first contact, a home key the list and the home disagree on is refused", !fresh.key && !afterFresh?.key, { fresh, stored: afterFresh?.key });
+		check("on first contact, a home key the list and the home disagree on is refused", !fresh.key && afterFresh?.key !== "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", { fresh, stored: afterFresh?.key });
 		const seen = JSON.parse(firstProbe.stdout.toString().trim().split("\n").pop() || "{}");
 		check("a list that swaps the home's key doesn't replace the pinned one", !!pinnedOnB?.key && seen.key === pinnedOnB.key, { seen, pinned: pinnedOnB?.key, err: firstProbe.stderr.toString().slice(0, 300) });
 		check("and shows up as a key change", seen.pending === "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", seen);
 	}
 
-	if (process.env.FED_D_DB) {
-		const D = new SQL(process.env.FED_D_DB);
-		const paused = await until(async () => (await D`select last_error from federation_peers where instance = ${idOf(A.origin)}`)[0]?.last_error ?? "", 60);
-		check("an instance over its hourly budget is paused", /paused/.test(paused ?? ""), paused);
-		const [{ cursor }] = await D`select cursor::text from federation_peers where instance = ${idOf(A.origin)}`;
-		const [{ head }] = await A.db`select max(seq)::text as head from federation_outbox`;
-		check("and it stops reading before the end, after the events it applied", BigInt(cursor) > 0n && BigInt(cursor) < BigInt(head), { cursor, head });
-	}
 } finally {
 	for (const m of made) await m.side.db`delete from users where id = ${m.id}::bigint`;
 }

@@ -9,9 +9,9 @@
 // written to the audit log.
 
 import { isSuperadminViewer } from "./superadmin";
-import { SUPERADMINS, isSuperadminHome, superadminNameHere } from "./superadmins";
+import { SUPERADMINS, isSuperadminHome, superadminNameHere, superadminOf } from "./superadmins";
 import { FEDERATION_ON, ID_RE, INSTANCE_ID, acceptKeyChange, isBlocked as isFederationBlocked, isPeer, liftBlock, listBlocks, listed, listedInstance, pendingKeyChange, publicKey, registryCheckedAt, registryError, registrySequence, setBlock as setFederationBlock } from "./federation";
-import { pullFrom } from "./federation-sync";
+import { dropRemoteMedia, pullFrom, savedRemoteMedia, storesRemoteMedia } from "./federation-sync";
 import type { Viewer } from "./auth";
 import { sql } from "./db";
 import { isFlag } from "./flags";
@@ -71,10 +71,11 @@ async function userRow(id: string) {
 const ownerId = async () => (await sql`select id::text from users where role = 'admin' order by created_at, id limit 1`)[0]?.id as string | undefined;
 const rankOf = (role: string | null, isOwner: boolean) => (isOwner ? 4 : role ? RANK[role as Role] : 0);
 
-export async function guard(actor: Viewer, targetId: string) {
+export async function guard(actor: Viewer, targetId: string, localOnly = false) {
 	const u = await userRow(targetId);
 	if (targetId === actor.id) return u;
 	const [t] = await sql`select instance from users where id = ${targetId}::bigint`;
+	if (localOnly && t?.instance) throw new AdminError(`That account lives on ${t.instance}, which manages it. Here you can only moderate it.`, 403);
 	if (isSuperadminViewer({ screen_name: u.screen_name, instance: t?.instance }) && !actor.superadmin) throw new AdminError("That account is a superadmin.", 403);
 	if (!u.role || actor.superadmin) return u;
 	const owner = await ownerId();
@@ -89,6 +90,10 @@ const randomPassword = () => {
 	const alphabet = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789";
 	return [...crypto.getRandomValues(new Uint8Array(14))].map((b) => alphabet[b % alphabet.length]).join("");
 };
+
+// the Users and Organisations lists: "local" is this instance's own accounts,
+// "remote" the copies of accounts from other instances, anything else both
+const homeFilter = (home: unknown) => (home === "local" ? sql`and u.instance is null` : home === "remote" ? sql`and u.instance is not null` : sql``);
 
 const like = (q: string) => `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 
@@ -122,6 +127,7 @@ const ACTIONS: Record<string, Action> = {
 			public_key: publicKey(),
 			entry: { id: INSTANCE_ID, name: settings().instance_name, source_url: settings().source_url || null, public_key: publicKey(), state: "active" },
 			listed_here: listedInstance(INSTANCE_ID) ?? null,
+			media: { stored: storesRemoteMedia(), ...(await savedRemoteMedia()) },
 			registry: { sequence: registrySequence(), checked_at: registryCheckedAt ? new Date(registryCheckedAt).toISOString() : null, error: registryError },
 			outbox_head: head,
 			superadmins: SUPERADMINS.map((x) => `${x.screen_name}@${x.instance}`),
@@ -182,6 +188,11 @@ const ACTIONS: Record<string, Action> = {
 		await audit(a, "federation_accept_key", id);
 		return {};
 	} },
+	federationDropMedia: { role: "admin", run: async (a) => {
+		const dropped = await dropRemoteMedia();
+		await audit(a, "federation_drop_media", INSTANCE_ID, dropped);
+		return dropped;
+	} },
 	federationPull: { role: "admin", run: async (a, b) => {
 		const id = instanceOf(b.instance);
 		await audit(a, "federation_pull", id);
@@ -189,10 +200,18 @@ const ACTIONS: Record<string, Action> = {
 	} },
 	setNotesAccess: { role: "admin", run: async (a, b) => {
 		const id = idOf(b.id);
-		await guard(a, id);
+		await guard(a, id, true);
 		if (typeof b.enabled !== "boolean") throw new AdminError("Provide a boolean access setting.");
 		await sql`update users set notes_writer = ${b.enabled} where id = ${id}::bigint`;
 		await audit(a, "set_notes_access", id, { enabled: b.enabled });
+		return {};
+	} },
+	setNeverSensitive: { role: "moderator", run: async (a, b) => {
+		const id = idOf(b.id);
+		await guard(a, id);
+		if (typeof b.enabled !== "boolean") throw new AdminError("Provide a boolean setting.");
+		await sql`update users set never_sensitive = ${b.enabled} where id = ${id}::bigint`;
+		await audit(a, "set_never_sensitive", id, { enabled: b.enabled });
 		return {};
 	} },
 	platforms: { role: "admin", run: async () => ({ platforms: await sql`select id::text, label, revoked, created_at from client_platforms order by id desc` }) },
@@ -263,7 +282,8 @@ const ACTIONS: Record<string, Action> = {
 		return {};
 	} },
 	// `allowed`: the actions this account may run, for the panel to show only those
-	me: { role: "support", run: async (a) => ({ id: a.id, screen_name: a.screen_name, role: a.role,
+	me: { role: "support", run: async (a) => ({ id: a.id, screen_name: a.screen_name, role: a.role, superadmin: !!a.superadmin,
+		superadmin_home: !a.instance && a.role === "admin" && !!superadminOf(INSTANCE_ID, a.screen_name, a.id),
 		allowed: Object.entries(ACTIONS).filter(([name, x]) => mayRun(a.role, name, x.role)).map(([name]) => name) }) },
 
 	staffPermissions: { role: "admin", run: async () => ({
@@ -337,9 +357,10 @@ const ACTIONS: Record<string, Action> = {
 			const q = String(b.q ?? "").trim().replace(/^@/, "");
 			const status = ["active", "restricted", "limited", "suspended"].includes(b.status) ? b.status : null;
 			const staff = !!b.staff;
+			const home = homeFilter(b.home);
 			const match = sql`(${q} = '' or u.screen_name ilike ${like(q)} or u.name ilike ${like(q)})
 					and (${status}::text is null or u.status = ${status})
-					and (not ${staff} or u.role is not null)`;
+					and (not ${staff} or u.role is not null) ${home}`;
 			const rows = await sql`select ${userListCols} from users u where ${match}
 				order by u.created_at desc, u.id desc limit ${Math.min(Math.max(Number(b.limit) || 50, 1), 500)} offset ${Math.max(Number(b.offset) || 0, 0)}`;
 			const [{ total }] = await sql`select count(*)::int as total from users u where ${match}`;
@@ -351,7 +372,7 @@ const ACTIONS: Record<string, Action> = {
 		role: "support",
 		run: async (a, b) => {
 			const id = idOf(b.id);
-			const [u] = await sql`select ${userListCols}, ${allows(a.role, "invites") ? sql`u.invite_code` : sql`null::text as invite_code`}, u.bio, u.location, u.website, u.based_in_override, u.country, u.count_overrides, u.notes_writer, u.org_badge_id::text, u.status_until, u.parody_label, u.label_id::text,
+			const [u] = await sql`select ${userListCols}, ${allows(a.role, "invites") ? sql`u.invite_code` : sql`null::text as invite_code`}, u.bio, u.location, u.website, u.based_in_override, u.country, u.count_overrides, u.notes_writer, u.never_sensitive, u.org_badge_id::text, u.status_until, u.parody_label, u.label_id::text, u.instance,
 				(select coalesce(json_agg(ub.badge_id::text order by ub.position), '[]') from user_badges ub where ub.user_id = u.id) as badge_ids,
 				(select count(*)::int from sessions s where s.user_id = u.id) as sessions,
 				(select c.screen_name from invites i join users c on c.id = i.created_by where i.code = u.invite_code) as invited_by
@@ -376,7 +397,7 @@ const ACTIONS: Record<string, Action> = {
 		role: "admin",
 		run: async (a, b) => {
 			const id = idOf(b.id);
-			await guard(a, id);
+			await guard(a, id, true);
 			const limits: Record<string, [string, number]> = { name: ["name", 50], screen_name: ["screen_name", 50], bio: ["bio", 160], location: ["location", 30], website: ["website", 100], based_in: ["based_in_override", 50] };
 			const changes: Record<string, string | null> = {};
 			for (const [field, [column, max]] of Object.entries(limits)) {
@@ -409,7 +430,7 @@ const ACTIONS: Record<string, Action> = {
 			const id = idOf(b.id);
 			const kind = b.translator || null;
 			if (kind !== null && !["translator", "moderator", "approver"].includes(kind)) throw new AdminError("Unknown translator badge.");
-			await guard(a, id);
+			await guard(a, id, true);
 			await sql`update users set translator = ${kind} where id = ${id}::bigint`;
 			await audit(a, "set_translator", id, { translator: kind });
 			return {};
@@ -421,12 +442,7 @@ const ACTIONS: Record<string, Action> = {
 			const id = idOf(b.id);
 			const badge = b.badge || null;
 			if (badge !== null && !["blue", "business", "government", "government_individual"].includes(badge)) throw new AdminError("Unknown badge.");
-			await guard(a, id);
-			// an account stops being an organisation when it loses the gold or grey (government) badge
-			if (badge !== "business" && badge !== "government") {
-				await sql`delete from affiliations where org_id = ${id}::bigint`;
-				await sql`delete from affiliation_requests where org_id = ${id}::bigint`;
-			}
+			await guard(a, id, true);
 			// verified_at: "Verified since" on the About page; a new badge type starts it again
 			await sql`update users set verified_at = case when ${badge}::text is null then null when verified_type is distinct from ${badge}::text then now() else verified_at end,
 				verified_type = ${badge} where id = ${id}::bigint`;
@@ -441,7 +457,7 @@ const ACTIONS: Record<string, Action> = {
 			const id = idOf(b.id);
 			const flag = b.flag || null;
 			if (flag !== null && !isFlag(flag)) throw new AdminError("Unknown flag.");
-			await guard(a, id);
+			await guard(a, id, true);
 			await sql`update users set flag = ${flag} where id = ${id}::bigint`;
 			await audit(a, "set_flag", id, { flag });
 			return {};
@@ -474,7 +490,7 @@ const ACTIONS: Record<string, Action> = {
 				if (n <= 1) throw new AdminError("You are the last admin.");
 			}
 			// nobody demotes staff at or above their own rank, the owner included
-			await guard(a, id);
+			await guard(a, id, true);
 			await sql`update users set role = ${role}, role_granted_by = ${role ? a.id : null}::bigint where id = ${id}::bigint`;
 			await audit(a, "set_role", id, { role });
 			return {};
@@ -486,10 +502,23 @@ const ACTIONS: Record<string, Action> = {
 		role: "admin",
 		run: async (a, b) => {
 			const id = idOf(b.id);
-			await guard(a, id);
+			await guard(a, id, true);
 			const password = randomPassword();
-			await sql`update users set password_hash = ${await Bun.password.hash(password)} where id = ${id}::bigint`;
-			await sql`delete from sessions where user_id = ${id}::bigint`;
+			const hash = await Bun.password.hash(password);
+			await sql.begin(async (tx) => {
+				// Match password changes and sign-ins: lock the account first so no
+				// in-flight sign-in or recovery issuance survives credential revocation.
+				const [target] = await tx`select id, instance from users where id = ${id}::bigint for update`;
+				if (!target) throw new AdminError("No such account.", 404);
+				await guard(a, id, true);
+				if (target.instance) throw new AdminError(`That account lives on ${target.instance}, which manages it. Here you can only moderate it.`, 403);
+				await tx`update users set password_hash = ${hash} where id = ${id}::bigint`;
+				await tx`delete from sessions where user_id = ${id}::bigint`;
+				await tx`delete from api_tokens where user_id = ${id}::bigint`;
+				await tx`update password_resets set used = true where user_id = ${id}::bigint and not used`;
+				await tx`delete from login_challenges where user_id = ${id}::bigint`;
+				await tx`update email_confirmations set used = true where user_id = ${id}::bigint and not used`;
+			});
 			await audit(a, "reset_password", id);
 			return { password };
 		},
@@ -499,7 +528,7 @@ const ACTIONS: Record<string, Action> = {
 		role: "support",
 		run: async (a, b) => {
 			const id = idOf(b.id);
-			await guard(a, id);
+			await guard(a, id, true);
 			const rows = await sql`delete from sessions where user_id = ${id}::bigint returning token`;
 			await audit(a, "sign_out", id, { sessions: rows.length });
 			return { sessions: rows.length };
@@ -522,8 +551,8 @@ const ACTIONS: Record<string, Action> = {
 
 	orgs: {
 		role: "support",
-		run: async () => ({
-			orgs: await sql`select ${userListCols} from users u where u.verified_type in ('business', 'government') order by u.name`,
+		run: async (_a, b) => ({
+			orgs: await sql`select ${userListCols} from users u where (u.verified_type in ('business', 'government') or exists (select 1 from affiliations af where af.org_id = u.id)) ${homeFilter(b.home)} order by u.name`,
 		}),
 	},
 
@@ -557,12 +586,10 @@ const ACTIONS: Record<string, Action> = {
 		role: "admin",
 		run: async (a, b) => {
 			const orgId = idOf(b.orgId, "organisation");
-			const [org] = await sql`select verified_type from users where id = ${orgId}::bigint`;
-			if (org?.verified_type !== "business" && org?.verified_type !== "government") throw new AdminError("Only accounts with the gold or grey organisation badge are organisations.");
+			if (!(await sql`select 1 from users where id = ${orgId}::bigint`).length) throw new AdminError("No such account.", 404);
 			const [u] = await sql`select id::text as id from users where lower(screen_name) = lower(${String(b.screen_name ?? "").replace(/^@/, "")})`;
 			if (!u) throw new AdminError("No account with that handle.");
-			if (u.id === orgId) throw new AdminError("An organisation can't be its own affiliate.");
-			await guard(a, u.id);
+			await guard(a, u.id, true);
 			// one organisation per person; adding moves them
 			await sql`insert into affiliations (org_id, user_id) values (${orgId}::bigint, ${u.id}::bigint)
 				on conflict (user_id) do update set org_id = excluded.org_id, created_at = now()`;
@@ -589,7 +616,7 @@ const ACTIONS: Record<string, Action> = {
 			const q = String(b.q ?? "").trim();
 			const author = String(b.author ?? "").trim().replace(/^@/, "");
 			const match = sql`(${q} = '' or p.text ilike ${like(q)}) and (${author} = '' or lower(u.screen_name) = lower(${author}))`;
-			const rows = await sql`select p.id::text as id, p.text, p.created_at, p.hidden, p.sensitive, p.notice, p.count_overrides, p.reply_to_id::text as reply_to_id, u.screen_name, u.name,
+			const rows = await sql`select p.id::text as id, p.text, p.created_at, p.hidden, p.sensitive, p.notice, p.count_overrides, p.reply_to_id::text as reply_to_id, u.id::text as user_id, u.screen_name, u.name,
 				(select count(*)::int from likes l where l.post_id = p.id) as likes,
 				(select count(*)::int from media m where m.post_id = p.id) as media
 				from posts p join users u on u.id = p.user_id
@@ -800,7 +827,7 @@ const ACTIONS: Record<string, Action> = {
 		role: "support",
 		run: async (_a, b) => {
 			const action = typeof b.action === "string" && /^[a-z_]{1,40}$/.test(b.action) ? b.action : null;
-			const who = typeof b.target === "string" ? b.target.trim().replace(/^@/, "").slice(0, 15) : "";
+			const who = typeof b.target === "string" ? b.target.trim().replace(/^@/, "").slice(0, 300).replace(new RegExp(`@${INSTANCE_ID.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"), "") : "";
 			const offset = Math.max(0, Math.min(Number(b.offset) || 0, 100_000));
 			return {
 				entries: await sql`select l.id::text as id, l.action, l.target, l.detail, l.created_at, a.screen_name as actor, l.actor_id is null as automatic,

@@ -1,3 +1,4 @@
+import { RateLimitError, limitedResponse } from "./ratelimit";
 // GraphQL operations, routed by name. The client sends a query id that changes
 // with every build; the name after it is stable.
 
@@ -59,7 +60,7 @@ import {
 } from "./posts";
 import { lookupRemoteUser } from "./federation-sync";
 import { TopicError, setTopicState, suggestedTopics, topicById, topicContext, topicFeedbackActions, topicFeedbackKeys, topicResult, topicsForPosts } from "./topics";
-import { affiliatesOf, followList, suggestedUsers, userById, userByName, usersByIds } from "./users";
+import { affiliatesOf, followList, localName, suggestedUsers, userById, userByName, usersByIds } from "./users";
 
 type Vars = Record<string, any>;
 type Handler = (viewer: Viewer, vars: Vars) => Promise<unknown> | unknown;
@@ -663,7 +664,7 @@ const handlers: Record<string, Handler> = {
 	},
 
 	UserByScreenName: async (v, vars) => {
-		const name = typeof vars.screen_name === "string" ? vars.screen_name.replace(/^@/, "") : "";
+		const name = typeof vars.screen_name === "string" ? localName(vars.screen_name.replace(/^@/, "")) : "";
 		const user = name ? ((await userByName(v.id, name)) ?? (name.includes("@") && (await lookupRemoteUser(name).catch(() => undefined)) ? await userByName(v.id, name) : undefined)) : undefined;
 		// an empty answer makes the client show "this account doesn't exist"
 		if (!user) return { data: {} };
@@ -1169,6 +1170,7 @@ export async function runOperation(name: string, viewer: Viewer, vars: Vars): Pr
 	try {
 		return Response.json(await handlers[name](viewer, vars));
 	} catch (e) {
+		if (e instanceof RateLimitError) return limitedResponse(e.hit);
 		// the chat app reads these as they are
 		if (e instanceof ChatError) return Response.json({ errors: [{ message: e.message, code: e.code }], data: {} });
 		// the main client takes the code from extensions and shows the message
