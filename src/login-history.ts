@@ -42,7 +42,10 @@ export const fromTrustedProxy = (req: Request) => fromProxy(socketIps.get(req));
 
 export const requestIp = (req: Request): string | null => {
 	const peer = socketIps.get(req);
-	const forwarded = req.headers.get("cf-connecting-ip")?.trim();
+	const cf = req.headers.get("cf-connecting-ip")?.trim();
+	const real = req.headers.get("x-real-ip")?.trim();
+	const xff = req.headers.get("x-forwarded-for")?.split(",")?.[0]?.trim();
+	const forwarded = (cf && isIP(cf) ? cf : null) ?? (real && isIP(real) ? real : null) ?? (xff && isIP(xff) ? xff : null);
 	return (forwarded && isIP(forwarded) && fromProxy(peer) ? forwarded : peer) || null;
 };
 

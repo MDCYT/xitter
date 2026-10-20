@@ -83,7 +83,9 @@ export async function evadedSuspension(email: string, ip: string | null | undefi
 	const [retiredIp] = await sql`select user_id::text from retired_identities where kind = 'ip' and value = ${ip} and created_at > now() - interval '30 days'`;
 	if (retiredIp) return { user: retiredIp.user_id ?? "", by: "address" };
 	const [byIp] = await sql`select u.id::text from login_events e join users u on u.id = e.user_id
-		where e.ip = ${ip} and e.created_at > now() - interval '30 days' and ${SUSPENDED_MEMBER} limit 1`;
+		where e.ip = ${ip} and e.created_at > now() - interval '30 days' and ${SUSPENDED_MEMBER}
+		and not (e.ip = '127.0.0.1' or e.ip = '::1' or e.ip like '172.%' or e.ip like '::ffff:172.%' or e.ip like '10.%' or e.ip like '192.168.%')
+		limit 1`;
 	return byIp ? { user: byIp.id, by: "address" } : undefined;
 }
 

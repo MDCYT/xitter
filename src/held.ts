@@ -69,7 +69,8 @@ export async function retireAccount(userId: string, reason: string) {
 		).map((r: any) => r.old_name),
 	];
 	const ips = (
-		await sql`select distinct ip from login_events where user_id = ${userId}::bigint and ip is not null and created_at > now() - interval '30 days'`
+		await sql`select distinct ip from login_events where user_id = ${userId}::bigint and ip is not null and created_at > now() - interval '30 days'
+		and not (ip = '127.0.0.1' or ip = '::1' or ip like '172.%' or ip like '::ffff:172.%' or ip like '10.%' or ip like '192.168.%')`
 	).map((r: any) => r.ip);
 	const rows = [
 		...handles.map((h) => ({ kind: "handle", value: h.toLowerCase() })),

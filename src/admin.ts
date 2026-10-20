@@ -393,7 +393,9 @@ const ACTIONS: Record<string, Action> = {
 			const alts = !allows(a.role, "ip_addresses") ? null : await sql`select distinct u.id::text as id, u.screen_name, u.status from login_events mine
 				join login_events other on other.ip = mine.ip and other.user_id <> mine.user_id and other.created_at > now() - interval '90 days'
 				join users u on u.id = other.user_id
-				where mine.user_id = ${id}::bigint and mine.ip is not null and mine.created_at > now() - interval '90 days' limit 20`;
+				where mine.user_id = ${id}::bigint and mine.ip is not null and mine.created_at > now() - interval '90 days'
+				and not (mine.ip = '127.0.0.1' or mine.ip = '::1' or mine.ip like '172.%' or mine.ip like '::ffff:172.%' or mine.ip like '10.%' or mine.ip like '192.168.%')
+				limit 20`;
 			u.joined_from = u.signup_country ? (countryName(u.signup_country) ?? u.signup_country) : "";
 			return { user: u, invited, log, alts, strikes, next_step: ladder.length ? ladder[Math.min(strikes + 1, ladder.length) - 1] : 0 };
 		},

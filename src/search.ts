@@ -206,7 +206,7 @@ export async function cachedTrends(days: number, limit: number, scope: TrendScop
 async function queryTrends(days: number, country: string | null): Promise<TagPeople[]> {
 	const rows = await sql`with t as (
 			select p.id, p.user_id, lower((regexp_matches(p.text, ${HASHTAG_RE}, 'g'))[1]) as tag,
-				coalesce((select e.ip from login_events e where e.user_id = p.user_id and e.ip is not null order by e.created_at desc limit 1), p.user_id::text) as who
+				coalesce((select e.ip from login_events e where e.user_id = p.user_id and e.ip is not null and not (e.ip = '127.0.0.1' or e.ip = '::1' or e.ip like '172.%' or e.ip like '::ffff:172.%' or e.ip like '10.%' or e.ip like '192.168.%') order by e.created_at desc limit 1), p.user_id::text) as who
 			from posts p join users u on u.id = p.user_id
 			where p.created_at > now() - make_interval(days => ${days}) and not p.hidden and p.user_id not in ${outOfView("0")}
 				and u.status = 'active' and not u.protected and u.created_at <= now() - make_interval(days => ${settings().operations.trend_min_account_days})
