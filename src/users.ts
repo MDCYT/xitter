@@ -2,7 +2,6 @@ import type { User } from "./auth";
 import { blockedFor, federatedHiddenFor, isBlockedEitherWay, mutedFor, outOfView } from "./blocks";
 import { staffViewer } from "./staff-access";
 import { sql } from "./db";
-import { isId } from "./ids";
 import { INSTANCE_ID } from "./federation";
 
 // an account's custom badges in order, as a json list of { id, name }
@@ -148,8 +147,17 @@ export async function setProtected(userId: string, on: boolean): Promise<void> {
 
 // accounts `userId` follows, or accounts following `userId`
 // verified_followers: followers with any check, for the Verified Followers tab
-// followers_you_follow: accounts following `userId` that `viewerId` also follows
-export async function followList(viewerId: string, userId: string, kind: "following" | "followers" | "verified_followers" | "followers_you_follow", limit = 200): Promise<User[]> {
+// "Followers you know": the account's followers that the viewer follows too
+const knownFollowers = (viewerId: string, userId: string) => sql`from follows f join users u on u.id = f.follower_id
+	where f.followee_id = ${userId}::bigint and u.id <> ${viewerId}::bigint and u.id not in ${outOfView(viewerId)}
+	and exists (select 1 from follows k where k.follower_id = ${viewerId}::bigint and k.followee_id = u.id)`;
+
+export async function knownFollowerCount(viewerId: string, userId: string): Promise<number> {
+	const [r] = await sql`select count(*)::int as n ${knownFollowers(viewerId, userId)}`;
+	return r?.n ?? 0;
+}
+
+export async function followList(viewerId: string, userId: string, kind: "following" | "followers" | "verified_followers" | "known_followers", limit = 200): Promise<User[]> {
 	// a protected account's lists are for itself and its followers
 	if (userId !== viewerId) {
 		const [hidden] = await sql`select 1 from users u where u.id = ${userId}::bigint and not ${staffViewer(viewerId)} and (
@@ -158,47 +166,15 @@ export async function followList(viewerId: string, userId: string, kind: "follow
 		if (hidden) return [];
 	}
 	const rows =
-		kind === "following"
+		kind === "known_followers"
+			? await sql`select ${userCols(viewerId)} ${knownFollowers(viewerId, userId)} order by f.created_at desc limit ${limit}`
+			: kind === "following"
 			? await sql`select ${userCols(viewerId)} from follows f join users u on u.id = f.followee_id
 				where f.follower_id = ${userId}::bigint and u.id not in ${outOfView(viewerId)} order by f.created_at desc limit ${limit}`
-			: kind === "followers_you_follow"
-			? (!isId(viewerId) || viewerId === userId
-				? []
-				: await sql`select ${userCols(viewerId)}
-					from follows f_target
-					join follows f_viewer on f_viewer.followee_id = f_target.follower_id and f_viewer.follower_id = ${viewerId}::bigint
-					join users u on u.id = f_target.follower_id
-					where f_target.followee_id = ${userId}::bigint
-					  and f_target.follower_id <> ${viewerId}::bigint
-					  and u.id not in ${outOfView(viewerId)}
-					order by f_target.created_at desc limit ${limit}`)
 			: await sql`select ${userCols(viewerId)} from follows f join users u on u.id = f.follower_id
 				where f.followee_id = ${userId}::bigint and u.id not in ${outOfView(viewerId)}
 				${kind === "verified_followers" ? sql`and u.verified_type is not null` : sql``} order by f.created_at desc limit ${limit}`;
 	return rows.map(toUser);
-}
-
-export async function followersYouFollow(
-	viewerId: string,
-	targetUserId: string,
-	limit = 3
-): Promise<{ users: User[]; totalCount: number }> {
-	if (!isId(viewerId) || !isId(targetUserId) || viewerId === targetUserId) {
-		return { users: [], totalCount: 0 };
-	}
-	const users = await followList(viewerId, targetUserId, "followers_you_follow", limit);
-	let totalCount = users.length;
-	if (users.length >= limit) {
-		const [cnt] = await sql`select count(*)::int as total
-			from follows f_target
-			join follows f_viewer on f_viewer.followee_id = f_target.follower_id and f_viewer.follower_id = ${viewerId}::bigint
-			join users u on u.id = f_target.follower_id
-			where f_target.followee_id = ${targetUserId}::bigint
-			  and f_target.follower_id <> ${viewerId}::bigint
-			  and u.id not in ${outOfView(viewerId)}`;
-		totalCount = cnt?.total ?? users.length;
-	}
-	return { users, totalCount };
 }
 
 export async function usersByIds(viewerId: string, ids: string[]): Promise<Map<string, User>> {

@@ -5,6 +5,7 @@ import type { User } from "./auth";
 import { loadBuild } from "./build";
 import { feature, settings } from "./settings";
 import { postLimitFor } from "./textlen";
+import { CONVERSATION_CARD_CSS, CONVERSATION_CARD_SCRIPT } from "./conversation-card-ui";
 import { STICKER_PICKER_CSS, STICKER_PICKER_SCRIPT } from "./sticker-picker";
 import { PASSKEY_SCRIPT } from "./passkeys";
 import { FORGOT_SCRIPT, FRESH_SCRIPT, type MenuLink, TIDY_SCRIPT, hideCss, tidyData } from "./tidy";
@@ -48,7 +49,7 @@ export function settingsFor(user: User): Record<string, unknown> {
 		always_allow_dms_from_subscribers: null,
 		allow_dm_groups_from: "following",
 		translator_type: "none",
-		country_code: "us",
+		country_code: (user.country ?? "us").toLowerCase(),
 		nsfw_user: false,
 		nsfw_admin: false,
 		ranked_timeline_setting: null,
@@ -265,7 +266,7 @@ let runtimePatched: { sha: string; text: string } | undefined;
 // With no user the client boots signed out, for the sign-in dialog.
 // `multi`: other accounts are signed in too (auth_multi), so the account menu
 // asks for them.
-export function shell(user: User | null, multi = false, inCommunity = false, educationFlags: Record<string, number> = {}, links: MenuLink[] = [], look: Look | null = null, accent: Accent = DEFAULT_ACCENT, paint?: BackgroundPaint): string | undefined {
+export function shell(user: User | null, multi = false, inCommunity = false, educationFlags: Record<string, number> = {}, links: MenuLink[] = [], look: Look | null = null, accent: Accent = DEFAULT_ACCENT, paint?: BackgroundPaint, csrf?: string): string | undefined {
 	const theme = look?.kind === "painted" ? look.theme : null;
 	const loaded = loadBuild();
 	if (!loaded) return undefined;
@@ -287,10 +288,11 @@ html{-webkit-tap-highlight-color:transparent;-webkit-text-size-adjust:100%}
 @media (display-mode:standalone){body{overscroll-behavior-y:none}}${LOGO_CSS}
 ${hideCss()}
 ${FLAG_PICKER_CSS}
-${STICKER_PICKER_CSS}${bootAccentCss(accent)}${theme ? bootCss(theme, paint) : ""}</style>
+${STICKER_PICKER_CSS}${bootAccentCss(accent)}${theme ? bootCss(theme, paint) : ""}
+${CONVERSATION_CARD_CSS}</style>
 </head><body><div id="react-root" style="height:100%;display:flex;"></div>
 <script>window.__INITIAL_STATE__=${inline(initialState(user, build.featureSwitch, inCommunity, educationFlags, accent))};window.__META_DATA__=${inline(meta)};</script>
-<script>window.__XITTER__=${inline({ ...flagPickerData(user?.flag ?? null), tidy: tidyData(links), theme, look: clientLook(look, accent), accent: clientLook(look, accent).accent, themeColor: themeColorOf(accent), themePresets: swatches(), pageChrome: pageChromeCss(paint) })};
+<script>window.__XITTER__=${inline({ ...flagPickerData(user?.flag ?? null), tidy: tidyData(links), theme, look: clientLook(look, accent), accent: clientLook(look, accent).accent, themeColor: themeColorOf(accent), themePresets: swatches(), pageChrome: pageChromeCss(paint), ...(user && csrf ? { csrf } : {}) })};
 ${user ? ERROR_SCRIPT : ""}
 ${TIDY_SCRIPT}
 ${FRESH_SCRIPT}
@@ -298,6 +300,7 @@ ${FORGOT_SCRIPT}
 ${user ? "" : PASSKEY_SCRIPT}
 ${FLAG_PICKER_SCRIPT}
 ${user ? STICKER_PICKER_SCRIPT : ""}
+${user ? CONVERSATION_CARD_SCRIPT : ""}
 ${POST_CONTEXT_SCRIPT}
 ${BADGES_SCRIPT}
 ${user ? THEME_SCRIPT : ""}
