@@ -483,7 +483,7 @@ async function route(req: Request): Promise<Response | undefined> {
 const server = Bun.serve({
 	port: PORT,
 	fetch: handle,
-	maxRequestBodySize: 16 * 1024 * 1024,
+	maxRequestBodySize: Number(process.env.MAX_BODY_SIZE ?? 250 * 1024 * 1024),
 	websocket: chatSocket,
 	error(e) {
 		console.error(e);

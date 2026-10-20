@@ -18,6 +18,7 @@ import { isId, newId } from "./ids";
 import { settings } from "./settings";
 import { gifProxy } from "./gifs";
 import { cropGif, maxVideoBytes, posterFile, progress, queueVideo, sourceFile, videoError, videoSupported } from "./video";
+import { CDN_URL, isS3Enabled, uploadToS3 } from "./storage";
 
 export const MEDIA_DIR = process.env.MEDIA_DIR ?? "media";
 const maxImage = () => settings().limits.image_mb * 1024 * 1024;
@@ -210,6 +211,11 @@ async function finalize(id: string, p: Pending): Promise<Response> {
 		}
 		if (image.mime === "image/gif") ({ data, image } = await croppedGif(id, data, image));
 		writeFileSync(fileOf(id), data);
+		if (isS3Enabled()) {
+			const ext = EXT[image.mime] ?? "bin";
+			void uploadToS3(`${id}.${ext}`, data, image.mime);
+			void uploadToS3(id, data, image.mime);
+		}
 		await sql`insert into media (id, user_id, kind, mime, size, width, height)
 			values (${id}::bigint, ${p.userId}::bigint, 'photo', ${image.mime}, ${data.length}, ${image.width}, ${image.height})`;
 		return Response.json({
@@ -404,22 +410,31 @@ async function cacheFor(viewer: Viewer, served: Served): Promise<string | undefi
 export async function serveMedia(req: Request, pathname: string, viewer: Viewer): Promise<Response> {
 	const poster = /^\/media\/poster\/(\d{1,19})\.jpg$/.exec(pathname);
 	if (poster && isId(poster[1])) {
-		const body = await remoteMediaFile(poster[1], true);
-		const served = body && (await servedOf(poster[1]));
+		const served = await servedOf(poster[1]);
 		const cache = served && (await cacheFor(viewer, served));
-		if (!body || !cache) return new Response("not found", { status: 404, headers: { "cache-control": PRIVATE } });
+		if (!served || !cache) return new Response("not found", { status: 404, headers: { "cache-control": PRIVATE } });
+		if (CDN_URL && process.env.CDN_REDIRECT === "true") {
+			return Response.redirect(`${CDN_URL}/${poster[1]}.poster.jpg`, 302);
+		}
+		const body = await remoteMediaFile(poster[1], true);
+		if (!body) return new Response("not found", { status: 404, headers: { "cache-control": PRIVATE } });
 		return new Response(body, { headers: { "content-type": "image/jpeg", "cache-control": cache, "x-content-type-options": "nosniff" } });
 	}
 	const m = /^\/media\/(?:banner\/)?(\d{1,19})(?:\.[a-z0-9]+)?(?:\/[\w-]+)?$/.exec(pathname);
-	const body = m && isId(m[1]) && (await remoteMediaFile(m[1]));
-	if (!m || !body) return new Response("not found", { status: 404, headers: { "cache-control": PRIVATE } });
+	if (!m || !isId(m[1])) return new Response("not found", { status: 404, headers: { "cache-control": PRIVATE } });
 	const served = await servedOf(m[1]);
 	const cache = served && (await cacheFor(viewer, served));
 	if (!served || !cache) return new Response("not found", { status: 404, headers: { "cache-control": PRIVATE } });
+	if (CDN_URL && process.env.CDN_REDIRECT === "true") {
+		const ext = EXT[served.mime] ?? EXT_VIDEO[served.mime] ?? "bin";
+		return Response.redirect(`${CDN_URL}/${m[1]}.${ext}`, 302);
+	}
+	const body = await remoteMediaFile(m[1]);
+	if (!body) return new Response("not found", { status: 404, headers: { "cache-control": PRIVATE } });
 	const headers: Record<string, string> = { "content-type": served.mime, "cache-control": cache, "x-content-type-options": "nosniff", "accept-ranges": "bytes" };
-	const size = body.size;
+	const size = served.size || (body.size && !Number.isNaN(body.size) ? body.size : 0);
 	const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.get("range") ?? "");
-	if (range && (range[1] || range[2])) {
+	if (range && (range[1] || range[2]) && size) {
 		// "bytes=-N" means the last N bytes
 		const start = range[1] ? Number(range[1]) : Math.max(0, size - Number(range[2]));
 		const end = range[1] && range[2] ? Math.min(Number(range[2]), size - 1) : size - 1;

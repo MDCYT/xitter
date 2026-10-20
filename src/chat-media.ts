@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { mkdir, readdir, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -5,6 +6,7 @@ import type { Viewer } from "./auth";
 import { PUBLIC_ORIGIN } from "./config";
 import { sql } from "./db";
 import { newId } from "./ids";
+import { getS3File, isS3Enabled, uploadToS3 } from "./storage";
 
 const directory = join(process.env.MEDIA_DIR ?? "media", "chat");
 const maxBytes = Number(process.env.MAX_CHAT_MEDIA_MB ?? 200) * 1024 * 1024;
@@ -54,6 +56,9 @@ export function chatMedia(authorize: Authorize, create: Authorize = authorize) {
 									await sink.flush();
 								}
 							} finally { await sink.end(); }
+							if (isS3Enabled()) {
+								void uploadToS3(`chat/${upload.hash}`, Bun.file(join(directory, upload.hash, "sealed")), "application/octet-stream");
+							}
 							await tx`update chat_uploads set ready = true, expires_at = ${ttl === null ? null : new Date(Date.now() + ttl)} where hash = ${upload.hash}`;
 						}
 					}
@@ -73,7 +78,12 @@ export function chatMedia(authorize: Authorize, create: Authorize = authorize) {
 		if (!upload) return new Response("not found", { status: 404 });
 		if (req.method === "GET" || req.method === "HEAD") {
 			if (!upload.ready) return new Response("not found", { status: 404 });
-			return new Response(req.method === "HEAD" ? null : Bun.file(join(directory, upload.hash, "sealed")), {
+			let sealedFile: any = req.method === "HEAD" ? null : Bun.file(join(directory, upload.hash, "sealed"));
+			if (sealedFile && !existsSync(join(directory, upload.hash, "sealed")) && isS3Enabled()) {
+				const s3 = getS3File(`chat/${upload.hash}`);
+				if (s3 && (await s3.exists())) sealedFile = s3;
+			}
+			return new Response(sealedFile, {
 				headers: { "content-type": "application/octet-stream", "cache-control": "private, no-store", "x-content-type-options": "nosniff", "content-length": String(upload.total_bytes) },
 			});
 		}

@@ -12,6 +12,7 @@ import { saveMentions } from "./mentions";
 import { cleanText, oneLine } from "./text-clean";
 import { parseDecoration } from "./decorations";
 import { posterFile } from "./video";
+import { getS3File, isS3Enabled } from "./storage";
 
 const MEDIA_DIR = process.env.MEDIA_DIR ?? "media";
 const PAGE = 200;
@@ -201,9 +202,20 @@ export async function federationApi(incoming: Incoming, method: string, path: st
 	if (method === "GET" && media) {
 		if (!(await mediaAllowed(media[1]))) return signedAnswer(incoming, 404, { error: "No such media." });
 		const file = media[2] ? posterFile(MEDIA_DIR, media[1]) : join(MEDIA_DIR, media[1]);
-		if (!existsSync(file) || statSync(file).size > MAX_MEDIA) return signedAnswer(incoming, 404, { error: "No such media." });
+		let bytes: Uint8Array | undefined;
+		if (existsSync(file) && statSync(file).size <= MAX_MEDIA) {
+			bytes = new Uint8Array(await Bun.file(file).arrayBuffer());
+		} else if (isS3Enabled()) {
+			const sKey = media[2] ? `${media[1]}.poster.jpg` : media[1];
+			const s3 = getS3File(sKey);
+			if (s3 && (await s3.exists())) {
+				const buf = await s3.arrayBuffer();
+				if (buf.byteLength <= MAX_MEDIA) bytes = new Uint8Array(buf);
+			}
+		}
+		if (!bytes || bytes.length > MAX_MEDIA) return signedAnswer(incoming, 404, { error: "No such media." });
 		const [m] = await sql`select mime from media where id = ${media[1]}::bigint`;
-		return signedRawAnswer(incoming, 200, new Uint8Array(await Bun.file(file).arrayBuffer()), media[2] ? "image/jpeg" : m.mime);
+		return signedRawAnswer(incoming, 200, bytes, media[2] ? "image/jpeg" : m.mime);
 	}
 	if (method === "POST" && path === "/federation/v1/poke") {
 		pokeSoon(incoming.from);
@@ -526,6 +538,11 @@ function remember(key: string, body: Uint8Array) {
 export async function remoteMediaFile(localId: string, poster = false): Promise<Blob | undefined> {
 	const file = poster ? posterFile(MEDIA_DIR, localId) : join(MEDIA_DIR, localId);
 	if (existsSync(file)) return Bun.file(file);
+	if (isS3Enabled()) {
+		const sKey = poster ? `${localId}.poster.jpg` : localId;
+		const s3 = getS3File(sKey);
+		if (s3 && (await s3.exists())) return s3;
+	}
 	const key = `${localId}${poster ? "p" : ""}`;
 	const cached = memory.get(key);
 	if (cached) {

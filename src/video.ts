@@ -8,6 +8,7 @@ import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "nod
 import { setPriority } from "node:os";
 import { join } from "node:path";
 import { sql } from "./db";
+import { isS3Enabled, uploadToS3 } from "./storage";
 
 // limits come from the admin panel's settings (defaults: MAX_VIDEO_MB, MAX_VIDEO_SECONDS)
 export const maxVideoBytes = () => settings().limits.video_mb * 1024 * 1024;
@@ -127,6 +128,19 @@ async function convert(dir: string, id: string) {
 		const size = Bun.file(join(dir, id)).size;
 		await sql`update media set state = 'ready', mime = 'video/mp4', size = ${size}, width = ${out.width}, height = ${out.height},
 			duration_ms = ${Math.round(out.seconds * 1000)} where id = ${id}::bigint`;
+		if (isS3Enabled()) {
+			try {
+				const vidData = Bun.file(join(dir, id));
+				await uploadToS3(id, vidData, "video/mp4");
+				await uploadToS3(`${id}.mp4`, vidData, "video/mp4");
+				const pFile = posterFile(dir, id);
+				if (existsSync(pFile)) {
+					await uploadToS3(`${id}.poster.jpg`, Bun.file(pFile), "image/jpeg");
+				}
+			} catch (err) {
+				console.error(`Error uploading video ${id} to S3:`, err);
+			}
+		}
 	} catch (e) {
 		console.log(`video ${id} failed:`, e);
 		await fail("The video could not be processed.");
