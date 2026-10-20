@@ -4,7 +4,7 @@
 // the client polls the upload STATUS command meanwhile.
 
 import { settings } from "./settings";
-import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { setPriority } from "node:os";
 import { join } from "node:path";
 import { sql } from "./db";
@@ -14,6 +14,8 @@ import { isS3Enabled, uploadToS3 } from "./storage";
 export const maxVideoBytes = () => settings().limits.video_mb * 1024 * 1024;
 const maxSeconds = () => settings().limits.video_seconds;
 const MAX_SIDE = 1280;
+// Federation limit across Xitter instances is 64 MB. Videos must remain strictly under 64 MB.
+export const FEDERATION_MAX_VIDEO = 60 * 1024 * 1024;
 const FFMPEG = process.env.FFMPEG ?? "ffmpeg";
 const FFPROBE = process.env.FFPROBE ?? "ffprobe";
 // ffmpeg shares the machine with the server: a few threads at a lower
@@ -108,18 +110,51 @@ async function convert(dir: string, id: string) {
 		const info = await probe(src);
 		if (!info) return await fail("This file has no video we can read.");
 		if (info.seconds > maxSeconds()) return await fail(`Videos can be up to ${Math.floor(maxSeconds() / 60)} minutes long.`);
+		const srcSize = existsSync(src) ? statSync(src).size : 0;
 		const playable =
-			info.format.includes("mp4") && info.vcodec === "h264" && info.pix === "yuv420p" && (!info.acodec || info.acodec === "aac") && Math.max(info.width, info.height) <= 1920;
+			srcSize <= FEDERATION_MAX_VIDEO &&
+			info.format.includes("mp4") &&
+			info.vcodec === "h264" &&
+			info.pix === "yuv420p" &&
+			(!info.acodec || info.acodec === "aac") &&
+			Math.max(info.width, info.height) <= 1920;
+		// Constrain bitrate so video is guaranteed to fit within federation 64 MB transfer limit
+		const targetKbits = info.seconds > 0 ? Math.floor((56 * 8 * 1024) / info.seconds) : 4000;
+		const maxVideoKbits = Math.max(300, targetKbits - 128);
 		const video = playable
 			? ["-c", "copy"]
 			: [
 					"-vf",
 					`scale='if(gt(iw,ih),trunc(min(${MAX_SIDE},iw)/2)*2,-2)':'if(gt(iw,ih),-2,trunc(min(${MAX_SIDE},ih)/2)*2)'`,
-					"-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p",
+					"-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
+					"-maxrate", `${maxVideoKbits}k`, "-bufsize", `${maxVideoKbits * 2}k`,
+					"-pix_fmt", "yuv420p",
 					"-c:a", "aac", "-b:a", "128k", "-ac", "2",
 				];
 		if (!(await run([...INPUT, "-i", src, "-map", "0:v:0", "-map", "0:a:0?", ...video, "-movflags", "+faststart", "-f", "mp4", tmp], id, info.seconds)))
 			return await fail("The video could not be converted.");
+		if (existsSync(tmp) && Bun.file(tmp).size > FEDERATION_MAX_VIDEO) {
+			const fallbackTmp = join(dir, `${id}.fallback.mp4`);
+			const fallbackKbits = Math.max(250, Math.floor((50 * 8 * 1024) / (info.seconds || 60)) - 96);
+			if (
+				await run(
+					[
+						...INPUT, "-i", tmp,
+						"-vf", `scale='if(gt(iw,ih),trunc(min(960,iw)/2)*2,-2)':'if(gt(iw,ih),-2,trunc(min(960,ih)/2)*2)'`,
+						"-c:v", "libx264", "-preset", "veryfast", "-crf", "26",
+						"-maxrate", `${fallbackKbits}k`, "-bufsize", `${fallbackKbits * 2}k`,
+						"-c:a", "aac", "-b:a", "96k", "-ac", "2",
+						"-movflags", "+faststart", "-f", "mp4", fallbackTmp,
+					],
+					id,
+					info.seconds
+				)
+			) {
+				renameSync(fallbackTmp, tmp);
+			} else {
+				rmSync(fallbackTmp, { force: true });
+			}
+		}
 		if (!(await run(["-ss", String(Math.min(1, info.seconds / 2)), "-i", tmp, "-frames:v", "1", "-q:v", "3", posterFile(dir, id)], id, 0)))
 			return await fail("The video could not be converted.");
 		const out = await probe(tmp);

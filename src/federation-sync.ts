@@ -215,7 +215,7 @@ export async function federationApi(incoming: Incoming, method: string, path: st
 		}
 		if (!bytes || bytes.length > MAX_MEDIA) return signedAnswer(incoming, 404, { error: "No such media." });
 		const [m] = await sql`select mime from media where id = ${media[1]}::bigint`;
-		return signedRawAnswer(incoming, 200, bytes, media[2] ? "image/jpeg" : m.mime);
+		return signedRawAnswer(incoming, 200, bytes, media[2] ? "image/jpeg" : (m?.mime ?? "application/octet-stream"));
 	}
 	if (method === "POST" && path === "/federation/v1/poke") {
 		pokeSoon(incoming.from);
