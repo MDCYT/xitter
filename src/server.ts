@@ -213,7 +213,7 @@ async function serveApi(req: Request, url: URL, viewer: Viewer | undefined): Pro
 
 	if (!viewer) {
 		const isGuestGql = !!operation && GUEST_ALLOWED_GQL.has(operation);
-		const isGuestRest = GUEST_ALLOWED_REST.has(path) || TELEMETRY.test(path) || path.includes("/translation/service/") || path === "/live_pipeline/events" || (req.method === "POST" && path === "/xitter/client_error");
+		const isGuestRest = GUEST_ALLOWED_REST.has(path) || TELEMETRY.test(path) || path.includes("/translation/service/") || path === "/2/grok/translation.json" || path === "/live_pipeline/events" || (req.method === "POST" && path === "/xitter/client_error");
 		if (isGuestGql || isGuestRest) {
 			viewer = GUEST_VIEWER;
 		} else {

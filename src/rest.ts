@@ -476,6 +476,47 @@ export async function restRoute(method: string, path: string, viewer: Viewer, re
 		}
 	}
 
+	// Streamed Bio Translation (Grok translation endpoint)
+	if (path === "/2/grok/translation.json" && method === "POST") {
+		const body = (await req.json().catch(() => ({}))) as { content_type?: string; id?: string; dst_lang?: string };
+		const userId = body?.id;
+		const targetLang = normalizeLangCode(body?.dst_lang || viewer?.language || "es");
+		let bio = "";
+		if (userId && isId(userId)) {
+			const u = await userById(viewer.id, userId);
+			bio = u?.bio || u?.description || "";
+		}
+		let translated = bio;
+		if (bio.trim()) {
+			try {
+				const res = await translateText(bio, targetLang);
+				translated = res.translated_text;
+			} catch (e) {
+				console.error("grok translation error:", (e as Error)?.message || e);
+			}
+		}
+		const stream = new ReadableStream({
+			start(controller) {
+				const line =
+					JSON.stringify({
+						result: {
+							content_type: body?.content_type || "BIO",
+							text: translated,
+							entities: { urls: [] },
+						},
+					}) + "\n";
+				controller.enqueue(new TextEncoder().encode(line));
+				controller.close();
+			},
+		});
+		return new Response(stream, {
+			headers: {
+				"content-type": "application/x-ndjson; charset=utf-8",
+				"cache-control": "no-cache",
+			},
+		});
+	}
+
 	return undefined;
 }
 
