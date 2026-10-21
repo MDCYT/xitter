@@ -454,7 +454,7 @@ export async function restRoute(method: string, path: string, viewer: Viewer, re
 		const targetLang = destParam ? normalizeLangCode(destParam) : normalizeLangCode(viewer?.language || "es");
 		const targetUser = await userById(viewer.id, userId);
 		if (!targetUser) return Response.json({ errors: [{ code: 50, message: "User not found." }] }, { status: 404 });
-		const bio = targetUser.description || "";
+		const bio = targetUser.bio || "";
 		try {
 			const res = await translateText(bio, targetLang);
 			return Response.json({
