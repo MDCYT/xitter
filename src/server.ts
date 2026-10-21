@@ -402,6 +402,7 @@ async function route(req: Request): Promise<Response | undefined> {
 	if (p === "/i/flow/enable_automated_account") return Response.redirect("/account/automation", 302);
 	// and X's passkey settings and flows: ours is a page (passkeys.ts)
 	if (/^\/(settings|i\/flow)\/.*passkey/i.test(p)) return Response.redirect("/account/passkeys", 302);
+	if (p === "/i/flow/uls_content_and_app_language_selector") return Response.redirect("/settings/language", 302);
 	// the built-in "All" list (lists.ts)
 	if (p === "/all") return Response.redirect("/i/lists/1", 302);
 	if (p === "/login" || p === "/signup" || p.startsWith("/i/flow/")) {
@@ -495,7 +496,6 @@ async function route(req: Request): Promise<Response | undefined> {
 	}
 	// maintenance: guests see the notice; ?staff=1 is the sign-in page, for staff
 	if (!viewer && settings().operations.maintenance && !url.searchParams.has("staff")) return maintenancePage(true);
-	if (p === "/i/flow/uls_content_and_app_language_selector") return Response.redirect(`${PUBLIC_ORIGIN}/settings/language`, 302);
 	// signed out: authenticated-only pages redirect to home
 	const isAuthOnly = (path: string) =>
 		path === "/notifications" ||
