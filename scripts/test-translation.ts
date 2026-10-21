@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { detectLanguage, getLanguageDisplayName, normalizeLangCode, toApiLang } from "../src/lang";
 import { translateText } from "../src/translate";
+import { extractEntities } from "../src/links";
 
 describe("Language detection and normalization", () => {
 	test("normalizes language codes and names", () => {
@@ -54,6 +55,40 @@ describe("Translation API integration", () => {
 	test("handles empty text safely", async () => {
 		const res = await translateText("", "en", "es");
 		expect(res.translated_text).toBe("");
+	});
+
+	test("preserves newlines when translating multi-line text", async () => {
+		const text = "Primera línea\nSegunda línea\n\nTercera línea";
+		const res = await translateText(text, "en", "es");
+		const lines = res.translated_text.split("\n");
+		expect(lines.length).toBe(4);
+		expect(lines[0].length).toBeGreaterThan(0);
+		expect(lines[1].length).toBeGreaterThan(0);
+		expect(lines[2]).toBe("");
+		expect(lines[3].length).toBeGreaterThan(0);
+	});
+
+	test("extractEntities extracts URLs, hashtags, and mentions with exact character indices", () => {
+		const text = "Hello @alice! Check https://example.com/test and #awesome hashtag $BTC";
+		const entities = extractEntities(text);
+
+		expect(entities.urls.length).toBe(1);
+		expect(entities.urls[0].url).toBe("https://example.com/test");
+		const urlSlice = [...text].slice(entities.urls[0].indices[0], entities.urls[0].indices[1]).join("");
+		expect(urlSlice).toBe(entities.urls[0].url);
+
+		expect(entities.hashtags.length).toBe(1);
+		expect(entities.hashtags[0].text).toBe("awesome");
+		const tagSlice = [...text].slice(entities.hashtags[0].indices[0], entities.hashtags[0].indices[1]).join("");
+		expect(tagSlice).toBe("#awesome");
+
+		expect(entities.user_mentions.length).toBe(1);
+		expect(entities.user_mentions[0].screen_name).toBe("alice");
+		const mentionSlice = [...text].slice(entities.user_mentions[0].indices[0], entities.user_mentions[0].indices[1]).join("");
+		expect(mentionSlice).toBe("@alice");
+
+		expect(entities.symbols.length).toBe(1);
+		expect(entities.symbols[0].text).toBe("BTC");
 	});
 
 	test("i18n manifest contains supported language bundles", async () => {

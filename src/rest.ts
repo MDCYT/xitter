@@ -13,6 +13,7 @@ import { sql } from "./db";
 import { flagValue, unknownFlag } from "./flags";
 import { isId } from "./ids";
 import { isVerified, legacyTweet, legacyUser, tweetResult } from "./model";
+import { extractEntities } from "./links";
 import { translateText } from "./translate";
 import { getLanguageDisplayName, normalizeLangCode } from "./lang";
 import { markSeen } from "./notifications";
@@ -431,12 +432,23 @@ export async function restRoute(method: string, path: string, viewer: Viewer, re
 		if (!post) return Response.json({ errors: [{ code: 34, message: "Sorry, that page does not exist." }] }, { status: 404 });
 		try {
 			const res = await translateText(post.text, targetLang);
+			const translatedText = res.translated_text;
+			const textLength = [...translatedText].length;
+			const base = legacyTweet(post);
+			const media = (base.extended_entities as any)?.media ?? (base.entities as any)?.media ?? [];
+			const adjustedMedia = media.map((m: any) => ({ ...m, indices: [textLength, textLength] }));
+			const entities = extractEntities(translatedText, adjustedMedia);
+
 			return Response.json({
-				...legacyTweet(post),
+				...base,
 				id: post.id,
 				id_str: post.id,
-				text: res.translated_text,
-				translation: res.translated_text,
+				text: translatedText,
+				full_text: translatedText,
+				translation: translatedText,
+				display_text_range: [0, textLength],
+				entities,
+				...(adjustedMedia.length ? { extended_entities: { media: adjustedMedia } } : {}),
 				sourceLanguage: res.source_lang,
 				destinationLanguage: res.target_lang,
 				translationSource: "X",
@@ -467,7 +479,7 @@ export async function restRoute(method: string, path: string, viewer: Viewer, re
 					destinationLanguage: res.target_lang,
 					localizedSourceLanguage: getLanguageDisplayName(res.source_lang, res.target_lang),
 					translationSource: "X",
-					entities: { urls: [] },
+					entities: { urls: extractEntities(res.translated_text).urls },
 				},
 			});
 		} catch (err: unknown) {
@@ -525,6 +537,7 @@ export async function restRoute(method: string, path: string, viewer: Viewer, re
 		}
 
 		const contentType = body?.content_type || "POST";
+		const entities = extractEntities(translated);
 		const stream = new ReadableStream({
 			start(controller) {
 				const line =
@@ -532,7 +545,7 @@ export async function restRoute(method: string, path: string, viewer: Viewer, re
 						result: {
 							content_type: contentType,
 							text: translated,
-							entities: { urls: [] },
+							entities,
 						},
 					}) + "\n";
 				controller.enqueue(new TextEncoder().encode(line));

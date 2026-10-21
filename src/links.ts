@@ -78,6 +78,42 @@ export function bioEntities(bio: string) {
 	return found.sort((a, b) => a.indices[0] - b.indices[0]);
 }
 
+export function extractEntities(text: string, media?: any[]) {
+	const rawLinks = linksIn(text);
+	const urls = urlEntities(text);
+	const hashtags: { text: string; indices: [number, number] }[] = [];
+	for (const m of text.matchAll(/(?<![\p{L}\p{N}_#&])#([\p{L}\p{N}_]*\p{L}[\p{L}\p{N}_]*)/gu)) {
+		const start = [...text.slice(0, m.index!)].length;
+		const end = start + [...m[0]].length;
+		if (rawLinks.some((l) => start < l.end && end > l.start)) continue;
+		hashtags.push({ text: m[1], indices: [start, end] });
+	}
+	const user_mentions: { screen_name: string; name: string; id_str: string; indices: [number, number] }[] = [];
+	const MENTION_HANDLE = /(?<![\w@])@(\w{1,50})(?!\w)(?:@((?:[a-z0-9-]+\.)*[a-z0-9-]+(?::\d{1,5})?))?/gi;
+	for (const m of text.matchAll(MENTION_HANDLE)) {
+		const start = [...text.slice(0, m.index!)].length;
+		const end = start + [...m[0]].length;
+		if (rawLinks.some((l) => start < l.end && end > l.start)) continue;
+		const screen_name = m[2] ? `${m[1]}@${m[2].toLowerCase()}` : m[1];
+		user_mentions.push({ screen_name, name: screen_name, id_str: "", indices: [start, end] });
+	}
+	const symbols: { text: string; indices: [number, number] }[] = [];
+	for (const m of text.matchAll(/(?<![\w$])\$([a-zA-Z]{1,6})(?!\w)/g)) {
+		const start = [...text.slice(0, m.index!)].length;
+		const end = start + [...m[0]].length;
+		if (rawLinks.some((l) => start < l.end && end > l.start)) continue;
+		symbols.push({ text: m[1].toUpperCase(), indices: [start, end] });
+	}
+
+	return {
+		...(media && media.length ? { media } : {}),
+		user_mentions,
+		urls,
+		hashtags,
+		symbols,
+	};
+}
+
 const PRIVATE_HOST = /^(localhost|.*\.local|.*\.internal|.*\.localhost|0\.0\.0\.0|127\.\d+\.\d+\.\d+|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|169\.254\.\d+\.\d+|\[.*\])$/i;
 
 export function previewable(url: string): boolean {
