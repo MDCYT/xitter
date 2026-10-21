@@ -55,4 +55,13 @@ describe("Translation API integration", () => {
 		const res = await translateText("", "en", "es");
 		expect(res.translated_text).toBe("");
 	});
+
+	test("i18n manifest contains supported language bundles", async () => {
+		const manifest = (await import("../src/i18n-manifest.json")).default as Record<string, string>;
+		expect(manifest.es).toBeDefined();
+		expect(manifest.es).toContain("i18n/es.");
+		expect(manifest.en).toBeDefined();
+		expect(manifest.fr).toBeDefined();
+		expect(manifest.ja).toBeDefined();
+	});
 });

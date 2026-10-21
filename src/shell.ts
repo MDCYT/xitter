@@ -24,6 +24,7 @@ import { PUBLIC_ORIGIN } from "./config";
 import { legacyUser } from "./model";
 import { patchText, PATCH_VERSION } from "./patch";
 import { PWA_SCRIPT, pwaHead } from "./pwa";
+import i18nManifest from "./i18n-manifest.json";
 
 // account settings as the client expects them
 export function settingsFor(user: User): Record<string, unknown> {
@@ -190,7 +191,7 @@ export function switchReport() {
 	}));
 }
 
-function initialState(user: User | null, fs: NonNullable<ReturnType<typeof loadBuild>>["build"]["featureSwitch"], inCommunity: boolean, educationFlags: Record<string, number>, accent: Accent = DEFAULT_ACCENT) {
+function initialState(user: User | null, fs: NonNullable<ReturnType<typeof loadBuild>>["build"]["featureSwitch"], inCommunity: boolean, educationFlags: Record<string, number>, accent: Accent = DEFAULT_ACCENT, guestLang?: string) {
 	return {
 		optimist: [],
 		entities: {
@@ -245,7 +246,7 @@ function initialState(user: User | null, fs: NonNullable<ReturnType<typeof loadB
 			isActiveCreator: false,
 			isLoaded: true,
 			isRestrictedSession: false,
-			language: "en",
+			language: user?.language ?? guestLang ?? "en",
 			ssoInitTokens: {},
 			superFollowersCount: 0,
 			superFollowsApplicationStatus: "NotStarted",
@@ -269,7 +270,7 @@ let runtimePatched: { sha: string; text: string } | undefined;
 // With no user the client boots signed out, for the sign-in dialog.
 // `multi`: other accounts are signed in too (auth_multi), so the account menu
 // asks for them.
-export function shell(user: User | null, multi = false, inCommunity = false, educationFlags: Record<string, number> = {}, links: MenuLink[] = [], look: Look | null = null, accent: Accent = DEFAULT_ACCENT, paint?: BackgroundPaint, csrf?: string): string | undefined {
+export function shell(user: User | null, multi = false, inCommunity = false, educationFlags: Record<string, number> = {}, links: MenuLink[] = [], look: Look | null = null, accent: Accent = DEFAULT_ACCENT, paint?: BackgroundPaint, csrf?: string, guestLang?: string): string | undefined {
 	const theme = look?.kind === "painted" ? look.theme : null;
 	const loaded = loadBuild();
 	if (!loaded) return undefined;
@@ -279,10 +280,19 @@ export function shell(user: User | null, multi = false, inCommunity = false, edu
 	// the client decides from it where its csrf header goes)
 	const chatBuild = build.meta.xchatEmbedBuild;
 	const meta = { ...build.meta, ...(typeof chatBuild === "string" ? { xchatEmbedBuild: patchText(chatBuild) } : {}), sha: build.sha, isLoggedIn: !!user, userId: user?.id ?? null, hasMultiAccountCookie: !!user && multi, serverDate: Date.now() };
+
+	const lang = user?.language || guestLang || "en";
+	const isRtl = ["ar", "fa", "he", "ur"].includes(lang.slice(0, 2).toLowerCase());
+	const dir = isRtl ? "rtl" : "ltr";
+	const manifest = i18nManifest as Record<string, string>;
+	const i18nScript = manifest[lang] || manifest[lang.slice(0, 2).toLowerCase()] || manifest["en"] || "/responsive-web/client-web/i18n/en.d884011cfcd60cd7a.js";
 	const scripts = build.scripts
-		.map((p) => `<script defer charset="utf-8" crossorigin="anonymous" src="${PUBLIC_ORIGIN}/abs${p}?v=${PATCH_VERSION}"></script>`)
+		.map((p) => {
+			const target = p.includes("/i18n/") ? i18nScript : p;
+			return `<script defer charset="utf-8" crossorigin="anonymous" src="${PUBLIC_ORIGIN}/abs${target}?v=${PATCH_VERSION}"></script>`;
+		})
 		.join("");
-	return `<!DOCTYPE html><html dir="ltr" lang="en"${theme ? ` data-xitter-theme="${esc(theme.id)}"` : ""} data-xitter-accent="${esc(accent.kind === "named" ? accent.id : "custom")}"><head><meta charset="utf-8" />
+	return `<!DOCTYPE html><html dir="${dir}" lang="${esc(lang)}"${theme ? ` data-xitter-theme="${esc(theme.id)}"` : ""} data-xitter-accent="${esc(accent.kind === "named" ? accent.id : "custom")}"><head><meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=0,viewport-fit=cover" />
 <meta name="theme-color" content="${theme ? esc(theme.bg.stops[0] ?? "#000000") : "#000000"}" /><title>${esc(settings().instance_name)}</title>
 <link rel="icon" type="image/png" href="/public/favicon.png" />${pwaHead()}${fontLinks(theme)}
@@ -294,7 +304,7 @@ ${FLAG_PICKER_CSS}
 ${STICKER_PICKER_CSS}${bootAccentCss(accent)}${theme ? bootCss(theme, paint) : ""}
 ${CONVERSATION_CARD_CSS}</style>
 </head><body><div id="react-root" style="height:100%;display:flex;"></div>
-<script>window.__INITIAL_STATE__=${inline(initialState(user, build.featureSwitch, inCommunity, educationFlags, accent))};window.__META_DATA__=${inline(meta)};</script>
+<script>window.__INITIAL_STATE__=${inline(initialState(user, build.featureSwitch, inCommunity, educationFlags, accent, guestLang))};window.__META_DATA__=${inline(meta)};</script>
 <script>window.__XITTER__=${inline({ ...flagPickerData(user?.flag ?? null), tidy: tidyData(links), theme, look: clientLook(look, accent), accent: clientLook(look, accent).accent, themeColor: themeColorOf(accent), themePresets: swatches(), pageChrome: pageChromeCss(paint), ...(user && csrf ? { csrf } : {}) })};
 ${user ? ERROR_SCRIPT : ""}
 ${TIDY_SCRIPT}

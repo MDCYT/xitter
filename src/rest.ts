@@ -321,7 +321,9 @@ export async function restRoute(method: string, path: string, viewer: Viewer, re
 		const lang = form?.get("lang") ?? form?.get("language");
 		if (typeof lang === "string" && /^[a-z]{2,3}(-[A-Za-z]{2,4})?$/.test(lang)) await sql`update users set language = ${lang} where id = ${viewer.id}::bigint`;
 		const [fresh] = await sql`select screen_name, language, protected, preferences->>'discoverable_by_email' = 'true' as discoverable_by_email from users where id = ${viewer.id}::bigint`;
-		return Response.json(settingsFor({ ...viewer, ...fresh }) ?? {});
+		const res = Response.json(settingsFor({ ...viewer, ...fresh }) ?? {});
+		if (fresh?.language) res.headers.append("set-cookie", `lang=${fresh.language}; Path=/; Max-Age=31536000; SameSite=Lax`);
+		return res;
 	}
 	// Settings > Account information > Country
 	if (path === "/1.1/onboarding/task.json" && method === "POST") {
@@ -474,31 +476,61 @@ export async function restRoute(method: string, path: string, viewer: Viewer, re
 		}
 	}
 
-	// Streamed Bio Translation (Grok translation endpoint)
+	// Streamed Grok Translation endpoint (Posts and User Bios)
 	if (path === "/2/grok/translation.json" && method === "POST") {
-		const body = (await req.json().catch(() => ({}))) as { content_type?: string; id?: string; dst_lang?: string };
-		const userId = body?.id;
+		const body = (await req.json().catch(() => ({}))) as { content_type?: string; id?: string; dst_lang?: string; text?: string };
 		const targetLang = normalizeLangCode(body?.dst_lang || viewer?.language || "es");
-		let bio = "";
-		if (userId && isId(userId)) {
-			const u = await userById(viewer.id, userId);
-			bio = u?.bio || u?.description || "";
+		let sourceText = "";
+		let sourceLangHint: string | undefined;
+
+		const targetId = body?.id;
+		if (targetId && isId(targetId)) {
+			if (body?.content_type === "POST") {
+				const post = await getPost(viewer.id, targetId);
+				if (post) {
+					sourceText = post.text || "";
+					sourceLangHint = post.author.language;
+				}
+			} else if (body?.content_type === "BIO") {
+				const u = await userById(viewer.id, targetId);
+				if (u) {
+					sourceText = u.bio || "";
+					sourceLangHint = u.language;
+				}
+			} else {
+				const post = await getPost(viewer.id, targetId);
+				if (post) {
+					sourceText = post.text || "";
+					sourceLangHint = post.author.language;
+				} else {
+					const u = await userById(viewer.id, targetId);
+					if (u) {
+						sourceText = u.bio || "";
+						sourceLangHint = u.language;
+					}
+				}
+			}
+		} else if (typeof body?.text === "string") {
+			sourceText = body.text;
 		}
-		let translated = bio;
-		if (bio.trim()) {
+
+		let translated = sourceText;
+		if (sourceText.trim()) {
 			try {
-				const res = await translateText(bio, targetLang);
+				const res = await translateText(sourceText, targetLang, sourceLangHint);
 				translated = res.translated_text;
 			} catch (e) {
 				console.error("grok translation error:", (e as Error)?.message || e);
 			}
 		}
+
+		const contentType = body?.content_type || "POST";
 		const stream = new ReadableStream({
 			start(controller) {
 				const line =
 					JSON.stringify({
 						result: {
-							content_type: body?.content_type || "BIO",
+							content_type: contentType,
 							text: translated,
 							entities: { urls: [] },
 						},
