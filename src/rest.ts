@@ -419,8 +419,6 @@ export async function restRoute(method: string, path: string, viewer: Viewer, re
 	if (path === "/1.1/onboarding/sso_init.json") return Response.json({ status: "success", state: "guest" });
 	if (path.endsWith("/p2"))
 		return Response.json({ totalEvents: 0, eventsFailed: 0, shouldRetry: false, retryAfterMs: null, eventsFailedSequenceNumbers: null, message: null });
-	if (TELEMETRY.test(path)) return Response.json({});
-
 	// Tweet Translation (Strato endpoint)
 	const tweetTransMatch = /(?:^|\/)strato\/column\/None\/tweetId=(\d{1,19}),destinationLanguage=(?:Some\(([a-zA-Z_-]+)\)|None),.*\/translation\/service\/translateTweet/.exec(path);
 	if (tweetTransMatch && method === "GET") {
@@ -516,6 +514,8 @@ export async function restRoute(method: string, path: string, viewer: Viewer, re
 			},
 		});
 	}
+
+	if (TELEMETRY.test(path)) return Response.json({});
 
 	return undefined;
 }
