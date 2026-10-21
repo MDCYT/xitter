@@ -155,6 +155,9 @@ const ownSwitches = (): Record<string, { value: unknown }> => ({
 	responsive_web_edit_tweet_enabled: { value: true },
 	responsive_web_edit_tweet_composition_enabled: { value: true },
 	responsive_web_edit_tweet_perspective_enabled: { value: true },
+	graphql_is_translatable_rweb_tweet_is_translatable_enabled: { value: true },
+	responsive_web_x_translation_enabled: { value: true },
+	onboarding_project_uls_enabled: { value: false },
 });
 const overrideSwitches = () => Object.fromEntries(Object.entries(settings().switch_overrides).map(([k, value]) => [k, { value }]));
 // Long posts for everyone, up to the limit of the viewer's badge (textlen.ts):

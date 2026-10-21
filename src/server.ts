@@ -213,7 +213,7 @@ async function serveApi(req: Request, url: URL, viewer: Viewer | undefined): Pro
 
 	if (!viewer) {
 		const isGuestGql = !!operation && GUEST_ALLOWED_GQL.has(operation);
-		const isGuestRest = GUEST_ALLOWED_REST.has(path) || TELEMETRY.test(path) || path === "/live_pipeline/events" || (req.method === "POST" && path === "/xitter/client_error");
+		const isGuestRest = GUEST_ALLOWED_REST.has(path) || TELEMETRY.test(path) || path.includes("/translation/service/") || path === "/live_pipeline/events" || (req.method === "POST" && path === "/xitter/client_error");
 		if (isGuestGql || isGuestRest) {
 			viewer = GUEST_VIEWER;
 		} else {
@@ -495,6 +495,7 @@ async function route(req: Request): Promise<Response | undefined> {
 	}
 	// maintenance: guests see the notice; ?staff=1 is the sign-in page, for staff
 	if (!viewer && settings().operations.maintenance && !url.searchParams.has("staff")) return maintenancePage(true);
+	if (p === "/i/flow/uls_content_and_app_language_selector") return Response.redirect(`${PUBLIC_ORIGIN}/settings/language`, 302);
 	// signed out: authenticated-only pages redirect to home
 	const isAuthOnly = (path: string) =>
 		path === "/notifications" ||

@@ -216,6 +216,8 @@ export const TIDY_SCRIPT = `(function(){
 		if(p.indexOf("/i/flow/enable_automated_account")===0)location.replace("/account/automation");
 		// Settings > Security's passkey screens and X's add-a-passkey flow talk to its servers (passkeys.ts)
 		if(/passkey/i.test(p)&&(p.indexOf("/settings/")===0||p.indexOf("/i/flow/")===0))location.replace("/account/passkeys");
+		// Settings > Languages native picker instead of broken ULS flow
+		if(p.indexOf("/i/flow/uls_content_and_app_language_selector")===0)location.replace("/settings/language");
 	}
 	// the signed-out footer ends with X's copyright (its name already the
 	// instance's, patch.ts): the instance's name and source instead

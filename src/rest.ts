@@ -12,7 +12,9 @@ import { getPost } from "./posts";
 import { sql } from "./db";
 import { flagValue, unknownFlag } from "./flags";
 import { isId } from "./ids";
-import { isVerified, legacyUser, tweetResult } from "./model";
+import { isVerified, legacyTweet, legacyUser, tweetResult } from "./model";
+import { translateText } from "./translate";
+import { getLanguageDisplayName, normalizeLangCode } from "./lang";
 import { markSeen } from "./notifications";
 import { PollError, createCard, vote } from "./polls";
 import { placeById, searchPlaces } from "./places";
@@ -418,6 +420,62 @@ export async function restRoute(method: string, path: string, viewer: Viewer, re
 	if (path.endsWith("/p2"))
 		return Response.json({ totalEvents: 0, eventsFailed: 0, shouldRetry: false, retryAfterMs: null, eventsFailedSequenceNumbers: null, message: null });
 	if (TELEMETRY.test(path)) return Response.json({});
+
+	// Tweet Translation (Strato endpoint)
+	const tweetTransMatch = /(?:^|\/)strato\/column\/None\/tweetId=(\d{1,19}),destinationLanguage=(?:Some\(([a-zA-Z_-]+)\)|None),.*\/translation\/service\/translateTweet/.exec(path);
+	if (tweetTransMatch && method === "GET") {
+		const tweetId = tweetTransMatch[1];
+		const destParam = tweetTransMatch[2];
+		const targetLang = destParam ? normalizeLangCode(destParam) : normalizeLangCode(viewer?.language || "es");
+		const post = await getPost(viewer.id, tweetId);
+		if (!post) return Response.json({ errors: [{ code: 34, message: "Sorry, that page does not exist." }] }, { status: 404 });
+		try {
+			const res = await translateText(post.text, targetLang);
+			return Response.json({
+				...legacyTweet(post),
+				id: post.id,
+				id_str: post.id,
+				text: res.translated_text,
+				translation: res.translated_text,
+				sourceLanguage: res.source_lang,
+				destinationLanguage: res.target_lang,
+				translationSource: "X",
+				localizedSourceLanguage: getLanguageDisplayName(res.source_lang, res.target_lang),
+			});
+		} catch (err: unknown) {
+			console.error("translateTweet error:", (err as Error)?.message || err);
+			return Response.json({ errors: [{ code: 131, message: "Unable to fetch translation." }] }, { status: 500 });
+		}
+	}
+
+	// Profile Translation (Strato endpoint)
+	const profileTransMatch = /(?:^|\/)strato\/column\/None\/profileUserId=(\d{1,19}),destinationLanguage=(?:Some\(([a-zA-Z_-]+)\)|None),.*\/translation\/service\/translateProfile/.exec(path);
+	if (profileTransMatch && method === "GET") {
+		const userId = profileTransMatch[1];
+		const destParam = profileTransMatch[2];
+		const targetLang = destParam ? normalizeLangCode(destParam) : normalizeLangCode(viewer?.language || "es");
+		const targetUser = await userById(viewer.id, userId);
+		if (!targetUser) return Response.json({ errors: [{ code: 50, message: "User not found." }] }, { status: 404 });
+		const bio = targetUser.description || "";
+		try {
+			const res = await translateText(bio, targetLang);
+			return Response.json({
+				profileUserId: targetUser.id,
+				profileTranslation: {
+					translation: res.translated_text,
+					sourceLanguage: res.source_lang,
+					destinationLanguage: res.target_lang,
+					localizedSourceLanguage: getLanguageDisplayName(res.source_lang, res.target_lang),
+					translationSource: "X",
+					entities: { urls: [] },
+				},
+			});
+		} catch (err: unknown) {
+			console.error("translateProfile error:", (err as Error)?.message || err);
+			return Response.json({ errors: [{ code: 131, message: "Unable to fetch translation." }] }, { status: 500 });
+		}
+	}
+
 	return undefined;
 }
 

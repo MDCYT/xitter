@@ -28,6 +28,7 @@ import { settings } from "./settings";
 import { rankedFeed } from "./ranking";
 import * as articles from "./articles";
 import type { Viewer } from "./auth";
+import { getLanguageDisplayName } from "./lang";
 import { notificationsTimeline, unreadCount } from "./notifications";
 import { cachedTrends, searchPosts, searchUsers } from "./search";
 import { isId, newId } from "./ids";
@@ -1134,6 +1135,23 @@ Object.assign(handlers, {
 		};
 	},
 	GetUserClaims: () => ({ data: { viewer_v2: { claims: [] } } }),
+	UnifiedLanguagePivotMenuLanguagesQuery: ({ viewer }) => {
+		const lang = viewer?.language || "es";
+		const name = getLanguageDisplayName(lang, lang);
+		return {
+			data: {
+				viewer_v2: {
+					user_results: {
+						result: {
+							__typename: "User",
+							display_language: { language_name: name, language_code: lang },
+							preferred_content_languages: [{ language_name: name, language_code: lang }],
+						},
+					},
+				},
+			},
+		};
+	},
 } satisfies Record<string, Handler>);
 Object.assign(handlers, automationHandlers);
 
@@ -1180,6 +1198,7 @@ export const GUEST_ALLOWED_GQL = new Set([
 	"Likes",
 	"DataSaverMode",
 	"SupportedLanguages",
+	"UnifiedLanguagePivotMenuLanguagesQuery",
 	"getAltTextPromptPreference",
 	"grokAccountJwtQuery",
 	"useStoryTopicQuery",

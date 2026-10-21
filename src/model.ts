@@ -13,6 +13,7 @@ import { FLAGS, flagList } from "./flags";
 import { homeOf, mentionsIn } from "./mentions";
 import { type MediaRow, absolute, mediaEntity, mediaUrl, posterUrl } from "./media";
 import { placeById } from "./places";
+import { detectLanguage } from "./lang";
 import { shownSource } from "./platforms";
 import { settings } from "./settings";
 import { SHORT_POST, previewOf, weightedLength } from "./textlen";
@@ -530,7 +531,7 @@ function plainTweet(p: PostRow, withTypename: boolean): Record<string, unknown> 
 		grok_analysis_button: false,
 		grok_annotations: {},
 		grok_translated_post_with_availability: { is_available: false },
-		is_translatable: false,
+		is_translatable: Boolean(p.text && p.text.trim()),
 		legacy: {
 			bookmark_count: p.bookmark_count,
 			bookmarked: p.bookmarked,
@@ -564,7 +565,7 @@ function plainTweet(p: PostRow, withTypename: boolean): Record<string, unknown> 
 						quoted_status_permalink: { url: quoteLink, expanded: quoteLink, display: quoteLink.replace(/^https?:\/\//, "") },
 					}
 				: {}),
-			lang: "und",
+			lang: detectLanguage(p.text, p.author.language ?? "en"),
 			quote_count: p.quote_count,
 			reply_count: p.reply_count,
 			retweet_count: p.repost_count,
@@ -575,6 +576,17 @@ function plainTweet(p: PostRow, withTypename: boolean): Record<string, unknown> 
 		unmention_data: {},
 		unmention_info: {},
 		views: p.view_count ? { count: String(p.view_count), state: "EnabledWithCount" } : { state: "Enabled" },
+	};
+}
+
+export function legacyTweet(p: PostRow): Record<string, unknown> {
+	const res = plainTweet(p, false) as { legacy: Record<string, unknown> };
+	return {
+		...res.legacy,
+		id: p.id,
+		id_str: p.id,
+		text: p.text,
+		user: legacyUser(p.author),
 	};
 }
 
@@ -612,7 +624,7 @@ export function repostResult(id: string, by: User, createdAt: Date, original: Po
 			full_text: text,
 			id_str: id,
 			is_quote_status: false,
-			lang: "und",
+			lang: detectLanguage(original.text, original.author.language ?? "en"),
 			quote_count: original.quote_count,
 			reply_count: original.reply_count,
 			retweet_count: original.repost_count,
