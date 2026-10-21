@@ -55,7 +55,7 @@ import { startMailDigests } from "./mail-digest";
 import { SERVICE_WORKER, startPush } from "./push";
 import { manifest } from "./pwa";
 import { emailRoute } from "./email-address";
-import { embedImage, linkPreview, oembed } from "./embeds";
+import { embedImage, embedMedia, linkPreview, oembed } from "./embeds";
 import { noteAppealsRoute } from "./note-appeals";
 import { decorCatalog, decorFor, decorRoute, decorShop, steamFile } from "./decor";
 import { nightModeCookies, themeApi, themeExport, themeImport } from "./themes/api";
@@ -488,7 +488,7 @@ async function route(req: Request): Promise<Response | undefined> {
 	if (p === "/account/migrate" && viewer) return migrateRoute(req, viewer);
 	if (p.startsWith("/i/ton/data/xchat_media/")) return chatMediaRoute(req, viewer, url);
 	// pictures and oEmbed for previews of public posts in other apps (embeds.ts)
-	if (p.startsWith("/embed/")) return embedImage(p);
+	if (p.startsWith("/embed/")) return embedMedia(req, p);
 	if (p === "/oembed") return oembed(url);
 	// the frame X's client opens for a player card (YouTube links)
 	if (isPlayerPage(p)) return viewer ? playerPage(p, viewer.id) : new Response("not found", { status: 404 });
@@ -519,8 +519,12 @@ async function route(req: Request): Promise<Response | undefined> {
 
 	// signed out: a public post or profile gives other apps' link fetchers its preview
 	if (!viewer && req.method === "GET") {
-		const isBot = /bot|facebookexternalhit|whatsapp|telegram|slack|discord|twitterbot|meta-externalagent|crawler|preview/i.test(req.headers.get("user-agent") ?? "");
-		if (isBot) {
+		const isBot =
+			/bot|facebookexternalhit|whatsapp|telegram|slack|discord|twitterbot|meta-externalagent|crawler|preview|mastodon|misskey|pleroma|activitypub|applebot|bingbot|googlebot|linkedin|embedly|quora|duckduckbot|vkshare|w3c_validator|redditbot|curl|wget/i.test(
+				req.headers.get("user-agent") ?? "",
+			) || url.searchParams.has("embed");
+		const isFx = /^\/(?:fx|vx)\//i.test(p);
+		if (isBot || isFx) {
 			const preview = await linkPreview(p);
 			if (preview) return preview;
 		}
