@@ -708,7 +708,14 @@ export async function serveMedia(req: Request, pathname: string, viewer: Viewer)
 		}
 		const body = await remoteMediaFile(poster[1], true);
 		if (!body) return new Response("not found", { status: 404, headers: { "cache-control": PRIVATE } });
-		return new Response(streamable(body), { headers: { "content-type": "image/jpeg", "cache-control": cache, "x-content-type-options": "nosniff" } });
+		let pSize = 0;
+		if ("stat" in body && typeof (body as any).stat === "function") {
+			try { pSize = (await (body as any).stat())?.size ?? 0; } catch {}
+		}
+		if (!pSize && typeof body.size === "number" && !Number.isNaN(body.size)) pSize = body.size;
+		const pHeaders: Record<string, string> = { "content-type": "image/jpeg", "cache-control": cache, "x-content-type-options": "nosniff" };
+		if (pSize) pHeaders["content-length"] = String(pSize);
+		return new Response(streamable(body), { headers: pHeaders });
 	}
 	const m = /^\/media\/(?:banner\/)?(\d{1,19})(?:\.[a-z0-9]+)?(?:\/[\w-]+)?$/.exec(pathname);
 	if (!m || !isId(m[1])) return new Response("not found", { status: 404, headers: { "cache-control": PRIVATE } });
@@ -721,8 +728,20 @@ export async function serveMedia(req: Request, pathname: string, viewer: Viewer)
 	}
 	const body = await remoteMediaFile(m[1]);
 	if (!body) return new Response("not found", { status: 404, headers: { "cache-control": PRIVATE } });
+	let size = served.size || 0;
+	if (!size && body) {
+		if ("stat" in body && typeof (body as any).stat === "function") {
+			try {
+				const st = await (body as any).stat();
+				if (st?.size) size = st.size;
+			} catch {}
+		}
+		if (!size && typeof body.size === "number" && !Number.isNaN(body.size)) {
+			size = body.size;
+		}
+		if (size) void sql`update media set size = ${size} where id = ${m[1]}::bigint`.catch(() => {});
+	}
 	const headers: Record<string, string> = { "content-type": served.mime, "cache-control": cache, "x-content-type-options": "nosniff", "accept-ranges": "bytes" };
-	const size = served.size || (body.size && !Number.isNaN(body.size) ? body.size : 0);
 	const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.get("range") ?? "");
 	if (range && (range[1] || range[2]) && size) {
 		// "bytes=-N" means the last N bytes
@@ -735,6 +754,7 @@ export async function serveMedia(req: Request, pathname: string, viewer: Viewer)
 			headers: { ...headers, "content-range": `bytes ${start}-${end}/${size}`, "content-length": String(end - start + 1) },
 		});
 	}
+	if (size) headers["content-length"] = String(size);
 	return new Response(streamable(body), { headers });
 }
 
