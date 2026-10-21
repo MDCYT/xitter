@@ -12,7 +12,7 @@ import { saveMentions } from "./mentions";
 import { cleanText, oneLine } from "./text-clean";
 import { parseDecoration } from "./decorations";
 import { posterFile } from "./video";
-import { getS3File, isS3Enabled } from "./storage";
+import { getS3File, isS3Enabled, uploadToS3 } from "./storage";
 
 const MEDIA_DIR = process.env.MEDIA_DIR ?? "media";
 const PAGE = 200;
@@ -552,6 +552,10 @@ export async function remoteMediaFile(localId: string, poster = false): Promise<
 	}
 	const body = await pullOnce(localId, poster);
 	if (!body) return undefined;
+	if (isS3Enabled()) {
+		const sKey = poster ? `${localId}.poster.jpg` : localId;
+		void uploadToS3(sKey, body);
+	}
 	if (!STORE_MEDIA) {
 		remember(key, body);
 		return new Blob([body as Uint8Array<ArrayBuffer>]);
@@ -578,7 +582,7 @@ const gone = new Set<string>();
 let draining = 0;
 
 function prefetch(localId: string, poster = false) {
-	if (!STORE_MEDIA) return;
+	if (!STORE_MEDIA && !isS3Enabled()) return;
 	for (const p of poster ? [false, true] : [false]) {
 		const key = `${localId}${p ? "p" : ""}`;
 		if (queued.has(key) || queue.length >= 10_000) continue;
@@ -604,7 +608,7 @@ function drain() {
 
 // files still missing (an instance that was down, a server restart mid-queue)
 async function backfillMedia() {
-	if (!STORE_MEDIA) return;
+	if (!STORE_MEDIA && !isS3Enabled()) return;
 	const rows = await sql`select id::text, kind from media where remote_instance is not null and size = 0
 		and remote_instance <> all(${sql.array([...failingUntil].filter(([, until]) => until > Date.now()).map(([i]) => i), "TEXT")})
 		and id <> all(${sql.array([...gone], "INT8")})

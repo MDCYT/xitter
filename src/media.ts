@@ -631,10 +631,25 @@ type Served = { id: string; mime: string; owner: string; post: string | null; de
 // Visibility changes, blocks and deletion must apply on the next request, and
 // authorized private bytes must not persist in browser or shared caches.
 const PRIVATE = "private, no-store";
+const PUBLIC_CACHE = "public, max-age=86400, stale-while-revalidate=604800";
+
+const servedCache = new Map<string, { served: Served; at: number }>();
+const MAX_SERVED_CACHE = 2048;
 
 async function servedOf(id: string): Promise<Served | undefined> {
+	const hit = servedCache.get(id);
+	if (hit && Date.now() - hit.at < 30_000) {
+		servedCache.delete(id);
+		servedCache.set(id, hit);
+		return hit.served;
+	}
+	servedCache.delete(id);
 	const [row] = await sql`select id::text, mime, user_id::text as owner, post_id::text as post, detached from media where id = ${id}::bigint`;
-	return row as Served | undefined;
+	if (!row) return undefined;
+	const served = row as Served;
+	if (servedCache.size >= MAX_SERVED_CACHE) servedCache.delete(servedCache.keys().next().value!);
+	servedCache.set(id, { served, at: Date.now() });
+	return served;
 }
 
 async function cacheFor(viewer: Viewer, served: Served): Promise<string | undefined> {
@@ -643,17 +658,25 @@ async function cacheFor(viewer: Viewer, served: Served): Promise<string | undefi
 	// only for unbound uploads so ordinary post images keep their indexed path.
 	const pollIds: string[] = served.post ? [] : (await sql`select id::text from polls where choice_media @> ${sql.array([served.id], "INT8")}`).map((p: any) => p.id);
 	if (!served.post && !pollIds.length) {
-		// Avatars, banners and other non-post references retain their access
-		// policy. Their URL may later be attached to private content.
-		return PRIVATE;
+		// Avatars, banners and other non-post references.
+		const [owner] = await sql`select protected, status from users where id = ${served.owner}::bigint`;
+		if (owner?.protected || owner?.status === "suspended") {
+			const [unseen] = await sql`select 1 where ${served.owner}::bigint in ${protectedFor(viewer.id)} or ${served.owner}::bigint in ${suspendedFor(viewer.id)} or ${served.owner}::bigint in ${blockedFor(viewer.id)}`;
+			return unseen ? undefined : PRIVATE;
+		}
+		return PUBLIC_CACHE;
 	}
-	const [access] = await sql`select 1 from posts post where
+	const [access] = await sql`select post.user_id::text as author_id from posts post where
 		${served.post ? sql`post.id = ${served.post}::bigint` : sql`post.poll_id = any(${sql.array(pollIds, "INT8")})`}
 		and (not post.hidden or ${staffViewer(viewer.id)})
 		and post.user_id not in ${protectedFor(viewer.id)}
 		and post.user_id not in ${suspendedFor(viewer.id)}
 		and post.user_id not in ${blockedFor(viewer.id)} limit 1`;
-	if (access) return PRIVATE;
+	if (access) {
+		const [author] = await sql`select protected from users where id = ${access.author_id}::bigint`;
+		if (author?.protected) return PRIVATE;
+		return PUBLIC_CACHE;
+	}
 	// A draft/deleted poll's uploaded choices remain available to its owner.
 	return !served.post && served.owner === viewer.id ? PRIVATE : undefined;
 }
