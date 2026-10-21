@@ -688,6 +688,10 @@ async function serveConversationVideo(id: string, viewer: Viewer): Promise<Respo
 	return new Response(conversationVideoMap(served.id, mediaUrl(served.id, served.mime), served.owner), { headers: { "content-type": "application/xml", "cache-control": cache, "x-content-type-options": "nosniff" } });
 }
 
+function streamable(body: Blob): any {
+	return "bucket" in body && typeof (body as any).stream === "function" ? (body as any).stream() : body;
+}
+
 // /media/<id>[.ext], /media/banner/<id>[/<size>] and /media/poster/<id>.jpg; the
 // client asks for sizes through the query string or a path suffix, and gets the
 // original either way. Byte ranges are answered so the video player can seek.
@@ -704,7 +708,7 @@ export async function serveMedia(req: Request, pathname: string, viewer: Viewer)
 		}
 		const body = await remoteMediaFile(poster[1], true);
 		if (!body) return new Response("not found", { status: 404, headers: { "cache-control": PRIVATE } });
-		return new Response(body, { headers: { "content-type": "image/jpeg", "cache-control": cache, "x-content-type-options": "nosniff" } });
+		return new Response(streamable(body), { headers: { "content-type": "image/jpeg", "cache-control": cache, "x-content-type-options": "nosniff" } });
 	}
 	const m = /^\/media\/(?:banner\/)?(\d{1,19})(?:\.[a-z0-9]+)?(?:\/[\w-]+)?$/.exec(pathname);
 	if (!m || !isId(m[1])) return new Response("not found", { status: 404, headers: { "cache-control": PRIVATE } });
@@ -725,12 +729,13 @@ export async function serveMedia(req: Request, pathname: string, viewer: Viewer)
 		const start = range[1] ? Number(range[1]) : Math.max(0, size - Number(range[2]));
 		const end = range[1] && range[2] ? Math.min(Number(range[2]), size - 1) : size - 1;
 		if (start > end || start >= size) return new Response(null, { status: 416, headers: { "content-range": `bytes */${size}` } });
-		return new Response(body.slice(start, end + 1), {
+		const sliced = body.slice(start, end + 1);
+		return new Response(streamable(sliced), {
 			status: 206,
 			headers: { ...headers, "content-range": `bytes ${start}-${end}/${size}`, "content-length": String(end - start + 1) },
 		});
 	}
-	return new Response(body, { headers });
+	return new Response(streamable(body), { headers });
 }
 
 // attaches uploads to a new post; only the poster's own unused, finished

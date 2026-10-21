@@ -134,7 +134,8 @@ export async function linkPreview(pathname: string): Promise<Response | undefine
 
 async function fileResponse(body: Blob | undefined, type: string): Promise<Response> {
 	if (!body) return new Response("not found", { status: 404, headers: { "cache-control": "no-store" } });
-	return new Response(body, { headers: { "content-type": type, "cache-control": "no-store", "x-content-type-options": "nosniff" } });
+	const stream = "bucket" in body && typeof (body as any).stream === "function" ? (body as any).stream() : body;
+	return new Response(stream, { headers: { "content-type": type, "cache-control": "no-store", "x-content-type-options": "nosniff" } });
 }
 
 // the pictures the preview pages name: a public post's first photo or video
