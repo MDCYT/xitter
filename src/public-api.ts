@@ -18,7 +18,7 @@ import { PostError, feed, getPost, postsByIds, replies, type FeedItem } from "./
 import { type Bucket, limitHeaders, limitedResponse, noteRefusal, take } from "./ratelimit";
 import { cachedTrends, searchPosts, searchUsers } from "./search";
 import { settings } from "./settings";
-import { followList, setFollow, suggestedUsers, userByName, usersByIds } from "./users";
+import { followList, setFollow, suggestedUsers, toUser, userByName, userCols, usersByIds } from "./users";
 import { translateText } from "./translate";
 import { votePoll } from "./polls";
 
@@ -87,6 +87,23 @@ function userJson(u: User) {
 		protected: !!u.protected,
 		created_at: iso(u.created_at),
 		url: `${PUBLIC_ORIGIN}/${u.screen_name}`,
+		translator: u.translator ?? null,
+		flag: u.flag ?? null,
+		badges: (u.badges ?? []).map((b) => ({ id: b.id, name: b.name, url: `/public/badge-${b.id}.png` })),
+		remote_badges: u.remote_badges ?? [],
+		org: u.org ? {
+			id: u.org.id,
+			name: u.org.name,
+			screen_name: u.org.screen_name,
+			avatar_url: absolute(u.org.avatar_url),
+		} : null,
+		label: u.label ? {
+			text: u.label.text,
+			badge_url: u.label.badge_id ? `/public/badge-${u.label.badge_id}.png` : null,
+			url: u.label.url || null,
+		} : null,
+		parody_label: u.parody_label && u.parody_label !== "None" ? u.parody_label : null,
+		instance: u.instance || null,
 		...(u.stats
 			? {
 					counts: { posts: u.stats.posts, followers: u.stats.followers, following: u.stats.following, likes: u.stats.likes },
@@ -282,6 +299,34 @@ const op = async (name: string, v: Viewer, vars: Record<string, unknown>) => {
 
 const ROUTES: Route[] = [
 	{ method: "GET", pattern: /^\/me$/, scope: "read", run: async (v) => ({ data: v.id === "0" ? null : userJson((await userByName(v.id, v.screen_name))!) }) },
+	{
+		method: "POST", pattern: /^\/account\/settings$/, scope: "write", bucket: "write",
+		run: async (v, _m, req) => {
+			if (v.id === "0") throw new ApiError(401, "Sign in to update account settings.");
+			const b = await body(req);
+			const changes: Record<string, any> = {};
+			if (typeof b.language === "string" && /^[a-z]{2,3}(-[A-Za-z]{2,4})?$/.test(b.language)) {
+				changes.language = b.language;
+			}
+			if (typeof b.name === "string" && b.name.trim().length > 0 && b.name.trim().length <= 50) {
+				changes.name = b.name.trim();
+			}
+			if (typeof b.bio === "string" && b.bio.length <= 160) {
+				changes.bio = b.bio;
+			}
+			if (typeof b.location === "string" && b.location.length <= 30) {
+				changes.location = b.location;
+			}
+			if (typeof b.website === "string" && (b.website === "" || /^https?:\/\/\S+$/.test(b.website)) && b.website.length <= 100) {
+				changes.website = b.website || null;
+			}
+			if (Object.keys(changes).length) {
+				await sql`update users set ${sql(changes)} where id = ${v.id}::bigint`;
+			}
+			const [updated] = await sql`select ${userCols(v.id)} from users u where u.id = ${v.id}::bigint`;
+			return { data: userJson(toUser(updated)) };
+		},
+	},
 	{ method: "GET", pattern: /^\/trends$/, scope: "read", run: async () => ({ data: await cachedTrends(7, 10) }) },
 	{ method: "GET", pattern: /^\/suggestions$/, scope: "read", run: async (v) => ({ data: (await suggestedUsers(v.id, 5)).map(userJson) }) },
 	{ method: "GET", pattern: /^\/users\/([^/]+)$/, scope: "read", run: async (v, m) => ({ data: userJson(await userOr404(v, m[1])) }) },

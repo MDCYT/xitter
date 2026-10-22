@@ -17,8 +17,24 @@ export function circusClientHtml(opts: {
 				screen_name: opts.viewer.screen_name,
 				name: opts.viewer.name,
 				avatar_url: opts.viewer.avatar_url,
+				banner_url: opts.viewer.banner_url,
 				bio: opts.viewer.bio ?? "",
+				location: opts.viewer.location ?? "",
+				website: opts.viewer.website ?? null,
 				verified_type: opts.viewer.verified_type,
+				role: opts.viewer.role ?? null,
+				translator: opts.viewer.translator ?? null,
+				badges: (opts.viewer.badges ?? []).map((b) => ({ id: b.id, name: b.name, url: `/public/badge-${b.id}.png` })),
+				remote_badges: opts.viewer.remote_badges ?? [],
+				org: opts.viewer.org ? {
+					id: opts.viewer.org.id,
+					name: opts.viewer.org.name,
+					screen_name: opts.viewer.org.screen_name,
+					avatar_url: opts.viewer.org.avatar_url,
+				} : null,
+				flag: opts.viewer.flag ?? null,
+				language: opts.viewer.language ?? "es",
+				csrf: opts.viewer.csrf || "",
 			}
 		: null;
 
@@ -85,6 +101,7 @@ a:hover, a:focus {
   justify-content: space-between;
   height: 46px;
   padding: 0 15px;
+  position: relative;
 }
 .nav-links {
   display: flex;
@@ -148,6 +165,7 @@ a:hover, a:focus {
   display: flex;
   align-items: center;
   gap: 12px;
+  position: relative;
 }
 .search-form {
   position: relative;
@@ -160,14 +178,14 @@ a:hover, a:focus {
   font-size: 12px;
   height: 32px;
   padding: 0 32px 0 14px;
-  width: 200px;
+  width: 180px;
   transition: all 0.2s;
   outline: none;
 }
 .search-input:focus {
   background-color: #ffffff;
   border-color: var(--circus-red);
-  width: 230px;
+  width: 210px;
 }
 .search-btn {
   position: absolute;
@@ -185,6 +203,8 @@ a:hover, a:focus {
   border: none;
   padding: 0;
   cursor: pointer;
+  display: flex;
+  align-items: center;
 }
 .nav-avatar {
   width: 32px;
@@ -211,16 +231,59 @@ a:hover, a:focus {
   color: #ffffff;
 }
 
-/* Switch Client Banner */
-.beta-pill {
-  background-color: var(--circus-yellow);
-  color: #593e00;
-  font-size: 10px;
-  font-weight: 800;
-  text-transform: uppercase;
-  padding: 2px 6px;
+/* User Dropdown Menu */
+.nav-user-dropdown {
+  position: absolute;
+  top: 44px;
+  right: 0;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.15);
   border-radius: 4px;
-  margin-left: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.175);
+  min-width: 230px;
+  z-index: 1050;
+  display: none;
+}
+.nav-user-dropdown.show {
+  display: block;
+}
+.dropdown-user-header {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-color);
+}
+.dropdown-user-header b {
+  font-size: 14px;
+  color: var(--text-main);
+  display: block;
+}
+.dropdown-user-header small {
+  color: var(--text-muted);
+}
+.nav-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  color: var(--text-main) !important;
+  font-size: 13px;
+  text-decoration: none !important;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.nav-dropdown-item:hover {
+  background-color: #f5f8fa;
+  color: var(--circus-red) !important;
+}
+.nav-dropdown-item svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+  flex-shrink: 0;
+}
+.dropdown-divider {
+  height: 1px;
+  margin: 4px 0;
+  background-color: var(--border-color);
 }
 
 /* Main Layout Grid */
@@ -272,7 +335,10 @@ a:hover, a:focus {
   font-size: 17px;
   line-height: 20px;
   color: var(--text-main);
-  display: block;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 3px;
 }
 .profile-card-name:hover {
   text-decoration: underline;
@@ -280,6 +346,7 @@ a:hover, a:focus {
 .profile-card-handle {
   color: var(--text-muted);
   font-size: 12px;
+  display: block;
 }
 .profile-stats-table {
   display: flex;
@@ -298,239 +365,231 @@ a:hover, a:focus {
   font-size: 10px;
   font-weight: bold;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
   display: block;
+  line-height: 12px;
 }
 .profile-stat-value {
   color: var(--circus-red);
   font-size: 18px;
-  font-weight: bold;
-  line-height: 22px;
+  font-weight: 800;
+  line-height: 20px;
 }
 
-/* Guest Login Card */
-.guest-login-card {
-  padding: 16px;
+/* Badges */
+.circus-badge-check {
+  width: 17px;
+  height: 17px;
+  display: inline-block;
+  vertical-align: -2px;
+  margin-left: 4px;
+  flex-shrink: 0;
 }
-.guest-login-title {
-  font-size: 16px;
-  font-weight: bold;
-  margin-top: 0;
-  margin-bottom: 12px;
+.circus-badge-custom {
+  width: 17px;
+  height: 17px;
+  border-radius: 3px;
+  display: inline-block;
+  vertical-align: -2px;
+  margin-left: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
 }
-.guest-login-form .form-group {
-  margin-bottom: 10px;
+.circus-badge-org {
+  width: 17px;
+  height: 17px;
+  border-radius: 3px;
+  display: inline-block;
+  vertical-align: -2px;
+  margin-left: 4px;
+  object-fit: cover;
+  border: 1px solid rgba(0,0,0,0.1);
+  flex-shrink: 0;
 }
-.guest-login-btn {
-  background-color: var(--circus-red);
-  border: none;
-  border-radius: 100px;
-  font-weight: bold;
-  color: #ffffff;
-  width: 100%;
-  padding: 8px;
+.circus-badge-icon {
+  width: 16px;
+  height: 16px;
+  display: inline-block;
+  vertical-align: -2px;
+  margin-left: 4px;
+  flex-shrink: 0;
 }
-.guest-login-btn:hover {
-  background-color: var(--circus-dark-red);
-  color: #ffffff;
+.circus-badge-flag {
+  width: 18px;
+  height: 13px;
+  display: inline-block;
+  vertical-align: -1px;
+  margin-left: 4px;
+  border-radius: 2px;
+  flex-shrink: 0;
 }
-
-/* Trends Card */
-.trends-card {
-  padding: 14px;
-}
-.trends-header {
-  font-size: 17px;
-  font-weight: bold;
-  margin: 0 0 10px 0;
-}
-.trend-item {
-  margin-bottom: 10px;
-  display: block;
-}
-.trend-tag {
-  font-weight: bold;
-  color: var(--circus-red);
-  display: block;
-  font-size: 14px;
-  cursor: pointer;
-}
-.trend-tag:hover {
-  text-decoration: underline;
-}
-.trend-count {
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
-/* Middle Column Composer Box (2016 Style) */
-.composer-box {
-  background: #fbf7ee;
-  border: 1px solid var(--border-color);
+.circus-label-pill {
+  font-size: 11px;
+  font-weight: 600;
+  color: #657786;
+  background-color: #f0f3f5;
+  border: 1px solid #e1e8ed;
   border-radius: 4px;
-  margin-bottom: 10px;
-  padding: 10px 12px 10px 12px;
+  padding: 1px 6px;
+  margin-left: 6px;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* Composer */
+.composer-box {
+  background: #f5f8fa;
+  border: 1px solid var(--border-color);
+  border-radius: 4px 4px 0 0;
+  padding: 10px 14px;
+  margin-bottom: 0;
+  border-bottom: 1px solid #e6ecf0;
 }
 .composer-top {
   display: flex;
   gap: 10px;
 }
 .composer-avatar {
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   object-fit: cover;
-  flex-shrink: 0;
 }
 .composer-input-wrapper {
   flex: 1;
 }
 .composer-textarea {
   width: 100%;
-  border: 1px solid #d2dbe0;
+  border: 1px solid #cfd9de;
   border-radius: 8px;
-  padding: 8px 10px;
+  padding: 8px 12px;
   font-size: 14px;
   line-height: 18px;
   resize: vertical;
-  min-height: 38px;
+  min-height: 40px;
+  max-height: 160px;
   outline: none;
-  transition: min-height 0.15s, border-color 0.15s;
   background: #ffffff;
-  box-sizing: border-box;
+  transition: all 0.2s;
 }
 .composer-textarea:focus {
-  min-height: 80px;
   border-color: var(--circus-red);
+  min-height: 75px;
 }
 .composer-media-previews {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
   margin-top: 8px;
 }
-.composer-media-thumb {
+.composer-thumb-wrap {
   position: relative;
   width: 70px;
   height: 70px;
-  border-radius: 6px;
+  border-radius: 4px;
   overflow: hidden;
   border: 1px solid var(--border-color);
 }
-.composer-media-thumb img, .composer-media-thumb video {
+.composer-thumb {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
-.composer-media-remove {
+.composer-thumb-del {
   position: absolute;
   top: 2px;
   right: 2px;
-  background: rgba(0,0,0,0.6);
+  background: rgba(0,0,0,0.65);
   color: #fff;
   border: none;
   border-radius: 50%;
   width: 18px;
   height: 18px;
-  font-size: 11px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  font-size: 10px;
+  line-height: 18px;
+  text-align: center;
+  padding: 0;
   cursor: pointer;
 }
-/* Poll editor */
-.poll-editor {
-  margin-top: 10px;
-  background: #fff;
+.composer-poll-form {
+  background: #ffffff;
   border: 1px solid var(--border-color);
   border-radius: 6px;
-  padding: 10px;
+  padding: 10px 12px;
+  margin-top: 8px;
   display: none;
 }
-.poll-input-row {
-  margin-bottom: 6px;
-}
-
-.composer-toolbar {
+.composer-bottom {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-top: 8px;
-  padding-left: 44px;
+  padding-left: 46px;
 }
 .composer-tools {
   display: flex;
+  gap: 12px;
   align-items: center;
-  gap: 6px;
 }
-.tool-btn {
+.composer-tool-btn {
   background: none;
   border: none;
+  padding: 4px;
   color: var(--circus-red);
-  padding: 6px;
-  border-radius: 4px;
   cursor: pointer;
+  border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
-.tool-btn:hover {
-  background-color: rgba(230, 57, 70, 0.1);
+.composer-tool-btn:hover {
+  background-color: #fee;
 }
-.composer-actions {
+.composer-tool-icon {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+.composer-right {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 .char-counter {
-  color: var(--text-muted);
   font-size: 12px;
+  color: var(--text-muted);
 }
 .char-counter.warning {
-  color: #f77f00;
+  color: #e67e22;
   font-weight: bold;
 }
 .char-counter.danger {
-  color: #d62828;
+  color: #d90429;
   font-weight: bold;
-}
-.btn-tweet-submit {
-  background: var(--circus-red);
-  border: none;
-  border-radius: 100px;
-  color: #ffffff;
-  font-weight: bold;
-  font-size: 13px;
-  padding: 6px 18px;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.btn-tweet-submit:hover:not(:disabled) {
-  background: var(--circus-dark-red);
-}
-.btn-tweet-submit:disabled {
-  opacity: 0.5;
-  cursor: default;
 }
 
-/* Feed Tabs */
+/* Feed Switcher Tabs */
 .stream-header-tabs {
   background: #ffffff;
-  border: 1px solid var(--border-color);
-  border-bottom: none;
-  border-top-left-radius: 4px;
-  border-top-right-radius: 4px;
+  border-left: 1px solid var(--border-color);
+  border-right: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
   display: flex;
-  padding: 0 10px;
+  height: 44px;
 }
 .stream-tab {
-  padding: 12px 16px;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-weight: bold;
+  font-size: 13px;
   color: var(--text-muted);
   cursor: pointer;
   border-bottom: 3px solid transparent;
+  transition: all 0.15s;
 }
 .stream-tab:hover {
+  background-color: #f5f8fa;
   color: var(--circus-red);
 }
 .stream-tab.active {
@@ -538,30 +597,30 @@ a:hover, a:focus {
   border-bottom-color: var(--circus-red);
 }
 
-/* Stream / Tweet Cards */
+/* Tweet Stream */
 .tweet-stream {
   background: #ffffff;
-  border: 1px solid var(--border-color);
-  border-bottom-left-radius: 4px;
-  border-bottom-right-radius: 4px;
+  border-left: 1px solid var(--border-color);
+  border-right: 1px solid var(--border-color);
+  min-height: 300px;
 }
 .tweet-card {
-  padding: 12px 14px;
-  border-bottom: 1px solid #e1e8ed;
-  transition: background-color 0.1s;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+  transition: background-color 0.15s;
   position: relative;
 }
 .tweet-card:hover {
-  background-color: #fbfbfc;
+  background-color: #f5f8fa;
 }
 .tweet-repost-header {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-left: 48px;
-  margin-bottom: 4px;
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  padding-left: 48px;
 }
 .tweet-main {
   display: flex;
@@ -583,187 +642,165 @@ a:hover, a:focus {
 }
 .tweet-header {
   display: flex;
-  align-items: center;
-  gap: 5px;
-  margin-bottom: 4px;
+  align-items: baseline;
   flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 2px;
 }
 .tweet-author-name {
   font-weight: bold;
   color: var(--text-main);
-  font-size: 14px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
 }
 .tweet-author-name:hover {
   text-decoration: underline;
+  color: var(--circus-red);
 }
 .tweet-author-handle {
   color: var(--text-muted);
   font-size: 13px;
 }
 .tweet-time {
-  color: var(--text-light);
+  color: var(--text-muted);
   font-size: 13px;
 }
 .tweet-body {
   font-size: 14px;
   line-height: 20px;
+  color: var(--text-main);
+  word-wrap: break-word;
   white-space: pre-wrap;
-  word-break: break-word;
-  color: #14171a;
+  margin-top: 2px;
+  margin-bottom: 8px;
 }
-.tweet-body a {
-  color: var(--circus-blue);
-}
-
-/* Media Grid in Tweet */
 .tweet-media-grid {
-  margin-top: 10px;
   border-radius: 8px;
   overflow: hidden;
-  border: 1px solid #e1e8ed;
-  max-height: 380px;
+  margin-top: 8px;
+  border: 1px solid var(--border-color);
   display: grid;
   gap: 2px;
+  background-color: #000;
+  max-height: 380px;
 }
-.tweet-media-grid.grid-1 {
-  grid-template-columns: 1fr;
-}
-.tweet-media-grid.grid-2 {
-  grid-template-columns: 1fr 1fr;
-}
-.tweet-media-grid.grid-3 {
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-}
-.tweet-media-grid.grid-3 .media-item:first-child {
-  grid-row: span 2;
-}
-.tweet-media-grid.grid-4 {
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-}
+.tweet-media-grid.grid-1 { grid-template-columns: 1fr; }
+.tweet-media-grid.grid-2 { grid-template-columns: 1fr 1fr; }
+.tweet-media-grid.grid-3 { grid-template-columns: 1fr 1fr; }
+.tweet-media-grid.grid-4 { grid-template-columns: 1fr 1fr; }
 .media-item {
   width: 100%;
   height: 100%;
-  min-height: 150px;
-  max-height: 380px;
   object-fit: cover;
   cursor: pointer;
-  background-color: #000;
   display: block;
 }
 .tweet-video-player {
   width: 100%;
-  max-height: 400px;
+  max-height: 380px;
   border-radius: 8px;
-  background: #000;
+  background-color: #000;
   margin-top: 8px;
 }
-
-/* Quote Tweet Box */
 .quote-card {
-  margin-top: 10px;
-  border: 1px solid #e1e8ed;
-  border-radius: 8px;
-  padding: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-top: 8px;
   background: #ffffff;
   cursor: pointer;
-  transition: background-color 0.1s;
+  transition: border-color 0.15s;
 }
 .quote-card:hover {
-  background-color: #f7fafc;
+  border-color: var(--circus-red);
 }
 .quote-header {
   display: flex;
   align-items: center;
-  gap: 5px;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-size: 13px;
   margin-bottom: 4px;
 }
-
-/* Poll Box */
 .tweet-poll-box {
-  margin-top: 10px;
-  border: 1px solid #e1e8ed;
-  border-radius: 8px;
-  padding: 10px;
-  background: #ffffff;
+  margin-top: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 10px 12px;
+  background-color: #fcfcfc;
 }
 .poll-choice-btn {
-  display: block;
   width: 100%;
   text-align: left;
-  border: 1px solid var(--circus-blue);
   background: #ffffff;
+  border: 1px solid var(--circus-blue);
   color: var(--circus-blue);
   font-weight: bold;
-  padding: 8px 12px;
   border-radius: 100px;
+  padding: 6px 14px;
   margin-bottom: 6px;
   cursor: pointer;
   transition: all 0.15s;
 }
 .poll-choice-btn:hover {
-  background-color: rgba(17, 138, 178, 0.1);
+  background-color: #f0f7fa;
 }
 .poll-result-bar {
   position: relative;
-  height: 30px;
-  background: #eef2f5;
+  background-color: #e6ecf0;
   border-radius: 4px;
+  height: 28px;
   margin-bottom: 6px;
   overflow: hidden;
-  display: flex;
-  align-items: center;
-  padding: 0 10px;
-  font-size: 13px;
 }
 .poll-bar-fill {
   position: absolute;
   left: 0;
   top: 0;
   bottom: 0;
-  background: #cce3ed;
-  z-index: 1;
+  background: rgba(17, 138, 178, 0.2);
 }
 .poll-bar-fill.voted {
-  background: #bce0fd;
+  background: rgba(230, 57, 70, 0.25);
 }
 .poll-bar-text {
   position: relative;
-  z-index: 2;
+  z-index: 1;
   display: flex;
   justify-content: space-between;
-  width: 100%;
+  padding: 5px 10px;
+  font-size: 13px;
 }
 
-/* Tweet Actions Row */
+/* Actions Row */
 .tweet-actions {
   display: flex;
-  gap: 28px;
-  margin-top: 10px;
+  align-items: center;
+  gap: 32px;
+  margin-top: 8px;
   color: var(--text-muted);
 }
 .action-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   background: none;
   border: none;
   padding: 0;
   color: var(--text-muted);
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
   font-size: 12px;
   transition: color 0.15s;
 }
 .action-btn:hover {
+  color: var(--circus-blue);
+}
+.action-btn.liked {
   color: var(--circus-red);
 }
 .action-btn.reposted {
-  color: #17bf63;
-}
-.action-btn.liked {
-  color: #e0245e;
+  color: #2ecc71;
 }
 .action-icon {
   width: 16px;
@@ -771,74 +808,349 @@ a:hover, a:focus {
   fill: currentColor;
 }
 
-/* Right Column (Who to follow & Info) */
+/* Right Column Widgets */
+.trends-card {
+  padding: 12px 14px;
+}
+.trends-header {
+  margin: 0 0 10px 0;
+  font-size: 17px;
+  font-weight: bold;
+  color: var(--text-main);
+}
+.trend-item {
+  padding: 6px 0;
+  border-bottom: 1px solid #f5f8fa;
+}
+.trend-tag {
+  font-weight: bold;
+  color: var(--circus-red);
+  cursor: pointer;
+  display: block;
+}
+.trend-tag:hover {
+  text-decoration: underline;
+}
+.trend-count {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
 .who-to-follow-card {
-  padding: 14px;
+  padding: 12px 14px;
 }
-.follow-item {
+.suggest-user-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
-  margin-bottom: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #f0f3f5;
+  padding: 8px 0;
+  border-bottom: 1px solid #f5f8fa;
 }
-.follow-avatar {
+.suggest-avatar {
   width: 44px;
   height: 44px;
   border-radius: 50%;
   object-fit: cover;
-  flex-shrink: 0;
+  cursor: pointer;
 }
-.follow-info {
+.suggest-info {
   flex: 1;
   min-width: 0;
 }
-.follow-name {
+.suggest-name-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+.suggest-name {
   font-weight: bold;
   font-size: 13px;
   color: var(--text-main);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: block;
+  cursor: pointer;
 }
-.follow-handle {
+.suggest-name:hover {
+  text-decoration: underline;
+  color: var(--circus-red);
+}
+.suggest-handle {
   color: var(--text-muted);
   font-size: 12px;
-  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .btn-follow {
-  background-color: #ffffff;
+  background: #ffffff;
   border: 1px solid var(--circus-red);
   color: var(--circus-red);
   font-weight: bold;
   font-size: 12px;
-  padding: 4px 12px;
   border-radius: 100px;
+  padding: 4px 14px;
   cursor: pointer;
   transition: all 0.15s;
 }
 .btn-follow:hover {
-  background-color: rgba(230, 57, 70, 0.1);
+  background: #fee;
 }
 .btn-follow.following {
-  background-color: var(--circus-red);
+  background: var(--circus-red);
   color: #ffffff;
-}
-.btn-follow.following:hover {
-  background-color: var(--circus-dark-red);
+  border-color: var(--circus-red);
 }
 
+/* Footer Card */
 .footer-info-card {
   padding: 12px 14px;
   font-size: 12px;
-  color: var(--text-light);
-  line-height: 16px;
+  color: var(--text-muted);
+  line-height: 18px;
 }
 .footer-info-card a {
   color: var(--text-muted);
-  margin-right: 6px;
+  margin-right: 8px;
+}
+.footer-info-card a:hover {
+  color: var(--circus-red);
+}
+
+/* ==========================================================================
+   TWITTER 2016 PROFILE VIEW
+   ========================================================================== */
+#profile-view {
+  display: none;
+}
+.profile-canopy {
+  width: 100%;
+  height: 275px;
+  background-color: #c1121f;
+  background: linear-gradient(135deg, #c1121f 25%, #780000 25%, #780000 50%, #c1121f 50%, #c1121f 75%, #780000 75%, #780000 100%);
+  background-size: 40px 40px;
+  background-position: center;
+  position: relative;
+}
+.profile-canopy.has-banner {
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+.profile-nav-bar {
+  background-color: #ffffff;
+  border-bottom: 1px solid var(--border-color);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  height: 60px;
+  position: relative;
+  z-index: 10;
+}
+.profile-nav-inner {
+  max-width: 1190px;
+  margin: 0 auto;
+  padding: 0 15px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 60px;
+}
+.profile-nav-spacer {
+  width: 290px;
+  flex-shrink: 0;
+}
+.profile-nav-tabs {
+  display: flex;
+  align-items: center;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  height: 60px;
+}
+.profile-nav-tab {
+  height: 60px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 18px;
+  cursor: pointer;
+  border-bottom: 4px solid transparent;
+  text-decoration: none !important;
+  transition: all 0.15s;
+}
+.profile-nav-tab:hover {
+  border-bottom-color: var(--circus-red);
+}
+.profile-nav-tab.active {
+  border-bottom-color: var(--circus-red);
+}
+.profile-nav-label {
+  font-size: 11px;
+  font-weight: bold;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  line-height: 14px;
+}
+.profile-nav-tab.active .profile-nav-label {
+  color: var(--circus-red);
+}
+.profile-nav-value {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text-main);
+  line-height: 20px;
+}
+.profile-nav-tab.active .profile-nav-value {
+  color: var(--circus-red);
+}
+.profile-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Profile Grid */
+.profile-main-grid {
+  max-width: 1190px;
+  margin: 15px auto 40px;
+  padding: 0 15px;
+  display: flex;
+  gap: 20px;
+}
+.profile-sidebar {
+  width: 290px;
+  flex-shrink: 0;
+}
+.profile-avatar-container {
+  position: relative;
+  margin-top: -140px;
+  margin-bottom: 15px;
+  z-index: 20;
+}
+.profile-avatar-large {
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  border: 5px solid #ffffff;
+  background-color: #ffffff;
+  object-fit: cover;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.profile-details-name {
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 26px;
+  color: var(--text-main);
+  margin: 0 0 2px 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.profile-details-handle {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+.profile-details-bio {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--text-main);
+  margin-bottom: 14px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.profile-meta-list {
+  list-style: none;
+  margin: 0 0 16px 0;
+  padding: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.profile-meta-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.profile-meta-icon {
+  width: 16px;
+  height: 16px;
+  fill: var(--text-muted);
+  flex-shrink: 0;
+}
+.profile-center-stream {
+  width: 590px;
+  flex-shrink: 0;
+}
+.profile-right-sidebar {
+  width: 270px;
+  flex-shrink: 0;
+}
+.btn-edit-profile {
+  font-weight: bold;
+  border-radius: 100px;
+  padding: 6px 16px;
+  color: var(--text-muted);
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-edit-profile:hover {
+  background: #f5f8fa;
+  color: var(--text-main);
+  border-color: #cfd9de;
+}
+
+/* Settings Modal */
+.settings-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 15px;
+}
+.settings-tab-btn {
+  padding: 10px 16px;
+  border: none;
+  background: none;
+  font-weight: bold;
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+}
+.settings-tab-btn.active {
+  color: var(--circus-red);
+  border-bottom-color: var(--circus-red);
+}
+.settings-card-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  margin-bottom: 10px;
+  text-decoration: none !important;
+  color: var(--text-main);
+  background: #ffffff;
+  transition: all 0.15s;
+}
+.settings-card-link:hover {
+  background-color: #f8fafc;
+  border-color: var(--circus-red);
+  transform: translateX(2px);
+}
+.settings-card-title {
+  font-weight: bold;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.settings-card-desc {
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 /* Lightbox Modal */
@@ -850,164 +1162,300 @@ a:hover, a:focus {
   top: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.9);
+  background: rgba(0,0,0,0.85);
   align-items: center;
   justify-content: center;
-  cursor: pointer;
+  cursor: zoom-out;
 }
 .lightbox-img {
   max-width: 90%;
-  max-height: 90vh;
+  max-height: 90%;
   border-radius: 4px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
 }
 
 /* Toast */
 .circus-toast {
   position: fixed;
-  bottom: 20px;
+  bottom: 24px;
   left: 50%;
-  transform: translateX(-50%);
-  background: #333333;
+  transform: translateX(-50%) translateY(100px);
+  background: rgba(20, 23, 26, 0.95);
   color: #ffffff;
-  padding: 10px 20px;
+  padding: 10px 22px;
   border-radius: 100px;
-  font-size: 14px;
+  font-size: 13px;
+  font-weight: bold;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   z-index: 3000;
-  opacity: 0;
-  transition: opacity 0.2s;
   pointer-events: none;
 }
 .circus-toast.show {
-  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
 </style>
 </head>
 <body>
 
 <!-- TOP NAVBAR (2016 Style) -->
-<nav class="navbar navbar-default navbar-fixed-top navbar-circus">
+<nav class="navbar navbar-fixed-top navbar-circus">
   <div class="container">
+    <!-- Left Navigation Items -->
     <ul class="nav-links">
       <li class="nav-item">
-        <a class="nav-link active" id="nav-home" onclick="circusApp.switchFeed('all')">
+        <a href="javascript:void(0)" class="nav-link active" id="nav-item-home" onclick="circusApp.goHome()">
           <svg class="nav-icon" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
           <span>Inicio</span>
         </a>
       </li>
       <li class="nav-item">
-        <a class="nav-link" id="nav-notifs" onclick="circusApp.showNotice('Las notificaciones del Circo llegarán pronto.')">
-          <svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+        <a href="javascript:void(0)" class="nav-link" onclick="circusApp.showNotice('No hay notificaciones nuevas.')">
+          <svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
           <span>Notificaciones</span>
         </a>
       </li>
     </ul>
 
-    <!-- Center Logo -->
-    <a class="circus-logo-link" onclick="circusApp.switchFeed('all')" title="${name}">
-      <svg class="circus-tent-svg" viewBox="0 0 64 64">
-        <!-- Circus Big Top Tent -->
-        <path d="M32 4 L28 14 L36 14 Z" fill="#ffd166"/>
-        <path d="M32 4 L44 8 L32 14 Z" fill="#e63946"/>
-        <path d="M4 32 Q32 14 60 32 L56 56 L8 56 Z" fill="#c1121f"/>
-        <!-- Stripes -->
-        <path d="M16 28 Q32 14 32 32 L26 56 L12 56 Z" fill="#ffd166"/>
-        <path d="M48 28 Q32 14 32 32 L38 56 L52 56 Z" fill="#ffd166"/>
-        <!-- Entrance -->
-        <path d="M26 56 Q32 40 38 56 Z" fill="#14171a"/>
-        <!-- Roof valance -->
-        <path d="M4 32 Q8 36 12 32 Q16 36 20 32 Q24 36 28 32 Q32 36 36 32 Q40 36 44 32 Q48 36 52 32 Q56 36 60 32 L60 30 Q32 12 4 30 Z" fill="#ffd166"/>
+    <!-- Center Tent Logo -->
+    <a href="javascript:void(0)" class="circus-logo-link" onclick="circusApp.goHome()" title="${name}">
+      <svg class="circus-tent-svg" viewBox="0 0 100 100">
+        <polygon points="50,15 15,48 85,48" fill="#e63946"/>
+        <polygon points="50,15 35,48 50,48" fill="#ffd166"/>
+        <polygon points="50,15 65,48 50,48" fill="#ffd166"/>
+        <polygon points="50,5 50,15 56,10" fill="#ffd166"/>
+        <line x1="50" y1="5" x2="50" y2="15" stroke="#780000" stroke-width="2"/>
+        <rect x="20" y="48" width="60" height="38" fill="#ffffff" stroke="#c1121f" stroke-width="2"/>
+        <polygon points="20,48 35,48 35,86 20,86" fill="#c1121f"/>
+        <polygon points="50,48 65,48 65,86 50,86" fill="#c1121f"/>
+        <path d="M 40,86 Q 50,62 60,86 Z" fill="#14171a"/>
       </svg>
     </a>
 
-    <!-- Nav Right -->
+    <!-- Right Controls -->
     <div class="nav-right">
-      <div class="search-form">
-        <input type="text" class="search-input" id="circus-search-input" placeholder="Buscar en el Circo..." onkeydown="if(event.key==='Enter') circusApp.searchPosts(this.value)">
-        <button class="search-btn" onclick="circusApp.searchPosts(document.getElementById('circus-search-input').value)">
-          <svg style="width:14px;height:14px;fill:currentColor" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+      <form class="search-form" onsubmit="circusApp.handleSearch(event)">
+        <input type="text" class="search-input" id="search-query" placeholder="Buscar en el Circo...">
+        <button type="submit" class="search-btn">
+          <svg style="width:13px;height:13px;fill:currentColor" viewBox="0 0 24 24"><path d="M21.53 20.47l-3.66-3.66C19.195 15.24 20 13.214 20 11c0-4.97-4.03-9-9-9s-9 4.03-9 9 4.03 9 9 9c2.215 0 4.24-.804 5.808-2.13l3.66 3.66c.147.146.34.22.532.22s.385-.073.53-.22c.295-.293.295-.767.002-1.06zM3.5 11c0-4.135 3.365-7.5 7.5-7.5s7.5 3.365 7.5 7.5-3.365 7.5-7.5 7.5-7.5-3.365-7.5-7.5z"/></svg>
         </button>
-      </div>
+      </form>
 
       ${
 				user
 					? `
-        <div class="dropdown">
-          <button class="nav-avatar-btn dropdown-toggle" data-toggle="dropdown" id="userMenuDropdown">
-            <img class="nav-avatar" src="${user.avatar_url || "/public/icon-dark.png"}" alt="${user.screen_name}">
-          </button>
-          <ul class="dropdown-menu dropdown-menu-right">
-            <li class="dropdown-header"><b>${user.name}</b><br><span style="color:#657786">@${user.screen_name}</span></li>
-            <li role="separator" class="divider"></li>
-            <li><a href="javascript:void(0)" onclick="circusApp.viewProfile('${user.screen_name}')">Ver mi perfil</a></li>
-            <li><a href="/?beta=0">Salir de Beta (Cliente Moderno)</a></li>
-            <li role="separator" class="divider"></li>
-            <li><a href="javascript:void(0)" onclick="circusApp.logout()">Cerrar sesión</a></li>
-          </ul>
-        </div>
+        <button class="nav-avatar-btn" id="nav-avatar-btn" onclick="circusApp.toggleUserDropdown(event)" title="@${user.screen_name}">
+          <img class="nav-avatar" src="${user.avatar_url || "/public/icon-dark.png"}" alt="${user.screen_name}">
+        </button>
         <button class="btn-tweet-nav" onclick="circusApp.focusComposer()">Twittear</button>
       `
 					: `
-        <a href="/" class="btn btn-default btn-sm" style="font-weight:bold">Iniciar sesión</a>
+        <a href="/" class="btn btn-default btn-sm" style="font-weight:bold;border-radius:100px;padding:5px 14px">Iniciar sesión</a>
       `
 			}
+
+      <!-- Dropdown menu -->
+      <div class="nav-user-dropdown" id="user-nav-dropdown">
+        ${
+					user
+						? `
+          <div class="dropdown-user-header">
+            <b>${user.name}</b>
+            <small>@${user.screen_name}</small>
+          </div>
+          <a class="nav-dropdown-item" href="javascript:void(0)" onclick="circusApp.viewProfile('${user.screen_name}')">
+            <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+            <span>Ver perfil</span>
+          </a>
+          <div class="dropdown-divider"></div>
+          <a class="nav-dropdown-item" href="javascript:void(0)" onclick="circusApp.openSettingsModal('profile')">
+            <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+            <span>Configuración y privacidad</span>
+          </a>
+          <a class="nav-dropdown-item" href="javascript:void(0)" onclick="circusApp.openSettingsModal('language')">
+            <svg viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zm6.93 6h-2.95c-.32-1.25-.78-2.45-1.38-3.56 1.84.63 3.37 1.91 4.33 3.56zM12 4.04c.83 1.2 1.48 2.53 1.91 3.96h-3.82c.43-1.43 1.08-2.76 1.91-3.96zM4.26 14C4.1 13.36 4 12.69 4 12s.1-1.36.26-2h3.38c-.08.66-.14 1.32-.14 2 0 .68.06 1.34.14 2H4.26zm.82 2h2.95c.32 1.25.78 2.45 1.38 3.56-1.84-.63-3.37-1.9-4.33-3.56zm2.95-8H5.08c.96-1.66 2.49-2.93 4.33-3.56C8.81 5.55 8.35 6.75 8.03 8zM12 19.96c-.83-1.2-1.48-2.53-1.91-3.96h3.82c-.43 1.43-1.08 2.76-1.91 3.96zM14.34 14H9.66c-.09-.66-.16-1.32-.16-2 0-.68.07-1.35.16-2h4.68c.09.65.16 1.32.16 2 0 .68-.07 1.34-.16 2zm.25 5.56c.6-1.11 1.06-2.31 1.38-3.56h2.95c-.96 1.65-2.49 2.93-4.33 3.56zM16.36 14c.08-.66.14-1.32.14-2 0-.68-.06-1.34-.14-2h3.38c.16.64.26 1.31.26 2s-.1 1.36-.26 2h-3.38z"/></svg>
+            <span>Idioma de la aplicación</span>
+          </a>
+          <a class="nav-dropdown-item" href="/account/api">
+            <svg viewBox="0 0 24 24"><path d="M12.65 10C11.83 7.67 9.61 6 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c2.61 0 4.83-1.67 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></svg>
+            <span>Claves de API y Tokens</span>
+          </a>
+          <a class="nav-dropdown-item" href="/account/import">
+            <svg viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+            <span>Importar desde X</span>
+          </a>
+          <a class="nav-dropdown-item" href="/account/theme">
+            <svg viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9 0 2.12.74 4.07 1.97 5.61L4.35 19.4c-.39.39-.39 1.02 0 1.41.39.39 1.02.39 1.41 0l1.9-1.9C9.28 19.59 10.59 20 12 20c4.97 0 9-4.03 9-9s-4.03-9-9-9zm0 15c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6z"/></svg>
+            <span>Temas y colores</span>
+          </a>
+          <a class="nav-dropdown-item" href="/account/passkeys">
+            <svg viewBox="0 0 24 24"><path d="M21 10h-8.35C11.83 7.67 9.61 6 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c2.61 0 4.83-1.67 5.65-4H13l2 2 2-2 1 1 2-2 1 1 2-2v-2zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></svg>
+            <span>Llaves de acceso (Passkeys)</span>
+          </a>
+          <a class="nav-dropdown-item" href="/account/apps">
+            <svg viewBox="0 0 24 24"><path d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z"/></svg>
+            <span>Aplicaciones conectadas</span>
+          </a>
+          ${
+						user.role === "admin" || user.role === "moderator" || user.role === "support"
+							? `
+            <div class="dropdown-divider"></div>
+            <a class="nav-dropdown-item" href="/admin" target="_blank" style="color:var(--circus-red)!important;font-weight:bold">
+              <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
+              <span>Panel de administración</span>
+            </a>
+          `
+							: ""
+					}
+          <div class="dropdown-divider"></div>
+          <a class="nav-dropdown-item" href="javascript:void(0)" onclick="circusApp.logout()">
+            <svg viewBox="0 0 24 24"><path d="M10.09 15.59L11.5 17l5-5-5-5-1.41 1.41L12.67 11H3v2h9.67l-2.58 2.59zM19 3H5c-1.11 0-2 .9-2 2v4h2V5h14v14H5v-4H3v4c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>
+            <span>Cerrar sesión</span>
+          </a>
+          <div class="dropdown-divider"></div>
+          <a class="nav-dropdown-item" href="/?beta=0" style="color:#657786!important;font-size:12px">
+            Volver a versión moderna
+          </a>
+        `
+						: ""
+				}
+      </div>
     </div>
   </div>
 </nav>
 
-<!-- MAIN CONTAINER (3 Columns) -->
-<div class="container circus-main-container">
-  <div class="row">
-    <!-- LEFT COLUMN (290px) -->
-    <div class="col-md-3">
-      <div id="left-profile-container"></div>
-      
-      <!-- Trends Card -->
-      <div class="module-card trends-card">
-        <h4 class="trends-header">Tendencias para ti</h4>
-        <div id="trends-list">
-          <div class="trend-item"><span class="trend-tag" onclick="circusApp.searchPosts('#CircoDigital')">#CircoDigital</span><span class="trend-count">El show principal</span></div>
-          <div class="trend-item"><span class="trend-tag" onclick="circusApp.searchPosts('#Pomni')">#Pomni</span><span class="trend-count">Aventuras</span></div>
-          <div class="trend-item"><span class="trend-tag" onclick="circusApp.searchPosts('#Caine')">#Caine</span><span class="trend-count">Anuncios</span></div>
+<!-- VIEW: HOME (3 Columns) -->
+<div id="home-view">
+  <div class="container circus-main-container">
+    <div class="row">
+      <!-- LEFT COLUMN (290px) -->
+      <div class="col-md-3">
+        <div id="left-profile-container"></div>
+        
+        <!-- Trends Card -->
+        <div class="module-card trends-card">
+          <h4 class="trends-header">Tendencias para ti</h4>
+          <div id="trends-list">
+            <div class="trend-item"><span class="trend-tag" onclick="circusApp.searchPosts('#CircoDigital')">#CircoDigital</span><span class="trend-count">El show principal</span></div>
+            <div class="trend-item"><span class="trend-tag" onclick="circusApp.searchPosts('#Pomni')">#Pomni</span><span class="trend-count">Aventuras</span></div>
+            <div class="trend-item"><span class="trend-tag" onclick="circusApp.searchPosts('#Caine')">#Caine</span><span class="trend-count">Anuncios</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MIDDLE COLUMN (590px) -->
+      <div class="col-md-6">
+        <!-- Composer Box (If signed in) -->
+        <div id="composer-container"></div>
+
+        <!-- Feed Switcher Tabs -->
+        <div class="stream-header-tabs">
+          <div class="stream-tab active" id="tab-feed-all" onclick="circusApp.switchFeed('all')">Para ti (Circo)</div>
+          <div class="stream-tab" id="tab-feed-following" onclick="circusApp.switchFeed('following')">Siguiendo</div>
+        </div>
+
+        <!-- Stream of Tweets -->
+        <div class="tweet-stream" id="tweet-stream">
+          <div style="padding:40px;text-align:center;color:#657786" id="stream-loading">
+            <p style="font-size:16px;font-weight:bold;margin-bottom:8px">Cargando el Circo...</p>
+            <p>Preparando los mejores actos del día.</p>
+          </div>
+        </div>
+        
+        <div style="text-align:center;margin:15px 0" id="load-more-wrap">
+          <button class="btn btn-default" id="load-more-btn" onclick="circusApp.loadMore()" style="display:none;font-weight:bold;border-radius:100px;padding:8px 24px">Cargar más posts</button>
+        </div>
+      </div>
+
+      <!-- RIGHT COLUMN (290px) -->
+      <div class="col-md-3">
+        <!-- Who to Follow -->
+        <div class="module-card who-to-follow-card">
+          <h4 class="trends-header" style="margin-bottom:12px">A quién seguir</h4>
+          <div id="suggestions-list">
+            <p style="color:#657786;font-size:12px">Buscando personajes...</p>
+          </div>
+        </div>
+
+        <!-- Footer Info -->
+        <div class="module-card footer-info-card">
+          <p style="margin-bottom:8px">
+            <a href="/tos">Términos</a>
+            <a href="/privacy">Privacidad</a>
+            <a href="/rules">Reglas</a>
+            <a href="/?beta=0" style="color:var(--circus-red);font-weight:bold">Modo Moderno</a>
+          </p>
+          <p style="margin:0">© 2026 ${name}. Cliente clásico inspirado en 2016.</p>
         </div>
       </div>
     </div>
+  </div>
+</div>
 
-    <!-- MIDDLE COLUMN (590px) -->
-    <div class="col-md-6">
-      <!-- Composer Box (If signed in) -->
-      <div id="composer-container"></div>
+<!-- VIEW: 2016 PROFILE (Canopy + Subnav + 3 Columns) -->
+<div id="profile-view">
+  <div class="profile-canopy" id="profile-canopy"></div>
+  <div class="profile-nav-bar">
+    <div class="profile-nav-inner">
+      <div class="profile-nav-spacer"></div>
+      <ul class="profile-nav-tabs">
+        <li class="profile-nav-tab active" id="profile-tab-posts" onclick="circusApp.switchProfileTab('posts')">
+          <span class="profile-nav-label">Posts</span>
+          <span class="profile-nav-value" id="profile-stat-posts">0</span>
+        </li>
+        <li class="profile-nav-tab" id="profile-tab-with-replies" onclick="circusApp.switchProfileTab('replies')">
+          <span class="profile-nav-label">Posts y respuestas</span>
+          <span class="profile-nav-value">·</span>
+        </li>
+        <li class="profile-nav-tab" id="profile-tab-following" onclick="circusApp.switchProfileTab('following')">
+          <span class="profile-nav-label">Siguiendo</span>
+          <span class="profile-nav-value" id="profile-stat-following">0</span>
+        </li>
+        <li class="profile-nav-tab" id="profile-tab-followers" onclick="circusApp.switchProfileTab('followers')">
+          <span class="profile-nav-label">Seguidores</span>
+          <span class="profile-nav-value" id="profile-stat-followers">0</span>
+        </li>
+        <li class="profile-nav-tab" id="profile-tab-likes" onclick="circusApp.switchProfileTab('likes')">
+          <span class="profile-nav-label">Me gusta</span>
+          <span class="profile-nav-value" id="profile-stat-likes">0</span>
+        </li>
+      </ul>
+      <div class="profile-nav-actions" id="profile-nav-actions"></div>
+    </div>
+  </div>
 
-      <!-- Feed Switcher Tabs -->
-      <div class="stream-header-tabs">
-        <div class="stream-tab active" id="tab-feed-all" onclick="circusApp.switchFeed('all')">Para ti (Circo)</div>
-        <div class="stream-tab" id="tab-feed-following" onclick="circusApp.switchFeed('following')">Siguiendo</div>
+  <div class="profile-main-grid">
+    <!-- Left Profile Details Column -->
+    <div class="profile-sidebar">
+      <div class="profile-avatar-container">
+        <img class="profile-avatar-large" id="profile-large-avatar" src="/public/icon-dark.png" alt="Avatar">
       </div>
-
-      <!-- Stream of Tweets -->
-      <div class="tweet-stream" id="tweet-stream">
-        <div style="padding:40px;text-align:center;color:#657786" id="stream-loading">
-          <p style="font-size:16px;font-weight:bold;margin-bottom:8px">Cargando el Circo...</p>
-          <p>Preparando los mejores actos del día.</p>
-        </div>
-      </div>
-      
-      <div style="text-align:center;margin:15px 0" id="load-more-wrap">
-        <button class="btn btn-default" id="load-more-btn" onclick="circusApp.loadMore()" style="display:none;font-weight:bold;border-radius:100px;padding:8px 24px">Cargar más posts</button>
+      <div class="profile-details-card">
+        <h1 class="profile-details-name" id="profile-display-name"></h1>
+        <div class="profile-details-handle" id="profile-display-handle"></div>
+        <div id="profile-display-label"></div>
+        <div class="profile-details-bio" id="profile-display-bio"></div>
+        <ul class="profile-meta-list" id="profile-meta-list"></ul>
+        <div id="profile-action-btn-wrap"></div>
       </div>
     </div>
 
-    <!-- RIGHT COLUMN (290px) -->
-    <div class="col-md-3">
-      <!-- Who to Follow -->
+    <!-- Center Profile Posts Stream -->
+    <div class="profile-center-stream">
+      <div class="tweet-stream" id="profile-tweet-stream">
+        <div style="padding:40px;text-align:center;color:#657786">Cargando publicaciones...</div>
+      </div>
+      <div style="text-align:center;margin:15px 0" id="profile-load-more-wrap">
+        <button class="btn btn-default" id="profile-load-more-btn" onclick="circusApp.loadMoreProfilePosts()" style="display:none;font-weight:bold;border-radius:100px;padding:8px 24px">Cargar más posts</button>
+      </div>
+    </div>
+
+    <!-- Right Sidebar Suggestions -->
+    <div class="profile-right-sidebar">
       <div class="module-card who-to-follow-card">
         <h4 class="trends-header" style="margin-bottom:12px">A quién seguir</h4>
-        <div id="suggestions-list">
-          <p style="color:#657786;font-size:12px">Buscando personajes...</p>
-        </div>
+        <div id="profile-suggestions-list"></div>
       </div>
-
-      <!-- Footer Info -->
       <div class="module-card footer-info-card">
         <p style="margin-bottom:8px">
           <a href="/tos">Términos</a>
@@ -1015,7 +1463,130 @@ a:hover, a:focus {
           <a href="/rules">Reglas</a>
           <a href="/?beta=0" style="color:var(--circus-red);font-weight:bold">Modo Moderno</a>
         </p>
-        <p style="margin:0">© 2026 ${name}. Cliente clásico inspirado en 2016.</p>
+        <p style="margin:0">© 2026 ${name}.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Settings Modal -->
+<div class="modal fade" id="settings-modal" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document" style="max-width:550px">
+    <div class="modal-content" style="border-radius:8px;overflow:hidden">
+      <div class="modal-header" style="background:linear-gradient(135deg,var(--circus-red),var(--circus-dark-red));color:#fff;padding:12px 18px">
+        <button type="button" class="close" data-dismiss="modal" style="color:#fff;opacity:0.8">&times;</button>
+        <h4 class="modal-title" style="font-weight:bold">⚙️ Configuración del Circo</h4>
+      </div>
+      <div class="modal-body" style="padding:18px">
+        <div class="settings-tabs">
+          <button class="settings-tab-btn active" id="tab-btn-profile" onclick="circusApp.switchSettingsTab('profile')">Perfil</button>
+          <button class="settings-tab-btn" id="tab-btn-language" onclick="circusApp.switchSettingsTab('language')">Idioma</button>
+          <button class="settings-tab-btn" id="tab-btn-tools" onclick="circusApp.switchSettingsTab('tools')">Herramientas y API</button>
+        </div>
+        
+        <!-- Tab Profile -->
+        <div id="settings-tab-profile">
+          <form onsubmit="circusApp.saveProfileSettings(event)">
+            <div class="form-group">
+              <label style="font-weight:bold;font-size:12px">Nombre mostrado</label>
+              <input type="text" class="form-control" id="settings-name" maxlength="50" required>
+            </div>
+            <div class="form-group">
+              <label style="font-weight:bold;font-size:12px">Biografía</label>
+              <textarea class="form-control" id="settings-bio" rows="3" maxlength="160"></textarea>
+            </div>
+            <div class="form-group">
+              <label style="font-weight:bold;font-size:12px">Ubicación</label>
+              <input type="text" class="form-control" id="settings-location" maxlength="30" placeholder="Ej. El Escenario">
+            </div>
+            <div class="form-group">
+              <label style="font-weight:bold;font-size:12px">Sitio web</label>
+              <input type="url" class="form-control" id="settings-website" maxlength="100" placeholder="https://...">
+            </div>
+            <button type="submit" class="btn btn-primary" style="background:var(--circus-red);border:none;font-weight:bold;border-radius:100px;padding:6px 20px">Guardar perfil</button>
+          </form>
+        </div>
+        
+        <!-- Tab Language -->
+        <div id="settings-tab-language" style="display:none">
+          <form onsubmit="circusApp.saveLanguageSettings(event)">
+            <p style="color:#657786;font-size:13px;margin-bottom:15px">Selecciona tu idioma preferido para la interfaz y traducciones automáticas.</p>
+            <div class="form-group">
+              <label style="font-weight:bold;font-size:12px">Idioma de la aplicación</label>
+              <select class="form-control" id="settings-language-select">
+                <option value="es">Español (Spanish)</option>
+                <option value="en">English (English)</option>
+                <option value="pt">Português (Portuguese)</option>
+                <option value="fr">Français (French)</option>
+                <option value="de">Deutsch (German)</option>
+                <option value="it">Italiano (Italian)</option>
+                <option value="ja">日本語 (Japanese)</option>
+                <option value="ru">Русский (Russian)</option>
+                <option value="zh">中文 (Chinese)</option>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-primary" style="background:var(--circus-red);border:none;font-weight:bold;border-radius:100px;padding:6px 20px">Guardar idioma</button>
+          </form>
+        </div>
+        
+        <!-- Tab Tools -->
+        <div id="settings-tab-tools" style="display:none">
+          <p style="color:#657786;font-size:13px;margin-bottom:15px">Acceso a las herramientas avanzadas de tu cuenta:</p>
+          
+          <a href="/account/api" class="settings-card-link">
+            <div>
+              <div class="settings-card-title">🔑 Claves de API / Tokens</div>
+              <div class="settings-card-desc">Crea tokens personales para bots, scripts y automatizaciones.</div>
+            </div>
+            <span class="glyphicon glyphicon-chevron-right" style="color:#8899a6"></span>
+          </a>
+
+          <a href="/account/import" class="settings-card-link">
+            <div>
+              <div class="settings-card-title">📥 Importar desde X (Twitter)</div>
+              <div class="settings-card-desc">Restaura publicaciones y fotos subiendo tu archivo ZIP de X.</div>
+            </div>
+            <span class="glyphicon glyphicon-chevron-right" style="color:#8899a6"></span>
+          </a>
+
+          <a href="/account/passkeys" class="settings-card-link">
+            <div>
+              <div class="settings-card-title">🛡️ Llaves de acceso (Passkeys)</div>
+              <div class="settings-card-desc">Inicia sesión con tu huella digital, Face ID o bloqueo de pantalla.</div>
+            </div>
+            <span class="glyphicon glyphicon-chevron-right" style="color:#8899a6"></span>
+          </a>
+
+          <a href="/account/theme" class="settings-card-link">
+            <div>
+              <div class="settings-card-title">🎨 Temas y Colores</div>
+              <div class="settings-card-desc">Personaliza los colores de acento y aspecto visual.</div>
+            </div>
+            <span class="glyphicon glyphicon-chevron-right" style="color:#8899a6"></span>
+          </a>
+
+          <a href="/account/apps" class="settings-card-link">
+            <div>
+              <div class="settings-card-title">📱 Aplicaciones conectadas</div>
+              <div class="settings-card-desc">Revisa y revoca las aplicaciones autorizadas en tu cuenta.</div>
+            </div>
+            <span class="glyphicon glyphicon-chevron-right" style="color:#8899a6"></span>
+          </a>
+
+          ${
+						user && (user.role === "admin" || user.role === "moderator" || user.role === "support")
+							? `
+            <a href="/admin" target="_blank" class="settings-card-link" style="border-left:4px solid var(--circus-red)">
+              <div>
+                <div class="settings-card-title" style="color:var(--circus-red)">👑 Panel de administración</div>
+                <div class="settings-card-desc">Modera usuarios, contenido, reportes y configuración de la instancia.</div>
+              </div>
+              <span class="glyphicon glyphicon-chevron-right" style="color:var(--circus-red)"></span>
+            </a>
+          `
+							: ""
+					}
+        </div>
       </div>
     </div>
   </div>
@@ -1029,7 +1600,7 @@ a:hover, a:focus {
 <!-- Toast -->
 <div class="circus-toast" id="circus-toast"></div>
 
-<!-- Bootstrap JS & jQuery for Dropdowns -->
+<!-- Bootstrap JS & jQuery -->
 <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@3.4.1/dist/js/bootstrap.min.js"></script>
 
@@ -1046,13 +1617,46 @@ const circusApp = {
   isLoading: false,
   composerMediaIds: [],
   composerPollActive: false,
+  currentProfileUser: null,
+  currentProfileHandle: null,
+  currentProfileTab: 'posts',
+  profileNextCursor: null,
 
   init() {
     this.renderLeftColumn();
     this.renderComposer();
-    this.loadTimeline();
     this.loadTrends();
     this.loadSuggestions();
+
+    // Check URL path
+    const p = window.location.pathname.replace(/^\\/+/, '');
+    if (p === 'settings' || p.startsWith('settings/')) {
+      this.loadTimeline();
+      this.openSettingsModal(p === 'settings/language' ? 'language' : 'profile');
+    } else if (p && !p.includes('/') && p !== 'home' && p !== 'timeline') {
+      this.viewProfile(p);
+    } else {
+      this.loadTimeline();
+    }
+
+    // Handle back / forward
+    window.addEventListener('popstate', () => {
+      const path = window.location.pathname.replace(/^\\/+/, '');
+      if (path && !path.includes('/') && path !== 'home' && path !== 'timeline' && !path.startsWith('settings')) {
+        this.viewProfile(path);
+      } else {
+        this.goHome();
+      }
+    });
+
+    // Close user dropdown on click outside
+    document.addEventListener('click', (e) => {
+      const drop = document.getElementById('user-nav-dropdown');
+      const btn = document.getElementById('nav-avatar-btn');
+      if (drop && drop.classList.contains('show') && !drop.contains(e.target) && (!btn || !btn.contains(e.target))) {
+        drop.classList.remove('show');
+      }
+    });
   },
 
   showNotice(msg) {
@@ -1062,18 +1666,78 @@ const circusApp = {
     setTimeout(() => toast.classList.remove('show'), 2500);
   },
 
+  renderBadges(u) {
+    if (!u) return '';
+    let html = '';
+
+    // 1. Verified badges
+    if (u.verified_type === 'business' || u.verified_type === 'gold') {
+      html += '<svg class="circus-badge-check verified-gold" title="Organización verificada" viewBox="0 0 24 24"><rect width="20" height="20" x="2" y="2" rx="5" fill="#e5a93c"/><path fill="#ffffff" d="M10.2 15.2l-3.5-3.5 1.4-1.4 2.1 2.1 5.3-5.3 1.4 1.4z"/></svg>';
+    } else if (u.verified_type === 'government' || u.verified_type === 'government_individual') {
+      html += '<svg class="circus-badge-check verified-grey" title="Gobierno o figura oficial" viewBox="0 0 24 24"><path fill="#829aab" d="M22.5 12.5c0-1.58-.875-2.95-2.148-3.6.154-.435.238-.905.238-1.4 0-2.21-1.79-4-4-4-.495 0-.965.084-1.4.238C14.55 2.475 13.18 1.6 11.6 1.6c-1.58 0-2.95.875-3.6 2.148-.435-.154-.905-.238-1.4-.238-2.21 0-4 1.79-4 4 0 .495.084.965.238 1.4C1.575 10.45.7 11.82.7 13.4c0 1.58.875 2.95 2.148 3.6-.154.435-.238.905-.238 1.4 0 2.21 1.79 4 4 4 .495 0 .965-.084 1.4-.238 1.05 1.273 2.42 2.148 4 2.148 1.58 0 2.95-.875 3.6-2.148.435.154.905.238 1.4.238 2.21 0 4-1.79 4-4 0-.495-.084-.965-.238-1.4 1.273-1.05 2.148-2.42 2.148-4z"/><path fill="#ffffff" d="M10.2 16.2l-3.5-3.5 1.4-1.4 2.1 2.1 5.3-5.3 1.4 1.4z"/></svg>';
+    } else if (u.verified_type === 'blue' || u.verified_type === 'legacy' || u.verified_type === true) {
+      html += '<svg class="circus-badge-check verified-blue" title="Cuenta verificada" viewBox="0 0 24 24"><path fill="#1da1f2" d="M22.5 12.5c0-1.58-.875-2.95-2.148-3.6.154-.435.238-.905.238-1.4 0-2.21-1.79-4-4-4-.495 0-.965.084-1.4.238C14.55 2.475 13.18 1.6 11.6 1.6c-1.58 0-2.95.875-3.6 2.148-.435-.154-.905-.238-1.4-.238-2.21 0-4 1.79-4 4 0 .495.084.965.238 1.4C1.575 10.45.7 11.82.7 13.4c0 1.58.875 2.95 2.148 3.6-.154.435-.238.905-.238 1.4 0 2.21 1.79 4 4 4 .495 0 .965-.084 1.4-.238 1.05 1.273 2.42 2.148 4 2.148 1.58 0 2.95-.875 3.6-2.148.435.154.905.238 1.4.238 2.21 0 4-1.79 4-4 0-.495-.084-.965-.238-1.4 1.273-1.05 2.148-2.42 2.148-4z"/><path fill="#ffffff" d="M10.2 16.2l-3.5-3.5 1.4-1.4 2.1 2.1 5.3-5.3 1.4 1.4z"/></svg>';
+    }
+
+    // 2. Organization badge
+    if (u.org && u.org.avatar_url) {
+      html += '<a href="javascript:void(0)" onclick="event.stopPropagation();circusApp.viewProfile(\\'' + this.escape(u.org.screen_name) + '\\')" title="Afiliado a ' + this.escape(u.org.name) + ' (@' + this.escape(u.org.screen_name) + ')"><img class="circus-badge-org" src="' + this.escape(u.org.avatar_url) + '" alt="' + this.escape(u.org.name) + '"></a>';
+    }
+
+    // 3. Custom badges
+    if (Array.isArray(u.badges)) {
+      u.badges.forEach(b => {
+        html += '<img class="circus-badge-custom" src="' + this.escape(b.url || '/public/badge-' + b.id + '.png') + '" title="' + this.escape(b.name) + '" alt="' + this.escape(b.name) + '">';
+      });
+    }
+
+    // 4. Remote badges
+    if (Array.isArray(u.remote_badges)) {
+      u.remote_badges.forEach(rb => {
+        html += '<img class="circus-badge-custom" src="' + this.escape(rb.url) + '" title="' + this.escape(rb.name) + '" alt="' + this.escape(rb.name) + '">';
+      });
+    }
+
+    // 5. Translator badge
+    if (u.translator) {
+      html += '<svg class="circus-badge-icon" title="Traductor oficial" style="fill:#1da1f2" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>';
+    }
+
+    // 6. Flag
+    if (u.flag) {
+      html += '<img class="circus-badge-flag" src="/public/flag-' + this.escape(u.flag) + '.svg" alt="Bandera">';
+    }
+
+    // 7. Federated Instance Globe
+    if (u.instance) {
+      html += '<svg class="circus-badge-icon" title="De la instancia ' + this.escape(u.instance) + '" style="fill:#657786" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>';
+    }
+
+    // 8. Parody / Bot Label
+    if (u.parody_label && u.parody_label !== 'None') {
+      html += '<span class="circus-label-pill">' + this.escape(u.parody_label) + '</span>';
+    } else if (u.label && u.label.text) {
+      html += '<span class="circus-label-pill">' + this.escape(u.label.text) + '</span>';
+    }
+
+    return html;
+  },
+
   renderLeftColumn() {
     const el = document.getElementById('left-profile-container');
     if (this.viewer) {
+      const bannerStyle = this.viewer.banner_url ? "background-image:url('" + this.viewer.banner_url + "');background-size:cover;background-position:center;" : "";
       el.innerHTML = \`
         <div class="module-card">
-          <div class="profile-card-header"></div>
+          <div class="profile-card-header" style="\${bannerStyle}"></div>
           <div class="profile-card-content">
             <a class="profile-card-avatar-link" onclick="circusApp.viewProfile('\${this.viewer.screen_name}')">
               <img class="profile-card-avatar" src="\${this.viewer.avatar_url || '/public/icon-dark.png'}" alt="\${this.viewer.screen_name}">
             </a>
             <div class="profile-card-user">
-              <a class="profile-card-name" onclick="circusApp.viewProfile('\${this.viewer.screen_name}')">\${this.escape(this.viewer.name)}</a>
+              <a class="profile-card-name" onclick="circusApp.viewProfile('\${this.viewer.screen_name}')">
+                \${this.escape(this.viewer.name)} \${this.renderBadges(this.viewer)}
+              </a>
               <span class="profile-card-handle">@\${this.escape(this.viewer.screen_name)}</span>
             </div>
             <div class="profile-stats-table" id="my-profile-stats">
@@ -1096,18 +1760,18 @@ const circusApp = {
       this.fetchUserStats(this.viewer.screen_name);
     } else {
       el.innerHTML = \`
-        <div class="module-card guest-login-card">
-          <h4 class="guest-login-title">¿Tienes una cuenta?</h4>
-          <form class="guest-login-form" onsubmit="circusApp.handleLogin(event)">
-            <div class="form-group">
+        <div class="module-card guest-login-card" style="padding:16px">
+          <h4 style="margin-top:0;font-weight:bold;color:var(--text-main)">¿Tienes una cuenta?</h4>
+          <form onsubmit="circusApp.handleLogin(event)">
+            <div class="form-group" style="margin-bottom:8px">
               <input type="text" class="form-control input-sm" id="login-user" placeholder="Usuario o correo" required>
             </div>
-            <div class="form-group">
+            <div class="form-group" style="margin-bottom:10px">
               <input type="password" class="form-control input-sm" id="login-pass" placeholder="Contraseña" required>
             </div>
-            <button type="submit" class="guest-login-btn">Iniciar sesión</button>
+            <button type="submit" class="btn btn-primary btn-sm btn-block" style="background:var(--circus-red);border:none;font-weight:bold;border-radius:100px">Iniciar sesión</button>
           </form>
-          <p style="margin-top:12px;font-size:12px;color:#657786;text-align:center">
+          <p style="margin-top:12px;margin-bottom:0;font-size:12px;color:#657786;text-align:center">
             ¿Nuevo en el Circo? <a href="/?staff=1">Regístrate aquí</a>
           </p>
         </div>
@@ -1119,10 +1783,23 @@ const circusApp = {
     try {
       const res = await fetch('/api/v1/users/' + encodeURIComponent(handle));
       const json = await res.json();
-      if (json.data && json.data.counts) {
-        document.getElementById('stat-posts').textContent = json.data.counts.posts ?? 0;
-        document.getElementById('stat-following').textContent = json.data.counts.following ?? 0;
-        document.getElementById('stat-followers').textContent = json.data.counts.followers ?? 0;
+      if (json.data) {
+        if (json.data.counts) {
+          const sp = document.getElementById('stat-posts');
+          const sfg = document.getElementById('stat-following');
+          const sfr = document.getElementById('stat-followers');
+          if (sp) sp.textContent = json.data.counts.posts ?? 0;
+          if (sfg) sfg.textContent = json.data.counts.following ?? 0;
+          if (sfr) sfr.textContent = json.data.counts.followers ?? 0;
+        }
+        if (json.data.banner_url) {
+          const header = document.querySelector('.profile-card-header');
+          if (header) {
+            header.style.backgroundImage = "url('" + json.data.banner_url + "')";
+            header.style.backgroundSize = "cover";
+            header.style.backgroundPosition = "center";
+          }
+        }
       }
     } catch {}
   },
@@ -1149,40 +1826,39 @@ const circusApp = {
             
             <div class="composer-media-previews" id="composer-media-previews"></div>
 
-            <div class="poll-editor" id="poll-editor">
-              <div class="poll-input-row"><input type="text" class="form-control input-sm poll-choice" placeholder="Opción 1" maxlength="25"></div>
-              <div class="poll-input-row"><input type="text" class="form-control input-sm poll-choice" placeholder="Opción 2" maxlength="25"></div>
-              <div class="poll-input-row"><input type="text" class="form-control input-sm poll-choice" placeholder="Opción 3 (opcional)" maxlength="25"></div>
-              <div class="poll-input-row"><input type="text" class="form-control input-sm poll-choice" placeholder="Opción 4 (opcional)" maxlength="25"></div>
+            <div class="composer-poll-form" id="composer-poll-form">
+              <div class="form-group" style="margin-bottom:6px">
+                <input type="text" class="form-control input-sm poll-choice" placeholder="Opción 1" maxlength="25">
+              </div>
+              <div class="form-group" style="margin-bottom:6px">
+                <input type="text" class="form-control input-sm poll-choice" placeholder="Opción 2" maxlength="25">
+              </div>
+              <div id="extra-poll-choices"></div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+                <button type="button" class="btn btn-default btn-xs" onclick="circusApp.addPollChoice()">+ Agregar opción</button>
+                <button type="button" class="btn btn-link btn-xs" onclick="circusApp.togglePoll(false)" style="color:#d90429">Eliminar encuesta</button>
+              </div>
             </div>
           </div>
         </div>
 
-        <div class="composer-toolbar">
+        <div class="composer-bottom">
           <div class="composer-tools">
-            <input type="file" id="media-file-input" style="display:none" accept="image/*,video/mp4" multiple onchange="circusApp.handleMediaUpload(this.files)">
-            <button class="tool-btn" onclick="document.getElementById('media-file-input').click()" title="Añadir fotos o video">
-              <svg style="width:20px;height:20px;fill:currentColor" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-5.04-6.71l-2.75 3.54-1.96-2.36L6.5 17h11l-3.54-4.71z"/></svg>
+            <input type="file" id="media-upload-input" accept="image/*,video/*" multiple style="display:none" onchange="circusApp.handleFileUpload(event)">
+            <button class="composer-tool-btn" type="button" onclick="document.getElementById('media-upload-input').click()" title="Adjuntar foto o video">
+              <svg class="composer-tool-icon" viewBox="0 0 24 24"><path d="M19.75 2H4.25C3.01 2 2 3.01 2 4.25v15.5C2 20.99 3.01 22 4.25 22h15.5c1.24 0 2.25-1.01 2.25-2.25V4.25C22 3.01 20.99 2 19.75 2zM4.25 3.5h15.5c.41 0 .75.34.75.75v10.67l-1.44-1.44c-.29-.29-.77-.29-1.06 0l-5.35 5.35-3.07-3.07c-.29-.29-.77-.29-1.06 0L3.5 20.74V4.25c0-.41.34-.75.75-.75zM17.5 10.5c1.38 0 2.5-1.12 2.5-2.5s-1.12-2.5-2.5-2.5-2.5 1.12-2.5 2.5 1.12 2.5 2.5 2.5z"/></svg>
             </button>
-            <button class="tool-btn" onclick="circusApp.togglePollEditor()" title="Crear encuesta">
-              <svg style="width:20px;height:20px;fill:currentColor" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 10h2v7H7zm4-3h2v10h-2zm4 6h2v4h-2z"/></svg>
+            <button class="composer-tool-btn" type="button" onclick="circusApp.togglePoll(true)" title="Crear encuesta">
+              <svg class="composer-tool-icon" viewBox="0 0 24 24"><path d="M6 5v14h3V5H6zm5 6v8h3v-8h-3zm5-3v11h3V8h-3z"/></svg>
             </button>
           </div>
-          <div class="composer-actions">
+          <div class="composer-right">
             <span class="char-counter" id="char-counter">280</span>
-            <button class="btn-tweet-submit" id="btn-submit-tweet" disabled onclick="circusApp.submitTweet()">Twittear</button>
+            <button class="btn btn-primary btn-sm btn-tweet-nav" id="btn-submit-tweet" onclick="circusApp.submitTweet()">Twittear</button>
           </div>
         </div>
       </div>
     \`;
-  },
-
-  focusComposer() {
-    const txt = document.getElementById('tweet-textarea');
-    if (txt) {
-      txt.focus();
-      txt.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
   },
 
   onComposerInput(textarea) {
@@ -1192,147 +1868,187 @@ const circusApp = {
     const btn = document.getElementById('btn-submit-tweet');
 
     counter.textContent = remaining;
-    counter.className = 'char-counter' + (remaining < 0 ? ' danger' : remaining < 20 ? ' warning' : '');
-    btn.disabled = (len === 0 && this.composerMediaIds.length === 0) || remaining < 0;
+    counter.className = 'char-counter';
+    if (remaining < 20 && remaining >= 0) counter.classList.add('warning');
+    if (remaining < 0) counter.classList.add('danger');
+
+    btn.disabled = remaining < 0 || (len === 0 && this.composerMediaIds.length === 0);
   },
 
-  togglePollEditor() {
-    this.composerPollActive = !this.composerPollActive;
-    const editor = document.getElementById('poll-editor');
-    if (editor) editor.style.display = this.composerPollActive ? 'block' : 'none';
-  },
-
-  async handleMediaUpload(files) {
-    if (!files || !files.length) return;
-    for (const file of Array.from(files)) {
-      if (this.composerMediaIds.length >= 4) {
-        this.showNotice('Máximo 4 imágenes por post.');
-        break;
-      }
-      const formData = new FormData();
-      formData.set('media', file);
-      this.showNotice('Subiendo archivo...');
-      try {
-        const res = await fetch('/api/v1/media', { method: 'POST', body: formData });
-        const json = await res.json();
-        if (json.data && json.data.media_id) {
-          const mediaId = json.data.media_id;
-          this.composerMediaIds.push(mediaId);
-          
-          const previewWrap = document.getElementById('composer-media-previews');
-          const thumb = document.createElement('div');
-          thumb.className = 'composer-media-thumb';
-          thumb.id = 'thumb-' + mediaId;
-          const url = URL.createObjectURL(file);
-          if (file.type.startsWith('video/')) {
-            thumb.innerHTML = '<video src="' + url + '"></video><button class="composer-media-remove" onclick="circusApp.removeMedia(\\'' + mediaId + '\\')">×</button>';
-          } else {
-            thumb.innerHTML = '<img src="' + url + '"><button class="composer-media-remove" onclick="circusApp.removeMedia(\\'' + mediaId + '\\')">×</button>';
-          }
-          previewWrap.appendChild(thumb);
-          this.onComposerInput(document.getElementById('tweet-textarea'));
-        }
-      } catch (err) {
-        this.showNotice('Error al subir archivo.');
-      }
+  focusComposer() {
+    if (document.getElementById('profile-view').style.display === 'block') {
+      this.goHome();
+    }
+    const txt = document.getElementById('tweet-textarea');
+    if (txt) {
+      txt.focus();
+      txt.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   },
 
-  removeMedia(id) {
-    this.composerMediaIds = this.composerMediaIds.filter(m => m !== id);
-    const thumb = document.getElementById('thumb-' + id);
-    if (thumb) thumb.remove();
-    this.onComposerInput(document.getElementById('tweet-textarea'));
+  togglePoll(active) {
+    this.composerPollActive = active;
+    const form = document.getElementById('composer-poll-form');
+    if (form) form.style.display = active ? 'block' : 'none';
+  },
+
+  addPollChoice() {
+    const container = document.getElementById('extra-poll-choices');
+    const count = container.querySelectorAll('input').length + 3;
+    if (count > 4) {
+      this.showNotice('Máximo 4 opciones por encuesta.');
+      return;
+    }
+    container.insertAdjacentHTML('beforeend', \`
+      <div class="form-group" style="margin-bottom:6px">
+        <input type="text" class="form-control input-sm poll-choice" placeholder="Opción \${count}" maxlength="25">
+      </div>
+    \`);
+  },
+
+  async handleFileUpload(e) {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+
+    for (const file of files) {
+      if (this.composerMediaIds.length >= 4) {
+        this.showNotice('Máximo 4 fotos o 1 video.');
+        break;
+      }
+      this.showNotice('Subiendo archivo...');
+      const formData = new FormData();
+      formData.set('media', file);
+
+      try {
+        const res = await fetch('/api/v1/media', {
+          method: 'POST',
+          body: formData
+        });
+        const json = await res.json();
+        if (json.data && json.data.media_id) {
+          const id = json.data.media_id;
+          this.composerMediaIds.push(id);
+          this.renderMediaPreviews();
+        } else {
+          this.showNotice('Error al subir el archivo.');
+        }
+      } catch {
+        this.showNotice('Error en la conexión.');
+      }
+    }
+    e.target.value = '';
+    const txt = document.getElementById('tweet-textarea');
+    if (txt) this.onComposerInput(txt);
+  },
+
+  renderMediaPreviews() {
+    const previews = document.getElementById('composer-media-previews');
+    previews.innerHTML = '';
+    this.composerMediaIds.forEach((id, idx) => {
+      previews.insertAdjacentHTML('beforeend', \`
+        <div class="composer-thumb-wrap">
+          <img class="composer-thumb" src="/media/\${id}.jpg" onerror="this.src='/public/icon-dark.png'">
+          <button class="composer-thumb-del" onclick="circusApp.removeMedia(\${idx})">&times;</button>
+        </div>
+      \`);
+    });
+  },
+
+  removeMedia(index) {
+    this.composerMediaIds.splice(index, 1);
+    this.renderMediaPreviews();
+    const txt = document.getElementById('tweet-textarea');
+    if (txt) this.onComposerInput(txt);
   },
 
   async submitTweet() {
     const textarea = document.getElementById('tweet-textarea');
     const text = textarea ? textarea.value.trim() : '';
-    const btn = document.getElementById('btn-submit-tweet');
-    if (!text && this.composerMediaIds.length === 0) return;
 
-    btn.disabled = true;
-    btn.textContent = 'Enviando...';
-
-    const payload = {
-      text,
-      media_ids: this.composerMediaIds
-    };
-
+    let poll = null;
     if (this.composerPollActive) {
-      const inputs = document.querySelectorAll('.poll-choice');
-      const choices = Array.from(inputs).map(i => i.value.trim()).filter(Boolean);
-      if (choices.length >= 2) {
-        payload.poll = { choices, duration_minutes: 1440 };
+      const inputs = Array.from(document.querySelectorAll('.poll-choice'));
+      const choices = inputs.map(i => i.value.trim()).filter(Boolean);
+      if (choices.length < 2) {
+        return this.showNotice('La encuesta necesita al menos 2 opciones.');
       }
+      poll = { choices, minutes: 1440 };
     }
 
+    if (!text && this.composerMediaIds.length === 0 && !poll) {
+      return this.showNotice('Escribe algo o adjunta un archivo.');
+    }
+
+    this.showNotice('Publicando...');
     try {
       const res = await fetch('/api/v1/posts', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          text,
+          media_ids: this.composerMediaIds,
+          poll
+        })
       });
       const json = await res.json();
       if (json.data) {
-        textarea.value = '';
+        if (textarea) textarea.value = '';
         this.composerMediaIds = [];
-        this.composerPollActive = false;
-        document.getElementById('composer-media-previews').innerHTML = '';
-        const pEditor = document.getElementById('poll-editor');
-        if (pEditor) pEditor.style.display = 'none';
-        this.onComposerInput(textarea);
-        this.showNotice('¡Twitteado!');
+        this.togglePoll(false);
+        this.renderMediaPreviews();
+        this.showNotice('¡Post publicado!');
         this.loadTimeline();
         if (this.viewer) this.fetchUserStats(this.viewer.screen_name);
       } else {
         this.showNotice(json.error || 'No se pudo publicar.');
       }
-    } catch (e) {
+    } catch {
       this.showNotice('Error al conectar.');
-    } finally {
-      btn.disabled = false;
-      btn.textContent = 'Twittear';
     }
   },
 
-  switchFeed(type) {
-    this.feedType = type;
-    document.getElementById('tab-feed-all').classList.toggle('active', type === 'all');
-    document.getElementById('tab-feed-following').classList.toggle('active', type === 'following');
-    this.nextCursor = null;
+  switchFeed(feed) {
+    this.feedType = feed;
+    document.querySelectorAll('.stream-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('tab-feed-' + feed)?.classList.add('active');
     this.loadTimeline();
   },
 
   async loadTimeline(cursor = null) {
     if (this.isLoading) return;
     this.isLoading = true;
+
     const stream = document.getElementById('tweet-stream');
     const loadBtn = document.getElementById('load-more-btn');
 
     if (!cursor) {
-      stream.innerHTML = '<div style="padding:30px;text-align:center;color:#657786">Cargando posts...</div>';
+      stream.innerHTML = \`
+        <div style="padding:40px;text-align:center;color:#657786" id="stream-loading">
+          <p style="font-size:16px;font-weight:bold;margin-bottom:8px">Cargando el Circo...</p>
+          <p>Preparando los mejores actos del día.</p>
+        </div>
+      \`;
     }
 
     try {
-      const url = '/api/v1/timeline?feed=' + this.feedType + (cursor ? '&cursor=' + cursor : '');
+      const url = '/api/v1/timeline?feed=' + this.feedType + (cursor ? '&cursor=' + encodeURIComponent(cursor) : '');
       const res = await fetch(url);
       const json = await res.json();
-      const items = json.data || [];
+      const posts = json.data || [];
 
       if (!cursor) stream.innerHTML = '';
 
-      if (items.length === 0 && !cursor) {
-        stream.innerHTML = '<div style="padding:40px;text-align:center;color:#657786"><p style="font-size:16px;font-weight:bold">No hay posts todavía.</p><p>¡Sé el primero en compartir algo en el Circo!</p></div>';
+      if (posts.length === 0 && !cursor) {
+        stream.innerHTML = '<div style="padding:40px;text-align:center;color:#657786">No hay publicaciones aquí todavía.</div>';
         loadBtn.style.display = 'none';
       } else {
-        items.forEach(post => {
+        posts.forEach(post => {
           stream.insertAdjacentHTML('beforeend', this.renderTweetCard(post));
         });
         this.nextCursor = json.next_cursor;
         loadBtn.style.display = this.nextCursor ? 'inline-block' : 'none';
       }
-    } catch (err) {
+    } catch {
       if (!cursor) stream.innerHTML = '<div style="padding:30px;text-align:center;color:#d90429">Error al cargar posts.</div>';
     } finally {
       this.isLoading = false;
@@ -1356,7 +2072,7 @@ const circusApp = {
       repostHtml = \`
         <div class="tweet-repost-header">
           <svg style="width:14px;height:14px;fill:currentColor" viewBox="0 0 24 24"><path d="M23.615 15.477l-3.398-3.398c-.146-.146-.339-.22-.531-.22s-.385.073-.531.22c-.293.293-.293.768 0 1.061l2.119 2.119H12.25c-.414 0-.75.336-.75.75s.336.75.75.75h9.023l-2.119 2.119c-.293.293-.293.768 0 1.061.146.146.339.22.531.22s.385-.073.531-.22l3.398-3.398c.293-.293.293-.768 0-1.061zM11.75 8.25H2.727l2.119-2.119c.293-.293.293-.768 0-1.061s-.768-.293-1.061 0L.385 8.468c-.293.293-.293.768 0 1.061l3.398 3.398c.146.146.339.22.531.22s.385-.073.531-.22c.293-.293.293-.768 0-1.061L2.727 9.75h9.023c.414 0 .75-.336.75-.75s-.336-.75-.75-.75z"/></svg>
-          <span>\${this.escape(p.reposted_by.name)} reposteó</span>
+          <span>\${this.escape(p.reposted_by.name)} \${this.renderBadges(p.reposted_by)} reposteó</span>
         </div>
       \`;
     }
@@ -1384,9 +2100,10 @@ const circusApp = {
       const q = p.quoted;
       const qAuthor = q.author || {};
       quoteHtml = \`
-        <div class="quote-card" onclick="circusApp.viewPost('\${q.id}')">
+        <div class="quote-card" onclick="circusApp.viewProfile('\${qAuthor.screen_name}')">
           <div class="quote-header">
             <b>\${this.escape(qAuthor.name)}</b>
+            \${this.renderBadges(qAuthor)}
             <span class="tweet-author-handle">@\${this.escape(qAuthor.screen_name)}</span>
             <span class="tweet-time">· \${this.formatTimeAgo(q.created_at)}</span>
           </div>
@@ -1439,7 +2156,10 @@ const circusApp = {
           </div>
           <div class="tweet-content">
             <div class="tweet-header">
-              <span class="tweet-author-name" onclick="circusApp.viewProfile('\${author.screen_name}')">\${this.escape(author.name)}</span>
+              <span class="tweet-author-name" onclick="circusApp.viewProfile('\${author.screen_name}')">
+                \${this.escape(author.name)}
+              </span>
+              \${this.renderBadges(author)}
               <span class="tweet-author-handle">@\${this.escape(author.screen_name)}</span>
               <span class="tweet-time">· \${timeAgo}</span>
             </div>
@@ -1503,31 +2223,30 @@ const circusApp = {
   },
 
   async deletePost(id) {
-    if (!confirm('¿Eliminar este post? No podrás recuperarlo.')) return;
+    if (!confirm('¿Seguro que deseas eliminar este post del Circo?')) return;
     try {
       const res = await fetch('/api/v1/posts/' + id, { method: 'DELETE' });
       const json = await res.json();
       if (json.data && json.data.deleted) {
-        const card = document.getElementById('tweet-' + id);
-        if (card) card.remove();
+        const el = document.getElementById('tweet-' + id);
+        if (el) el.remove();
         this.showNotice('Post eliminado.');
         if (this.viewer) this.fetchUserStats(this.viewer.screen_name);
       }
     } catch {}
   },
 
-  async votePoll(pollId, choiceNum) {
+  async votePoll(pollId, choice) {
     if (!this.viewer) return this.showNotice('Inicia sesión para votar.');
     try {
       const res = await fetch('/api/v1/polls/' + pollId + '/vote', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ choice: choiceNum })
+        body: JSON.stringify({ choice })
       });
       const json = await res.json();
       if (json.data) {
-        this.showNotice('Voto registrado.');
-        this.loadTimeline();
+        this.updateCardInDom(json.data);
       }
     } catch {}
   },
@@ -1535,108 +2254,131 @@ const circusApp = {
   async translateTweet(id) {
     const textEl = document.getElementById('text-' + id);
     if (!textEl) return;
-    this.showNotice('Traduciendo...');
+    this.showNotice('Traduciendo con IA...');
     try {
       const res = await fetch('/api/v1/posts/' + id + '/translate', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ target_lang: 'es' })
+        body: JSON.stringify({ target_lang: this.viewer?.language || 'es' })
       });
       const json = await res.json();
-      if (json.data && json.data.text) {
-        textEl.innerHTML = '<span style="color:#657786;font-size:12px;display:block;margin-bottom:4px">🌐 Traducido del ' + json.data.source_lang + ':</span>' + this.formatTweetText(json.data.text);
+      if (json.data && json.data.translated_text) {
+        textEl.innerHTML = \`
+          <div>\${this.formatTweetText(json.data.translated_text)}</div>
+          <div style="font-size:11px;color:#657786;margin-top:4px">
+            🌐 Traducido de <b>\${(json.data.source_lang || '').toUpperCase()}</b> a <b>\${(json.data.target_lang || '').toUpperCase()}</b>
+          </div>
+        \`;
       } else {
-        this.showNotice('No se pudo traducir.');
+        this.showNotice('No se pudo traducir este post.');
       }
     } catch {
       this.showNotice('Error al traducir.');
     }
   },
 
-  updateCardInDom(updatedPost) {
-    const card = document.getElementById('tweet-' + updatedPost.id);
+  updateCardInDom(post) {
+    const card = document.getElementById('tweet-' + post.id);
     if (card) {
-      card.outerHTML = this.renderTweetCard(updatedPost);
+      card.outerHTML = this.renderTweetCard(post);
     }
   },
 
   async loadTrends() {
+    const list = document.getElementById('trends-list');
     try {
       const res = await fetch('/api/v1/trends');
       const json = await res.json();
       const trends = json.data || [];
-      const listEl = document.getElementById('trends-list');
-      if (trends.length > 0 && listEl) {
-        listEl.innerHTML = '';
+      if (trends.length > 0) {
+        list.innerHTML = '';
         trends.forEach(t => {
-          listEl.innerHTML += \`
+          list.insertAdjacentHTML('beforeend', \`
             <div class="trend-item">
-              <span class="trend-tag" onclick="circusApp.searchPosts('#\${circusApp.escape(t.tag)}')">#\${circusApp.escape(t.tag)}</span>
-              <span class="trend-count">\${t.posts} posts</span>
+              <span class="trend-tag" onclick="circusApp.searchPosts('\${t.name}')">\${this.escape(t.name)}</span>
+              <span class="trend-count">\${t.count} posts</span>
             </div>
-          \`;
+          \`);
         });
       }
     } catch {}
   },
 
   async loadSuggestions() {
+    const list = document.getElementById('suggestions-list');
     try {
       const res = await fetch('/api/v1/suggestions');
       const json = await res.json();
       const users = json.data || [];
-      const listEl = document.getElementById('suggestions-list');
-      if (users.length > 0 && listEl) {
-        listEl.innerHTML = '';
-        users.forEach(u => {
-          const isFollowing = u.viewer && u.viewer.following;
-          listEl.innerHTML += \`
-            <div class="follow-item" id="user-suggest-\${u.id}">
-              <img class="follow-avatar" src="\${u.avatar_url || '/public/icon-dark.png'}" alt="\${u.screen_name}" onclick="circusApp.viewProfile('\${u.screen_name}')">
-              <div class="follow-info">
-                <span class="follow-name" onclick="circusApp.viewProfile('\${u.screen_name}')">\${circusApp.escape(u.name)}</span>
-                <span class="follow-handle">@\${circusApp.escape(u.screen_name)}</span>
-              </div>
-              <button class="btn-follow \${isFollowing ? 'following' : ''}" onclick="circusApp.toggleFollow('\${u.screen_name}', \${!!isFollowing}, '\${u.id}')">
-                \${isFollowing ? 'Siguiendo' : 'Seguir'}
-              </button>
-            </div>
-          \`;
-        });
+      if (users.length === 0) {
+        list.innerHTML = '<p style="color:#657786;font-size:12px">No hay sugerencias por ahora.</p>';
+        return;
       }
-    } catch {}
+      list.innerHTML = '';
+      users.forEach(u => {
+        const isFollowing = u.viewer && u.viewer.following;
+        list.insertAdjacentHTML('beforeend', \`
+          <div class="suggest-user-item">
+            <img class="suggest-avatar" src="\${u.avatar_url || '/public/icon-dark.png'}" alt="\${u.screen_name}" onclick="circusApp.viewProfile('\${u.screen_name}')">
+            <div class="suggest-info">
+              <div class="suggest-name-row">
+                <span class="suggest-name" onclick="circusApp.viewProfile('\${u.screen_name}')">\${this.escape(u.name)}</span>
+                \${this.renderBadges(u)}
+              </div>
+              <div class="suggest-handle">@\${this.escape(u.screen_name)}</div>
+              \${this.viewer ? \`
+                <button class="btn-follow \${isFollowing ? 'following' : ''}" style="margin-top:6px" onclick="circusApp.toggleFollow('\${u.screen_name}', \${!!isFollowing}, '\${u.id}')">
+                  \${isFollowing ? 'Siguiendo' : 'Seguir'}
+                </button>
+              \` : ''}
+            </div>
+          </div>
+        \`);
+      });
+    } catch {
+      list.innerHTML = '<p style="color:#657786;font-size:12px">No se pudieron cargar sugerencias.</p>';
+    }
   },
 
-  async toggleFollow(handle, isFollowing, userId) {
+  async toggleFollow(screenName, isFollowing, userId) {
     if (!this.viewer) return this.showNotice('Inicia sesión para seguir cuentas.');
     try {
-      const res = await fetch('/api/v1/users/' + encodeURIComponent(handle) + '/follow', {
+      const res = await fetch('/api/v1/users/' + encodeURIComponent(screenName) + '/follow', {
         method: isFollowing ? 'DELETE' : 'POST'
       });
       const json = await res.json();
       if (json.data) {
         this.loadSuggestions();
+        if (this.currentProfileUser && this.currentProfileUser.screen_name.toLowerCase() === screenName.toLowerCase()) {
+          this.viewProfile(screenName);
+        }
         if (this.viewer) this.fetchUserStats(this.viewer.screen_name);
-        this.showNotice(isFollowing ? 'Dejaste de seguir a @' + handle : 'Siguiendo a @' + handle);
+        this.showNotice(isFollowing ? 'Dejaste de seguir a @' + screenName : 'Ahora sigues a @' + screenName);
       }
     } catch {}
   },
 
+  handleSearch(e) {
+    e.preventDefault();
+    const query = document.getElementById('search-query').value.trim();
+    if (query) this.searchPosts(query);
+  },
+
   async searchPosts(query) {
-    if (!query || !query.trim()) return;
-    const q = query.trim();
-    document.getElementById('circus-search-input').value = q;
+    this.goHome();
     const stream = document.getElementById('tweet-stream');
-    stream.innerHTML = '<div style="padding:30px;text-align:center;color:#657786">Buscando "' + this.escape(q) + '"...</div>';
+    stream.innerHTML = '<div style="padding:40px;text-align:center;color:#657786">Buscando "' + this.escape(query) + '"...</div>';
+    document.getElementById('load-more-btn').style.display = 'none';
+
     try {
-      const res = await fetch('/api/v1/search/posts?q=' + encodeURIComponent(q));
+      const res = await fetch('/api/v1/search?q=' + encodeURIComponent(query));
       const json = await res.json();
-      const items = json.data || [];
-      stream.innerHTML = '<div style="padding:10px 14px;background:#f5f8fa;border-bottom:1px solid #e1e8ed;font-weight:bold;color:#14171a">Resultados para: ' + this.escape(q) + ' <a href="javascript:void(0)" onclick="circusApp.switchFeed(\\'all\\')" style="float:right;font-size:12px">✕ Limpiar</a></div>';
-      if (items.length === 0) {
-        stream.innerHTML += '<div style="padding:40px;text-align:center;color:#657786"><p style="font-weight:bold">No se encontraron resultados para esta búsqueda.</p></div>';
+      const posts = json.data || [];
+      stream.innerHTML = '<div style="padding:10px 16px;background:#f5f8fa;border-bottom:1px solid #e1e8ed;font-weight:bold">Resultados para: ' + this.escape(query) + '</div>';
+      if (posts.length === 0) {
+        stream.innerHTML += '<div style="padding:40px;text-align:center;color:#657786">No se encontraron resultados para esta búsqueda.</div>';
       } else {
-        items.forEach(post => {
+        posts.forEach(post => {
           stream.insertAdjacentHTML('beforeend', this.renderTweetCard(post));
         });
       }
@@ -1645,60 +2387,211 @@ const circusApp = {
     }
   },
 
+  /* 2016 Profile View */
   async viewProfile(handle) {
-    const stream = document.getElementById('tweet-stream');
-    stream.innerHTML = '<div style="padding:30px;text-align:center;color:#657786">Cargando perfil de @' + this.escape(handle) + '...</div>';
-    try {
-      const [uRes, pRes] = await Promise.all([
-        fetch('/api/v1/users/' + encodeURIComponent(handle)),
-        fetch('/api/v1/users/' + encodeURIComponent(handle) + '/posts')
-      ]);
-      const uJson = await uRes.json();
-      const pJson = await pRes.json();
-      const u = uJson.data;
-      const posts = pJson.data || [];
+    if (!handle) return;
+    const cleanHandle = handle.replace(/^@/, '');
+    window.scrollTo(0, 0);
 
-      if (!u) {
-        stream.innerHTML = '<div style="padding:40px;text-align:center;color:#657786">Usuario no encontrado.</div>';
+    document.getElementById('nav-item-home')?.classList.remove('active');
+    document.getElementById('home-view').style.display = 'none';
+    const profileView = document.getElementById('profile-view');
+    profileView.style.display = 'block';
+
+    if (window.location.pathname !== '/' + cleanHandle) {
+      history.pushState({ type: 'profile', handle: cleanHandle }, '', '/' + cleanHandle);
+    }
+
+    this.currentProfileUser = null;
+    this.currentProfileHandle = cleanHandle;
+    this.currentProfileTab = 'posts';
+    this.profileNextCursor = null;
+
+    const canopy = document.getElementById('profile-canopy');
+    canopy.style.backgroundImage = '';
+    canopy.classList.remove('has-banner');
+    document.getElementById('profile-large-avatar').src = '/public/icon-dark.png';
+    document.getElementById('profile-display-name').textContent = 'Cargando...';
+    document.getElementById('profile-display-handle').textContent = '@' + cleanHandle;
+    document.getElementById('profile-display-label').innerHTML = '';
+    document.getElementById('profile-display-bio').textContent = '';
+    document.getElementById('profile-meta-list').innerHTML = '';
+    document.getElementById('profile-nav-actions').innerHTML = '';
+    document.getElementById('profile-action-btn-wrap').innerHTML = '';
+    document.getElementById('profile-stat-posts').textContent = '-';
+    document.getElementById('profile-stat-following').textContent = '-';
+    document.getElementById('profile-stat-followers').textContent = '-';
+    document.getElementById('profile-stat-likes').textContent = '-';
+    document.getElementById('profile-tweet-stream').innerHTML = '<div style="padding:40px;text-align:center;color:#657786">Cargando publicaciones...</div>';
+    document.getElementById('profile-load-more-btn').style.display = 'none';
+
+    document.querySelectorAll('.profile-nav-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('profile-tab-posts').classList.add('active');
+
+    try {
+      const res = await fetch('/api/v1/users/' + encodeURIComponent(cleanHandle));
+      const json = await res.json();
+      if (!json.data) {
+        document.getElementById('profile-display-name').textContent = 'Usuario no encontrado';
+        document.getElementById('profile-tweet-stream').innerHTML = '<div style="padding:40px;text-align:center;color:#657786">Este personaje no existe en el Circo.</div>';
         return;
       }
 
-      const isFollowing = u.viewer && u.viewer.following;
-      const isMe = this.viewer && u.id === this.viewer.id;
+      const u = json.data;
+      this.currentProfileUser = u;
 
-      stream.innerHTML = \`
-        <div style="background:#ffffff;border-bottom:1px solid #e1e8ed;margin-bottom:10px">
-          <div style="height:140px;background:linear-gradient(135deg,#c1121f,#780000);background-size:cover;background-position:center;\${u.banner_url ? "background-image:url('" + u.banner_url + "')" : ''}"></div>
-          <div style="padding:0 16px 16px;position:relative">
-            <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:-45px;margin-bottom:10px">
-              <img style="width:90px;height:90px;border-radius:50%;border:4px solid #fff;object-fit:cover;background:#fff" src="\${u.avatar_url || '/public/icon-dark.png'}">
-              \${!isMe && this.viewer ? \`
-                <button class="btn-follow \${isFollowing ? 'following' : ''}" style="padding:6px 18px;font-size:13px" onclick="circusApp.toggleFollow('\${u.screen_name}', \${!!isFollowing}, '\${u.id}')">
+      if (u.banner_url) {
+        canopy.style.backgroundImage = "url('" + u.banner_url + "')";
+        canopy.classList.add('has-banner');
+      }
+
+      document.getElementById('profile-large-avatar').src = u.avatar_url || '/public/icon-dark.png';
+      document.getElementById('profile-display-name').innerHTML = this.escape(u.name) + ' ' + this.renderBadges(u);
+      document.getElementById('profile-display-handle').textContent = '@' + u.screen_name;
+      document.getElementById('profile-display-bio').innerHTML = this.formatTweetText(u.bio || '');
+
+      document.getElementById('profile-stat-posts').textContent = u.counts?.posts || 0;
+      document.getElementById('profile-stat-following').textContent = u.counts?.following || 0;
+      document.getElementById('profile-stat-followers').textContent = u.counts?.followers || 0;
+      document.getElementById('profile-stat-likes').textContent = u.counts?.likes || 0;
+
+      let metaHtml = '';
+      if (u.location) {
+        metaHtml += '<li><svg class="profile-meta-icon" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg><span>' + this.escape(u.location) + '</span></li>';
+      }
+      if (u.website) {
+        const cleanWeb = u.website.replace(/^https?:\\/\\//, '');
+        metaHtml += '<li><svg class="profile-meta-icon" viewBox="0 0 24 24"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg><a href="' + this.escape(u.website) + '" target="_blank" rel="noopener">' + this.escape(cleanWeb) + '</a></li>';
+      }
+      if (u.created_at) {
+        metaHtml += '<li><svg class="profile-meta-icon" viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z"/></svg><span>Se unió en ' + this.formatJoinedDate(u.created_at) + '</span></li>';
+      }
+      document.getElementById('profile-meta-list').innerHTML = metaHtml;
+
+      const isMe = this.viewer && u.id === this.viewer.id;
+      const isFollowing = u.viewer && u.viewer.following;
+      const actionsEl = document.getElementById('profile-nav-actions');
+
+      if (isMe) {
+        actionsEl.innerHTML = '<button class="btn-edit-profile" onclick="circusApp.openSettingsModal(\\'profile\\')">Editar perfil</button>';
+      } else if (this.viewer) {
+        actionsEl.innerHTML = '<button class="btn-follow ' + (isFollowing ? 'following' : '') + '" onclick="circusApp.toggleFollow(\\'' + u.screen_name + '\\', ' + !!isFollowing + ', \\'' + u.id + '\\')">' + (isFollowing ? 'Siguiendo' : 'Seguir') + '</button>';
+        document.getElementById('profile-action-btn-wrap').innerHTML = '<button class="btn btn-default btn-sm btn-block" style="border-radius:100px;font-weight:bold;margin-top:10px" onclick="circusApp.tweetTo(\\'' + u.screen_name + '\\')">Twittear a @' + this.escape(u.screen_name) + '</button>';
+      }
+
+      this.loadProfileSuggestions();
+      this.loadProfilePosts();
+    } catch {
+      document.getElementById('profile-tweet-stream').innerHTML = '<div style="padding:40px;text-align:center;color:#d90429">Error al cargar perfil.</div>';
+    }
+  },
+
+  async loadProfilePosts(cursor = null) {
+    if (!this.currentProfileHandle) return;
+    const stream = document.getElementById('profile-tweet-stream');
+    const loadBtn = document.getElementById('profile-load-more-btn');
+    if (!cursor) {
+      stream.innerHTML = '<div style="padding:40px;text-align:center;color:#657786">Cargando publicaciones...</div>';
+    }
+
+    try {
+      const repliesParam = this.currentProfileTab === 'replies' ? '&replies=true' : '';
+      const cursorParam = cursor ? '&cursor=' + encodeURIComponent(cursor) : '';
+      const res = await fetch('/api/v1/users/' + encodeURIComponent(this.currentProfileHandle) + '/posts?limit=20' + repliesParam + cursorParam);
+      const json = await res.json();
+      const posts = json.data || [];
+
+      if (!cursor) stream.innerHTML = '';
+
+      if (posts.length === 0 && !cursor) {
+        stream.innerHTML = '<div style="padding:40px;text-align:center;color:#657786">@' + this.escape(this.currentProfileHandle) + ' todavía no ha publicado nada en el Circo.</div>';
+        loadBtn.style.display = 'none';
+        return;
+      }
+
+      posts.forEach(post => {
+        stream.insertAdjacentHTML('beforeend', this.renderTweetCard(post));
+      });
+
+      this.profileNextCursor = json.next_cursor;
+      loadBtn.style.display = this.profileNextCursor ? 'inline-block' : 'none';
+    } catch {
+      if (!cursor) stream.innerHTML = '<div style="padding:30px;text-align:center;color:#d90429">Error al cargar publicaciones.</div>';
+    }
+  },
+
+  loadMoreProfilePosts() {
+    if (this.profileNextCursor) {
+      this.loadProfilePosts(this.profileNextCursor);
+    }
+  },
+
+  switchProfileTab(tab) {
+    this.currentProfileTab = tab;
+    document.querySelectorAll('.profile-nav-tab').forEach(t => t.classList.remove('active'));
+    if (tab === 'posts') {
+      document.getElementById('profile-tab-posts')?.classList.add('active');
+    } else if (tab === 'replies') {
+      document.getElementById('profile-tab-with-replies')?.classList.add('active');
+    }
+    this.loadProfilePosts();
+  },
+
+  async loadProfileSuggestions() {
+    const list = document.getElementById('profile-suggestions-list');
+    if (!list) return;
+    try {
+      const res = await fetch('/api/v1/suggestions');
+      const json = await res.json();
+      const users = json.data || [];
+      if (users.length === 0) {
+        list.innerHTML = '<p style="color:#657786;font-size:12px">No hay sugerencias disponibles.</p>';
+        return;
+      }
+      list.innerHTML = '';
+      users.slice(0, 3).forEach(u => {
+        const isFollowing = u.viewer && u.viewer.following;
+        list.insertAdjacentHTML('beforeend', \`
+          <div class="suggest-user-item">
+            <img class="suggest-avatar" src="\${u.avatar_url || '/public/icon-dark.png'}" alt="\${u.screen_name}" onclick="circusApp.viewProfile('\${u.screen_name}')">
+            <div class="suggest-info">
+              <div class="suggest-name-row">
+                <span class="suggest-name" onclick="circusApp.viewProfile('\${u.screen_name}')">\${this.escape(u.name)}</span>
+                \${this.renderBadges(u)}
+              </div>
+              <div class="suggest-handle">@\${this.escape(u.screen_name)}</div>
+              \${this.viewer ? \`
+                <button class="btn-follow \${isFollowing ? 'following' : ''}" style="margin-top:6px" onclick="circusApp.toggleFollow('\${u.screen_name}', \${!!isFollowing}, '\${u.id}')">
                   \${isFollowing ? 'Siguiendo' : 'Seguir'}
                 </button>
               \` : ''}
             </div>
-            <h3 style="margin:0;font-weight:bold">\${this.escape(u.name)}</h3>
-            <div style="color:#657786;font-size:13px;margin-bottom:8px">@\${this.escape(u.screen_name)}</div>
-            <p style="margin-bottom:12px;font-size:14px;line-height:20px">\${this.escape(u.bio || '')}</p>
-            <div style="display:flex;gap:18px;font-size:13px;color:#657786;border-top:1px solid #eef2f5;padding-top:10px">
-              <span><b style="color:#14171a">\${u.counts?.posts || 0}</b> Posts</span>
-              <span><b style="color:#14171a">\${u.counts?.following || 0}</b> Siguiendo</span>
-              <span><b style="color:#14171a">\${u.counts?.followers || 0}</b> Seguidores</span>
-            </div>
           </div>
-        </div>
-      \`;
-
-      if (posts.length === 0) {
-        stream.innerHTML += '<div style="padding:30px;text-align:center;color:#657786">@' + this.escape(u.screen_name) + ' todavía no ha publicado nada.</div>';
-      } else {
-        posts.forEach(p => {
-          stream.insertAdjacentHTML('beforeend', this.renderTweetCard(p));
-        });
-      }
+        \`);
+      });
     } catch {
-      stream.innerHTML = '<div style="padding:30px;text-align:center;color:#d90429">Error al cargar perfil.</div>';
+      list.innerHTML = '<p style="color:#657786;font-size:12px">No disponible.</p>';
+    }
+  },
+
+  goHome() {
+    window.scrollTo(0, 0);
+    document.getElementById('profile-view').style.display = 'none';
+    document.getElementById('home-view').style.display = 'block';
+    document.getElementById('nav-item-home')?.classList.add('active');
+    if (window.location.pathname !== '/') {
+      history.pushState({ type: 'home' }, '', '/');
+    }
+  },
+
+  tweetTo(handle) {
+    this.goHome();
+    this.focusComposer();
+    const txt = document.getElementById('tweet-textarea');
+    if (txt) {
+      txt.value = '@' + handle + ' ';
+      txt.focus();
+      this.onComposerInput(txt);
     }
   },
 
@@ -1717,6 +2610,110 @@ const circusApp = {
     const img = document.getElementById('lightbox-img');
     img.src = url;
     modal.style.display = 'flex';
+  },
+
+  /* Settings Modal */
+  openSettingsModal(tab = 'profile') {
+    if (!this.viewer) {
+      window.location.href = '/';
+      return;
+    }
+    this.switchSettingsTab(tab);
+    const nameInput = document.getElementById('settings-name');
+    const bioInput = document.getElementById('settings-bio');
+    const locInput = document.getElementById('settings-location');
+    const webInput = document.getElementById('settings-website');
+    const langSelect = document.getElementById('settings-language-select');
+
+    if (nameInput) nameInput.value = this.viewer.name || '';
+    if (bioInput) bioInput.value = this.viewer.bio || '';
+    if (locInput) locInput.value = this.viewer.location || '';
+    if (webInput) webInput.value = this.viewer.website || '';
+    if (langSelect && this.viewer.language) langSelect.value = this.viewer.language;
+
+    $('#settings-modal').modal('show');
+  },
+
+  switchSettingsTab(tab) {
+    document.querySelectorAll('.settings-tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('settings-tab-profile').style.display = 'none';
+    document.getElementById('settings-tab-language').style.display = 'none';
+    document.getElementById('settings-tab-tools').style.display = 'none';
+
+    if (tab === 'profile') {
+      document.getElementById('tab-btn-profile').classList.add('active');
+      document.getElementById('settings-tab-profile').style.display = 'block';
+    } else if (tab === 'language') {
+      document.getElementById('tab-btn-language').classList.add('active');
+      document.getElementById('settings-tab-language').style.display = 'block';
+    } else if (tab === 'tools') {
+      document.getElementById('tab-btn-tools').classList.add('active');
+      document.getElementById('settings-tab-tools').style.display = 'block';
+    }
+  },
+
+  async saveProfileSettings(e) {
+    e.preventDefault();
+    const name = document.getElementById('settings-name').value.trim();
+    const bio = document.getElementById('settings-bio').value;
+    const location = document.getElementById('settings-location').value;
+    const website = document.getElementById('settings-website').value.trim();
+
+    this.showNotice('Guardando cambios...');
+    try {
+      const res = await fetch('/api/v1/account/settings', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name, bio, location, website })
+      });
+      const json = await res.json();
+      if (json.data) {
+        this.viewer = json.data;
+        window.__VIEWER__ = json.data;
+        this.renderLeftColumn();
+        $('#settings-modal').modal('hide');
+        this.showNotice('¡Perfil actualizado con éxito!');
+        if (this.currentProfileUser && this.currentProfileUser.id === this.viewer.id) {
+          this.viewProfile(this.viewer.screen_name);
+        }
+      } else {
+        this.showNotice(json.error || 'No se pudo actualizar el perfil.');
+      }
+    } catch {
+      this.showNotice('Error al conectar con el servidor.');
+    }
+  },
+
+  async saveLanguageSettings(e) {
+    e.preventDefault();
+    const lang = document.getElementById('settings-language-select').value;
+    this.showNotice('Guardando idioma...');
+    try {
+      const res = await fetch('/api/v1/account/settings', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ language: lang })
+      });
+      const json = await res.json();
+      if (json.data) {
+        if (this.viewer) this.viewer.language = lang;
+        document.cookie = 'lang=' + encodeURIComponent(lang) + '; Path=/; Max-Age=31536000; SameSite=Lax';
+        $('#settings-modal').modal('hide');
+        this.showNotice('Idioma actualizado a ' + lang.toUpperCase());
+      } else {
+        this.showNotice(json.error || 'Error al actualizar idioma.');
+      }
+    } catch {
+      this.showNotice('Error al guardar idioma.');
+    }
+  },
+
+  toggleUserDropdown(e) {
+    if (e) e.stopPropagation();
+    const drop = document.getElementById('user-nav-dropdown');
+    if (drop) {
+      drop.classList.toggle('show');
+    }
   },
 
   async handleLogin(e) {
@@ -1766,6 +2763,13 @@ const circusApp = {
     if (diff < 3600) return Math.floor(diff / 60) + 'm';
     if (diff < 86400) return Math.floor(diff / 3600) + 'h';
     return Math.floor(diff / 86400) + 'd';
+  },
+
+  formatJoinedDate(dateStr) {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    const months = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+    return months[d.getMonth()] + ' de ' + d.getFullYear();
   },
 
   escape(str) {

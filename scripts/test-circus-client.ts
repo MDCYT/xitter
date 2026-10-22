@@ -7,8 +7,14 @@ describe("Circus 2016 Custom Client", () => {
 		screen_name: "pomni",
 		name: "Pomni",
 		avatar_url: "/media/9999",
+		banner_url: "/media/banner/8888",
 		bio: "Perdida en el circo digital pero lista para twittear.",
-		verified_type: null,
+		verified_type: "business",
+		role: "admin",
+		translator: "translator",
+		badges: [{ id: "42", name: "Star" }],
+		language: "es",
+		csrf: "fake-csrf-token",
 	};
 
 	test("generates complete HTML with Bootstrap 3 and Circus branding", () => {
@@ -26,6 +32,37 @@ describe("Circus 2016 Custom Client", () => {
 		expect(html).toContain("window.__VIEWER__ = {");
 		expect(html).toContain('"screen_name":"pomni"');
 		expect(html).toContain('"name":"Pomni"');
+		expect(html).toContain('"banner_url":"/media/banner/8888"');
+	});
+
+	test("includes authentic 2016 Twitter profile layout and canopy elements", () => {
+		const html = circusClientHtml({
+			viewer: sampleViewer,
+			instanceName: "Digital Circus",
+			origin: "https://x.glitchprod.xyz",
+		});
+
+		expect(html).toContain('id="profile-view"');
+		expect(html).toContain('class="profile-canopy"');
+		expect(html).toContain('class="profile-nav-bar"');
+		expect(html).toContain('class="profile-avatar-large"');
+		expect(html).toContain('id="profile-tab-posts"');
+		expect(html).toContain('id="profile-tab-with-replies"');
+	});
+
+	test("includes settings modal with API, import, and language options", () => {
+		const html = circusClientHtml({
+			viewer: sampleViewer,
+			instanceName: "Digital Circus",
+			origin: "https://x.glitchprod.xyz",
+		});
+
+		expect(html).toContain('id="settings-modal"');
+		expect(html).toContain('id="settings-language-select"');
+		expect(html).toContain('href="/account/api"');
+		expect(html).toContain('href="/account/import"');
+		expect(html).toContain('href="/admin"');
+		expect(html).toContain('id="user-nav-dropdown"');
 	});
 
 	test("handles guest / logged-out user gracefully", () => {
