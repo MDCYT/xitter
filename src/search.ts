@@ -151,8 +151,11 @@ export async function searchUsers(viewerId: string, query: string, limit: number
 	const rows = await sql`select u.id from users u where ${cond}
 			and u.status <> 'suspended' and u.id not in ${outOfView(viewerId)} and u.id not in ${blockedFor(viewerId)}
 			${namesOtherInstance(query) ? sql`` : sql`and u.id not in ${federatedHiddenFor(viewerId)}`}
-		order by (lower(u.screen_name) = lower(${first})) desc, (u.screen_name ilike ${`${first.replace(/[\\%_]/g, "")}%`}) desc,
-			(select count(*) from follows f where f.followee_id = u.id) desc, u.id
+		order by (lower(u.screen_name) = lower(${first})) desc,
+			(u.screen_name ilike ${`${first.replace(/[\\%_]/g, "")}%`}) desc,
+			(u.name ilike ${`${first.replace(/[\\%_]/g, "")}%`}) desc,
+			(u.verified_type is not null) desc,
+			coalesce((u.count_overrides->>'followers')::int, (select count(*) from follows f where f.followee_id = u.id)) desc, u.id
 		limit ${limit} offset ${offset}`;
 	return rows.map((r: any) => String(r.id));
 }

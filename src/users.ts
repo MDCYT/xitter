@@ -16,9 +16,11 @@ const stat = (name: string) => sql`coalesce((select s.${sql(name)} from user_sta
 // same account never reaches the client in two different states.
 export const userCols = (viewerId: string) => sql`
 	u.id as a_id, u.screen_name as a_screen_name, u.name as a_name, u.bio as a_bio, u.location as a_location, u.country as a_country,
+	u.based_in_override as a_based_in_override, u.signup_country as a_signup_country, u.pronouns as a_pronouns,
 	u.website as a_website, u.avatar_url as a_avatar_url, u.banner_url as a_banner_url, u.pinned_post_id as a_pinned_post_id, u.protected as a_protected, u.verified_type as a_verified_type, u.verified_at as a_verified_at, u.translator as a_translator, u.flag as a_flag, u.status as a_status, u.instance as a_instance, u.created_at as a_created_at,
 	${badgesOf(sql`u.id`)} as a_badges, u.remote_badges as a_remote_badges,
 	greatest((u.remote_counts->>'posts')::int, ${stat("posts")}) as a_posts,
+	(select count(*)::int from posts p where p.user_id = u.id and p.reply_to_post_id is null) as a_root_posts,
 	(select json_build_object('id', o.id::text, 'name', o.name, 'screen_name', o.screen_name, 'avatar_url', case when o.org_badge_id is not null then '/public/badge-' || o.org_badge_id::text || '.png' else coalesce(o.remote_org_badge, o.avatar_url) end, 'since', af.created_at)
 		from affiliations af join users o on o.id = af.org_id where af.user_id = u.id order by af.created_at, af.org_id limit 1) as a_org,
 	(select json_agg(json_build_object('id', o.id::text, 'name', o.name, 'screen_name', o.screen_name, 'avatar_url', case when o.org_badge_id is not null then '/public/badge-' || o.org_badge_id::text || '.png' else coalesce(o.remote_org_badge, o.avatar_url) end) order by af.created_at, af.org_id)
@@ -49,6 +51,8 @@ export function toUser(r: any): User {
 		bio: r.a_bio,
 		location: r.a_location,
 		country: r.a_country ?? null,
+		region: r.a_based_in_override ?? r.a_signup_country ?? r.a_country ?? null,
+		pronouns: r.a_pronouns ?? null,
 		website: r.a_website,
 		avatar_url: r.a_avatar_url,
 		banner_url: r.a_banner_url,
@@ -71,6 +75,7 @@ export function toUser(r: any): User {
 		created_at: r.a_created_at,
 		stats: {
 			posts: r.a_posts,
+			rootPosts: r.a_root_posts !== undefined && r.a_root_posts !== null ? r.a_root_posts : r.a_posts,
 			mediaPosts: r.a_media_posts,
 			likes: r.a_likes,
 			articles: r.a_articles,

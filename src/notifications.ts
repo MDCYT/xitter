@@ -319,3 +319,33 @@ export async function pushItems(viewerId: string, sinceMs: number): Promise<Push
 	}
 	return out;
 }
+
+export type SimpleNotification = {
+	kind: string;
+	at: Date;
+	users: User[];
+	post?: PostRow;
+	total: number;
+	text?: string | null;
+};
+
+export async function listNotifications(viewerId: string, opts: { mentionsOnly?: boolean; limit?: number }): Promise<SimpleNotification[]> {
+	const limit = Math.min(Math.max(opts.limit ?? 20, 1), 50);
+	const list = await items(viewerId, { limit, mentionsOnly: !!opts.mentionsOnly });
+	const userIds = [...new Set(list.flatMap((i) => (i.kind === "post" || i.kind === "staff" ? [] : i.users)))];
+	const postIds = [...new Set(list.map((i) => (i.kind === "staff" ? undefined : i.postId)).filter((id): id is string => !!id))];
+	const [users, posts] = await Promise.all([usersByIds(viewerId, userIds), postsByIds(viewerId, postIds)]);
+
+	return list.map((i) => {
+		const post = i.postId ? posts.get(i.postId) : undefined;
+		const fromUsers = (i.kind === "post" || i.kind === "staff" ? [] : i.users).map((id) => users.get(id)).filter((u): u is User => !!u);
+		return {
+			kind: i.kind === "post" ? i.reason : i.kind,
+			at: new Date(i.at),
+			users: fromUsers,
+			post,
+			total: "total" in i ? i.total : 1,
+			text: "text" in i ? i.text : null,
+		};
+	});
+}

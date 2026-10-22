@@ -47,12 +47,14 @@ export type User = {
 	language?: string;
 	// two-letter code: detected at sign-in, or picked in Settings > Country
 	country?: string | null;
+	region?: string | null;
 	// the instance the account lives on; null for this one
 	instance?: string | null;
 	created_at: Date;
 	// present when the row was loaded through users.ts
 	stats?: {
 		posts: number;
+		rootPosts?: number;
 		mediaPosts: number;
 		// posts carrying an article; the profile shows its Articles tab when there are any
 		articles: number;

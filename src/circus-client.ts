@@ -1200,6 +1200,231 @@ a:hover, a:focus {
 .circus-toast.show {
   transform: translateX(-50%) translateY(0);
 }
+/* Square Avatars for Business/Government accounts */
+.avatar-square {
+  border-radius: 4px !important;
+}
+.profile-avatar-large.avatar-square {
+  border-radius: 18px !important;
+}
+.composer-avatar.avatar-square, .nav-avatar.avatar-square, .suggest-avatar.avatar-square {
+  border-radius: 4px !important;
+}
+
+/* Translation notice */
+.tweet-translation-notice {
+  font-size: 11px;
+  color: #657786;
+  margin-top: 4px;
+  white-space: normal;
+}
+
+/* Search Typeahead Dropdown */
+.search-typeahead-dropdown {
+  display: none;
+  position: absolute;
+  top: 36px;
+  right: 0;
+  width: 290px;
+  background: #ffffff;
+  border: 1px solid rgba(0,0,0,0.15);
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+  z-index: 1050;
+  max-height: 380px;
+  overflow-y: auto;
+}
+.search-typeahead-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid #f5f8fa;
+  text-decoration: none !important;
+  color: var(--text-main);
+}
+.search-typeahead-item:hover {
+  background-color: #f5f8fa;
+}
+.search-typeahead-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.search-typeahead-text {
+  flex: 1;
+  min-width: 0;
+}
+.search-typeahead-name {
+  font-weight: bold;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+}
+.search-typeahead-handle {
+  color: #657786;
+  font-size: 12px;
+}
+
+/* Composer Quote Preview */
+.composer-quote-box {
+  position: relative;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-top: 8px;
+  background: #ffffff;
+}
+.composer-quote-remove {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: #657786;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+/* Tweet Detail View */
+.tweet-detail-modal-body {
+  padding: 20px 24px;
+}
+.tweet-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.tweet-detail-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  cursor: pointer;
+}
+.tweet-detail-name-wrap {
+  flex: 1;
+  min-width: 0;
+}
+.tweet-detail-name {
+  font-weight: bold;
+  font-size: 16px;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+.tweet-detail-handle {
+  color: #657786;
+  font-size: 14px;
+}
+.tweet-detail-text {
+  font-size: 19px;
+  line-height: 26px;
+  color: var(--text-main);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  margin: 14px 0;
+}
+.tweet-detail-time {
+  color: #657786;
+  font-size: 14px;
+  margin: 12px 0 8px 0;
+}
+.tweet-detail-stats {
+  display: flex;
+  gap: 20px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 14px;
+  color: #657786;
+}
+.tweet-detail-stats b {
+  color: var(--text-main);
+}
+.tweet-detail-actions {
+  display: flex;
+  justify-content: space-around;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+.tweet-detail-reply-wrap {
+  border-bottom: 1px solid var(--border-color);
+  background: #f5f8fa;
+  margin: 0 -24px;
+  padding: 14px 24px;
+}
+.tweet-detail-reply-inner {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.tweet-detail-reply-textarea {
+  flex: 1;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 13px;
+  resize: vertical;
+  min-height: 60px;
+  outline: none;
+}
+.tweet-detail-reply-textarea:focus {
+  border-color: var(--circus-red);
+}
+
+/* Notifications Card */
+.notif-item {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-color);
+  align-items: flex-start;
+  background: #ffffff;
+  transition: background 0.15s;
+}
+.notif-item:hover {
+  background: #f5f8fa;
+}
+.notif-icon-col {
+  width: 32px;
+  text-align: right;
+  flex-shrink: 0;
+}
+.notif-content-col {
+  flex: 1;
+  min-width: 0;
+}
+.notif-user-avatars {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+.notif-user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  cursor: pointer;
+}
+.notif-text {
+  font-size: 14px;
+  line-height: 18px;
+  color: var(--text-main);
+}
+.notif-post-snippet {
+  color: #657786;
+  font-size: 13px;
+  margin-top: 4px;
+}
 </style>
 </head>
 <body>
@@ -1216,7 +1441,7 @@ a:hover, a:focus {
         </a>
       </li>
       <li class="nav-item">
-        <a href="javascript:void(0)" class="nav-link" onclick="circusApp.showNotice(circusApp.t('no_new_notifs'))">
+        <a href="javascript:void(0)" class="nav-link" id="nav-item-notifs" onclick="circusApp.viewNotifications()">
           <svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
           <span id="txt-nav-notifs">Notificaciones</span>
         </a>
@@ -1241,10 +1466,11 @@ a:hover, a:focus {
     <!-- Right Controls -->
     <div class="nav-right">
       <form class="search-form" onsubmit="circusApp.handleSearch(event)">
-        <input type="text" class="search-input" id="search-query" placeholder="Buscar en el Circo...">
+        <input type="text" class="search-input" id="search-query" autocomplete="off" placeholder="Buscar en el Circo..." oninput="circusApp.onSearchInput(this)">
         <button type="submit" class="search-btn">
           <svg style="width:13px;height:13px;fill:currentColor" viewBox="0 0 24 24"><path d="M21.53 20.47l-3.66-3.66C19.195 15.24 20 13.214 20 11c0-4.97-4.03-9-9-9s-9 4.03-9 9 4.03 9 9 9c2.215 0 4.24-.804 5.808-2.13l3.66 3.66c.147.146.34.22.532.22s.385-.073.53-.22c.295-.293.295-.767.002-1.06zM3.5 11c0-4.135 3.365-7.5 7.5-7.5s7.5 3.365 7.5 7.5-3.365 7.5-7.5 7.5-7.5-3.365-7.5-7.5z"/></svg>
         </button>
+        <div class="search-typeahead-dropdown" id="search-typeahead-dropdown"></div>
       </form>
 
       ${
@@ -1410,7 +1636,7 @@ a:hover, a:focus {
         </li>
         <li class="profile-nav-tab" id="profile-tab-with-replies" onclick="circusApp.switchProfileTab('with-replies')">
           <span class="profile-nav-label" id="lbl-profile-replies">Posts y respuestas</span>
-          <span class="profile-nav-value">·</span>
+          <span class="profile-nav-value" id="profile-stat-replies">0</span>
         </li>
         <li class="profile-nav-tab" id="profile-tab-following" onclick="circusApp.switchProfileTab('following')">
           <span class="profile-nav-label" id="lbl-profile-following">Siguiendo</span>
@@ -1474,7 +1700,151 @@ a:hover, a:focus {
   </div>
 </div>
 
-<!-- Settings Modal -->
+<!-- VIEW: NOTIFICATIONS (2016 Style) -->
+<div id="notifications-view" style="display:none;margin-top:14px">
+  <div class="container main-container">
+    <div class="row">
+      <!-- Left sidebar: User card -->
+      <div class="col-md-3">
+        <div id="notif-user-card-wrap"></div>
+        <div class="module-card footer-info-card" style="margin-top:10px">
+          <p>© 2026 ${name}.</p>
+        </div>
+      </div>
+      <!-- Center: Notifications stream -->
+      <div class="col-md-6">
+        <div class="stream-header-tabs">
+          <div class="stream-tab active" id="tab-notif-all" onclick="circusApp.switchNotifFilter('all')">Todo</div>
+          <div class="stream-tab" id="tab-notif-mentions" onclick="circusApp.switchNotifFilter('mentions')">Menciones</div>
+        </div>
+        <div class="tweet-stream" id="notifications-stream">
+          <div style="padding:40px;text-align:center;color:#657786">...</div>
+        </div>
+      </div>
+      <!-- Right: Who to follow -->
+      <div class="col-md-3">
+        <div class="module-card who-to-follow-card">
+          <h4 class="trends-header" style="margin-bottom:12px" id="txt-notif-suggestions-header">A quién seguir</h4>
+          <div id="notif-suggestions-list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Dedicated Edit Profile Modal -->
+<div class="modal fade" id="edit-profile-modal" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document" style="max-width:540px">
+    <div class="modal-content" style="border-radius:8px;overflow:hidden">
+      <div class="modal-header" style="border-bottom:1px solid #e1e8ed;padding:12px 18px">
+        <button type="button" class="close" data-dismiss="modal">&times;</button>
+        <h4 class="modal-title" style="font-weight:bold" id="lbl-modal-edit-profile-title">Editar perfil</h4>
+      </div>
+      <form onsubmit="circusApp.saveProfileDetails(event)">
+        <div class="modal-body" style="padding:16px 20px">
+          <!-- Banner edit -->
+          <div style="position:relative;height:140px;background:#1da1f2;border-radius:4px;overflow:hidden;margin-bottom:36px;background-size:cover;background-position:center" id="edit-banner-preview">
+            <input type="file" id="edit-banner-file" accept="image/*" style="display:none" onchange="circusApp.onBannerFileSelect(event)">
+            <button type="button" class="btn btn-default btn-xs" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);opacity:0.9;font-weight:bold" onclick="document.getElementById('edit-banner-file').click()">
+              📷 <span id="lbl-btn-change-banner">Cambiar foto de encabezado</span>
+            </button>
+          </div>
+          <!-- Avatar edit (overlapping) -->
+          <div style="position:relative;margin-top:-76px;margin-bottom:16px;width:76px;height:76px">
+            <img id="edit-avatar-img" src="/public/icon-dark.png" style="width:76px;height:76px;border-radius:50%;border:3px solid #fff;object-fit:cover;background:#fff">
+            <input type="file" id="edit-avatar-file" accept="image/*" style="display:none" onchange="circusApp.onAvatarFileSelect(event)">
+            <button type="button" class="btn btn-default btn-xs" style="position:absolute;bottom:0;right:-4px;padding:3px 6px;border-radius:50%" onclick="document.getElementById('edit-avatar-file').click()" title="Cambiar avatar">
+              📷
+            </button>
+          </div>
+          <div class="form-group" style="margin-bottom:10px">
+            <label style="font-size:12px;font-weight:bold" id="lbl-edit-name">Nombre</label>
+            <input type="text" class="form-control" id="edit-profile-name" maxlength="50" required>
+          </div>
+          <div class="form-group" style="margin-bottom:10px">
+            <label style="font-size:12px;font-weight:bold" id="lbl-edit-bio">Biografía</label>
+            <textarea class="form-control" id="edit-profile-bio" rows="2" maxlength="160"></textarea>
+          </div>
+          <div class="row">
+            <div class="col-xs-6 form-group" style="margin-bottom:10px">
+              <label style="font-size:12px;font-weight:bold" id="lbl-edit-pronouns">Pronombres</label>
+              <input type="text" class="form-control" id="edit-profile-pronouns" maxlength="30" placeholder="ella/she, él/he, elle/they">
+            </div>
+            <div class="col-xs-6 form-group" style="margin-bottom:10px">
+              <label style="font-size:12px;font-weight:bold" id="lbl-edit-flag">Bandera / Identidad</label>
+              <select class="form-control" id="edit-profile-flag">
+                <option value="">(Ninguna)</option>
+                <option value="pride">Pride 🏳️‍🌈</option>
+                <option value="progress">Progress Pride</option>
+                <option value="trans">Transgender 🏳️‍⚧️</option>
+                <option value="bi">Bisexual</option>
+                <option value="pan">Pansexual</option>
+                <option value="lesbian">Lesbian</option>
+                <option value="gay">Gay</option>
+                <option value="nonbinary">Non-binary</option>
+                <option value="genderfluid">Genderfluid</option>
+                <option value="agender">Agender</option>
+                <option value="asexual">Asexual</option>
+                <option value="aromantic">Aromantic</option>
+                <option value="intersex">Intersex</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom:10px">
+            <label style="font-size:12px;font-weight:bold" id="lbl-edit-location">Ubicación</label>
+            <input type="text" class="form-control" id="edit-profile-location" maxlength="30">
+          </div>
+          <div class="form-group" style="margin-bottom:10px">
+            <label style="font-size:12px;font-weight:bold" id="lbl-edit-website">Sitio web</label>
+            <input type="url" class="form-control" id="edit-profile-website" maxlength="100" placeholder="https://...">
+          </div>
+        </div>
+        <div class="modal-footer" style="padding:10px 18px">
+          <button type="button" class="btn btn-default" data-dismiss="modal" id="btn-cancel-edit">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="btn-save-edit-profile" style="background:var(--circus-red);border:none;font-weight:bold;border-radius:100px;padding:6px 20px">Guardar cambios</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Tweet Detail Permalink View with Replies -->
+<div class="modal fade" id="tweet-detail-modal" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document" style="max-width:620px">
+    <div class="modal-content" style="border-radius:8px;overflow:hidden">
+      <div class="modal-header" style="border-bottom:1px solid #e1e8ed;padding:10px 16px">
+        <button type="button" class="close" data-dismiss="modal">&times;</button>
+        <h4 class="modal-title" style="font-weight:bold" id="lbl-tweet-detail-title">Post</h4>
+      </div>
+      <div class="modal-body tweet-detail-modal-body" id="tweet-detail-content">
+        <!-- Rendered by circusApp.openTweetDetail() -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Retweet or Quote Tweet Choice -->
+<div class="modal fade" id="repost-modal" tabindex="-1" role="dialog">
+  <div class="modal-dialog modal-sm" role="document" style="max-width:320px;margin-top:140px">
+    <div class="modal-content" style="border-radius:8px;overflow:hidden">
+      <div class="modal-header" style="padding:10px 14px;border-bottom:1px solid #e1e8ed">
+        <button type="button" class="close" data-dismiss="modal">&times;</button>
+        <h4 class="modal-title" style="font-size:14px;font-weight:bold" id="lbl-repost-modal-title">Retwittear</h4>
+      </div>
+      <div class="modal-body" style="padding:14px;display:flex;flex-direction:column;gap:8px">
+        <button type="button" class="btn btn-default btn-block" id="btn-action-retweet" style="font-weight:bold;display:flex;align-items:center;justify-content:center;gap:8px;padding:8px">
+          <svg style="width:16px;height:16px;fill:#17bf63" viewBox="0 0 24 24"><path d="M23.77 15.67c-.292-.293-.767-.293-1.06 0l-2.22 2.22V7.65c0-2.068-1.683-3.75-3.75-3.75h-5.85c-.414 0-.75.336-.75.75s.336.75.75.75h5.85c1.24 0 2.25 1.01 2.25 2.25v10.24l-2.22-2.22c-.293-.293-.768-.293-1.06 0s-.294.768 0 1.06l3.5 3.5c.145.147.337.22.53.22s.383-.072.53-.22l3.5-3.5c.294-.292.294-.767 0-1.06zm-10.66 3.28H7.26c-1.24 0-2.25-1.01-2.25-2.25V6.46l2.22 2.22c.148.147.34.22.532.22s.384-.073.53-.22c.293-.293.293-.768 0-1.06l-3.5-3.5c-.293-.294-.768-.294-1.06 0l-3.5 3.5c-.294.292-.294.767 0 1.06s.767.293 1.06 0l2.22-2.22V16.7c0 2.068 1.683 3.75 3.75 3.75h5.85c.414 0 .75-.336.75-.75s-.337-.75-.75-.75z"/></svg>
+          <span id="txt-modal-retweet">Retwittear</span>
+        </button>
+        <button type="button" class="btn btn-default btn-block" id="btn-action-quote" style="font-weight:bold;display:flex;align-items:center;justify-content:center;gap:8px;padding:8px">
+          <svg style="width:16px;height:16px;fill:#1da1f2" viewBox="0 0 24 24"><path d="M14.046 2.242l-4.148-.01h-.002c-4.374 0-7.8 3.427-7.8 7.802 0 4.098 3.186 7.206 7.465 7.37v3.828c0 .108.044.286.12.403.142.225.384.347.632.347.138 0 .277-.038.402-.118.264-.168 6.473-4.14 8.088-5.506 1.902-1.61 3.04-3.97 3.04-6.312v-.017c-.002-4.373-3.429-7.79-7.797-7.79zm6.297 7.788c0 1.906-.93 3.82-2.502 5.15-1.38 1.168-6.19 4.498-7.34 5.343v-2.923c0-.414-.336-.75-.75-.75-3.666-.14-6.197-2.73-6.197-6.03 0-3.55 2.77-6.302 6.3-6.302l4.147.01h.002c3.53 0 6.34 2.768 6.34 6.298v.014z"/></svg>
+          <span id="txt-modal-quote">Citar Tweet</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal fade" id="settings-modal" tabindex="-1" role="dialog">
   <div class="modal-dialog" role="document" style="max-width:550px">
     <div class="modal-content" style="border-radius:8px;overflow:hidden">
@@ -1701,7 +2071,23 @@ const I18N_DICT = {
     translating: "Traduciendo con IA...",
     translate_error: "No se pudo traducir este post.",
     now_following: "Ahora sigues a @",
-    unfollowed: "Dejaste de seguir a @"
+    unfollowed: "Dejaste de seguir a @",
+    verified_business: "Empresa verificada",
+    verified_government: "Cuenta de gobierno verificada",
+    quote_tweet: "Citar tweet",
+    pronouns: "Pronombres",
+    pride_flag: "Bandera de identidad",
+    change_avatar: "Cambiar avatar",
+    change_banner: "Cambiar encabezado",
+    replying_to: "En respuesta a",
+    tweet_your_reply: "Twittear tu respuesta",
+    search_for: "Buscar",
+    cancel: "Cancelar",
+    save_changes: "Guardar cambios",
+    attached_quote: "Cita adjunta",
+    mentions: "Menciones",
+    no_notifications: "No tienes notificaciones todavía.",
+    view_tweet: "Ver tweet"
   },
   en: {
     home: "Home",
@@ -1787,7 +2173,23 @@ const I18N_DICT = {
     translating: "Translating with AI...",
     translate_error: "Could not translate this post.",
     now_following: "You are now following @",
-    unfollowed: "You unfollowed @"
+    unfollowed: "You unfollowed @",
+    verified_business: "Verified Business Account",
+    verified_government: "Verified Government Account",
+    quote_tweet: "Quote Tweet",
+    pronouns: "Pronouns",
+    pride_flag: "Identity flag",
+    change_avatar: "Change avatar",
+    change_banner: "Change header",
+    replying_to: "Replying to",
+    tweet_your_reply: "Tweet your reply",
+    search_for: "Search for",
+    cancel: "Cancel",
+    save_changes: "Save changes",
+    attached_quote: "Attached quote",
+    mentions: "Mentions",
+    no_notifications: "You don't have any notifications yet.",
+    view_tweet: "View tweet"
   }
 };
 
@@ -1821,6 +2223,8 @@ const circusApp = {
     if (p === 'settings' || p.startsWith('settings/')) {
       this.loadTimeline();
       this.openSettingsModal(p === 'settings/language' ? 'language' : 'profile');
+    } else if (p === 'notifications') {
+      this.viewNotifications();
     } else if (p && !p.includes('/') && p !== 'home' && p !== 'timeline') {
       this.viewProfile(p);
     } else {
@@ -1830,19 +2234,24 @@ const circusApp = {
     // Handle back / forward
     window.addEventListener('popstate', () => {
       const path = window.location.pathname.replace(/^\\/+/, '');
-      if (path && !path.includes('/') && path !== 'home' && path !== 'timeline' && !path.startsWith('settings')) {
+      if (path === 'notifications') {
+        this.viewNotifications();
+      } else if (path && !path.includes('/') && path !== 'home' && path !== 'timeline' && !path.startsWith('settings')) {
         this.viewProfile(path);
       } else {
         this.goHome();
       }
     });
 
-    // Close user dropdown on click outside
+    // Close user dropdown and search dropdown on click outside
     document.addEventListener('click', (e) => {
       const drop = document.getElementById('user-nav-dropdown');
       const btn = document.getElementById('nav-avatar-btn');
       if (drop && drop.classList.contains('show') && !drop.contains(e.target) && (!btn || !btn.contains(e.target))) {
         drop.classList.remove('show');
+      }
+      if (!e.target.closest('.search-form')) {
+        this.hideSearchDropdown();
       }
     });
   },
@@ -1889,6 +2298,22 @@ const circusApp = {
     setTxt('lbl-settings-lang', 'app_language');
     setTxt('btn-save-lang', 'save_language');
     setTxt('txt-tools-desc', 'tools_desc');
+    setTxt('lbl-modal-edit-profile-title', 'edit_profile');
+    setTxt('lbl-btn-change-banner', 'change_banner');
+    setTxt('lbl-edit-name', 'display_name');
+    setTxt('lbl-edit-bio', 'bio');
+    setTxt('lbl-edit-pronouns', 'pronouns');
+    setTxt('lbl-edit-flag', 'pride_flag');
+    setTxt('lbl-edit-location', 'location');
+    setTxt('lbl-edit-website', 'website');
+    setTxt('btn-cancel-edit', 'cancel');
+    setTxt('btn-save-edit-profile', 'save_changes');
+    setTxt('tab-notif-all', 'all');
+    setTxt('tab-notif-mentions', 'mentions');
+    setTxt('txt-notif-suggestions-header', 'who_to_follow');
+    setTxt('lbl-repost-modal-title', 'retweet');
+    setTxt('txt-modal-retweet', 'retweet');
+    setTxt('txt-modal-quote', 'quote_tweet');
 
     const sq = document.getElementById('search-query');
     if (sq) sq.placeholder = this.t('search_placeholder');
@@ -1904,24 +2329,75 @@ const circusApp = {
   decodeEntities(str) {
     if (!str) return '';
     return str
-      .replace(/&#39;/g, "'")
+      .replace(/&#(?:39|039|x27);/gi, "'")
+      .replace(/&#(?:34|034|x22);/gi, '"')
+      .replace(/&#(?:38|038|x26);/gi, '&')
+      .replace(/&#(?:60|060|x3c);/gi, '<')
+      .replace(/&#(?:62|062|x3e);/gi, '>')
       .replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'")
       .replace(/&lt;/g, '<')
       .replace(/&gt;/g, '>')
       .replace(/&amp;/g, '&');
+  },
+
+  isSquareAvatar(u) {
+    if (!u) return false;
+    const vt = u.verified_type;
+    return vt === 'business' || vt === 'gold' || vt === 'government' || vt === 'government_individual';
+  },
+
+  getVerifiedBadge(type) {
+    if (!type) return null;
+    let color = '#1da1f2';
+    let title = this.t('verified_account');
+    let typeName = this.t('verified_account');
+
+    if (type === 'business' || type === 'gold') {
+      color = '#e5a93c';
+      title = this.t('verified_business');
+      typeName = this.t('verified_business');
+    } else if (type === 'government' || type === 'government_individual') {
+      color = '#829aab';
+      title = this.t('verified_government');
+      typeName = this.t('verified_government');
+    }
+
+    const svg = '<svg class="circus-badge-check" title="' + this.escape(title) + '" viewBox="0 0 24 24"><path fill="' + color + '" d="M22.5 12.5c0-1.58-.875-2.95-2.148-3.6.154-.435.238-.905.238-1.4 0-2.21-1.79-4-4-4-.495 0-.965.084-1.4.238C14.55 2.475 13.18 1.6 11.6 1.6c-1.58 0-2.95.875-3.6 2.148-.435-.154-.905-.238-1.4-.238-2.21 0-4 1.79-4 4 0 .495.084.965.238 1.4C1.575 10.45.7 11.82.7 13.4c0 1.58.875 2.95 2.148 3.6-.154.435-.238.905-.238 1.4 0 2.21 1.79 4 4 4 .495 0 .965-.084 1.4-.238 1.05 1.273 2.42 2.148 4 2.148 1.58 0 2.95-.875 3.6-2.148.435.154.905.238 1.4.238 2.21 0 4-1.79 4-4 0-.495-.084-.965-.238-1.4 1.273-1.05 2.148-2.42 2.148-4z"/><path fill="#ffffff" d="M10.2 16.2l-3.5-3.5 1.4-1.4 2.1 2.1 5.3-5.3 1.4 1.4z"/></svg>';
+
+    return { color, title, typeName, svg };
+  },
+
+  getLanguageName(code) {
+    if (!code) return '';
+    const c = code.toLowerCase().slice(0, 2);
+    const lang = (this.viewer?.language || window.__LANG__ || 'es').slice(0, 2).toLowerCase();
+    const names = {
+      es: { es: 'español', en: 'inglés', fr: 'francés', de: 'alemán', it: 'italiano', pt: 'portugués', ja: 'japonés', zh: 'chino', ru: 'ruso', ar: 'árabe', ko: 'coreano' },
+      en: { es: 'Spanish', en: 'English', fr: 'French', de: 'German', it: 'Italian', pt: 'Portuguese', ja: 'Japanese', zh: 'Chinese', ru: 'Russian', ar: 'Arabic', ko: 'Korean' }
+    };
+    const dict = names[lang] || names.es;
+    return dict[c] || code.toUpperCase();
+  },
+
+  formatTranslationNotice(src, tgt) {
+    const srcName = this.getLanguageName(src);
+    const tgtName = this.getLanguageName(tgt);
+    const lang = (this.viewer?.language || window.__LANG__ || 'es').slice(0, 2).toLowerCase();
+    if (lang === 'en') {
+      return 'Translated from ' + srcName + ' to ' + tgtName;
+    }
+    return 'Traducido del ' + srcName + ' al ' + tgtName;
   },
 
   renderBadges(u) {
     if (!u) return '';
     let html = '';
 
-    // 1. Verified badges
-    if (u.verified_type === 'business' || u.verified_type === 'gold') {
-      html += '<svg class="circus-badge-check verified-gold" title="Organización verificada" viewBox="0 0 24 24"><rect width="20" height="20" x="2" y="2" rx="5" fill="#e5a93c"/><path fill="#ffffff" d="M10.2 15.2l-3.5-3.5 1.4-1.4 2.1 2.1 5.3-5.3 1.4 1.4z"/></svg>';
-    } else if (u.verified_type === 'government' || u.verified_type === 'government_individual') {
-      html += '<svg class="circus-badge-check verified-grey" title="Gobierno o figura oficial" viewBox="0 0 24 24"><path fill="#829aab" d="M22.5 12.5c0-1.58-.875-2.95-2.148-3.6.154-.435.238-.905.238-1.4 0-2.21-1.79-4-4-4-.495 0-.965.084-1.4.238C14.55 2.475 13.18 1.6 11.6 1.6c-1.58 0-2.95.875-3.6 2.148-.435-.154-.905-.238-1.4-.238-2.21 0-4 1.79-4 4 0 .495.084.965.238 1.4C1.575 10.45.7 11.82.7 13.4c0 1.58.875 2.95 2.148 3.6-.154.435-.238.905-.238 1.4 0 2.21 1.79 4 4 4 .495 0 .965-.084 1.4-.238 1.05 1.273 2.42 2.148 4 2.148 1.58 0 2.95-.875 3.6-2.148.435.154.905.238 1.4.238 2.21 0 4-1.79 4-4 0-.495-.084-.965-.238-1.4 1.273-1.05 2.148-2.42 2.148-4z"/><path fill="#ffffff" d="M10.2 16.2l-3.5-3.5 1.4-1.4 2.1 2.1 5.3-5.3 1.4 1.4z"/></svg>';
-    } else if (u.verified_type === 'blue' || u.verified_type === 'legacy' || u.verified_type === true) {
-      html += '<svg class="circus-badge-check verified-blue" title="Cuenta verificada" viewBox="0 0 24 24"><path fill="#1da1f2" d="M22.5 12.5c0-1.58-.875-2.95-2.148-3.6.154-.435.238-.905.238-1.4 0-2.21-1.79-4-4-4-.495 0-.965.084-1.4.238C14.55 2.475 13.18 1.6 11.6 1.6c-1.58 0-2.95.875-3.6 2.148-.435-.154-.905-.238-1.4-.238-2.21 0-4 1.79-4 4 0 .495.084.965.238 1.4C1.575 10.45.7 11.82.7 13.4c0 1.58.875 2.95 2.148 3.6-.154.435-.238.905-.238 1.4 0 2.21 1.79 4 4 4 .495 0 .965-.084 1.4-.238 1.05 1.273 2.42 2.148 4 2.148 1.58 0 2.95-.875 3.6-2.148.435.154.905.238 1.4.238 2.21 0 4-1.79 4-4 0-.495-.084-.965-.238-1.4 1.273-1.05 2.148-2.42 2.148-4z"/><path fill="#ffffff" d="M10.2 16.2l-3.5-3.5 1.4-1.4 2.1 2.1 5.3-5.3 1.4 1.4z"/></svg>';
+    // 1. Verified badges (Exact same starburst checkmark shape for all three types!)
+    if (u.verified_type) {
+      const b = this.getVerifiedBadge(u.verified_type);
+      if (b) html += b.svg;
     }
 
     // 2. Organization badge
@@ -1948,9 +2424,14 @@ const circusApp = {
       html += '<svg class="circus-badge-icon" title="Traductor oficial" style="fill:#1da1f2" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>';
     }
 
-    // 6. Flag
+    // 6. Flags (supports multiple pride / identity flags)
     if (u.flag) {
-      html += '<img class="circus-badge-flag" src="/public/flag-' + this.escape(u.flag) + '.svg" alt="Bandera">';
+      u.flag.split(',').forEach(f => {
+        const flagId = f.trim();
+        if (flagId) {
+          html += '<img class="circus-badge-flag" src="/public/flag-' + this.escape(flagId) + '.svg" alt="Bandera">';
+        }
+      });
     }
 
     // 7. Federated Instance Globe
@@ -2059,10 +2540,11 @@ const circusApp = {
     el.innerHTML = \`
       <div class="composer-box">
         <div class="composer-top">
-          <img class="composer-avatar" src="\${this.viewer.avatar_url || '/public/icon-dark.png'}" alt="\${this.viewer.screen_name}">
+          <img class="composer-avatar \${this.isSquareAvatar(this.viewer) ? 'avatar-square' : ''}" src="\${this.viewer.avatar_url || '/public/icon-dark.png'}" alt="\${this.viewer.screen_name}">
           <div class="composer-input-wrapper">
             <textarea class="composer-textarea" id="tweet-textarea" placeholder="\${this.t('composer_placeholder')}" oninput="circusApp.onComposerInput(this)"></textarea>
             
+            <div id="composer-quote-preview"></div>
             <div class="composer-media-previews" id="composer-media-previews"></div>
 
             <div class="composer-poll-form" id="composer-poll-form">
@@ -2111,7 +2593,7 @@ const circusApp = {
     if (remaining < 20 && remaining >= 0) counter.classList.add('warning');
     if (remaining < 0) counter.classList.add('danger');
 
-    btn.disabled = remaining < 0 || (len === 0 && this.composerMediaIds.length === 0);
+    btn.disabled = remaining < 0 || (len === 0 && this.composerMediaIds.length === 0 && !this.composerQuotePost);
   },
 
   focusComposer() {
@@ -2203,25 +2685,31 @@ const circusApp = {
       poll = { choices, minutes: 1440 };
     }
 
-    if (!text && this.composerMediaIds.length === 0 && !poll) {
+    if (!text && this.composerMediaIds.length === 0 && !poll && !this.composerQuotePost) {
       return this.showNotice(this.t('write_something'));
     }
 
     this.showNotice(this.t('publishing'));
     try {
+      const payload = {
+        text,
+        media_ids: this.composerMediaIds,
+        poll
+      };
+      if (this.composerQuotePost) {
+        payload.quote = this.composerQuotePost.id;
+      }
       const res = await fetch('/api/v1/posts', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          text,
-          media_ids: this.composerMediaIds,
-          poll
-        })
+        body: JSON.stringify(payload)
       });
       const json = await res.json();
       if (json.data) {
         if (textarea) textarea.value = '';
         this.composerMediaIds = [];
+        this.composerQuotePost = null;
+        this.renderComposerQuotePreview();
         this.togglePoll(false);
         this.renderMediaPreviews();
         this.showNotice(this.t('published'));
@@ -2379,19 +2867,19 @@ const circusApp = {
       : 'M12 21.638h-.014C9.403 21.59 1.95 14.856 1.95 8.478c0-3.064 2.525-5.754 5.403-5.754 2.29 0 3.83 1.58 4.646 2.73.814-1.148 2.354-2.73 4.645-2.73 2.88 0 5.404 2.69 5.404 5.755 0 6.376-7.454 13.11-10.037 13.157H12zM7.354 4.224c-2.08 0-3.903 1.988-3.903 4.255 0 5.74 7.034 11.596 8.55 11.658 1.52-.062 8.55-5.917 8.55-11.658 0-2.267-1.823-4.255-3.903-4.255-2.528 0-3.94 2.936-3.952 2.965-.23.562-1.156.562-1.387 0-.014-.03-1.425-2.965-3.954-2.965z';
 
     return \`
-      <div class="tweet-card" id="tweet-\${p.id}">
+      <div class="tweet-card" id="tweet-\${p.id}" onclick="circusApp.onTweetCardClick(event, '\${p.id}')" style="cursor:pointer">
         \${repostHtml}
         <div class="tweet-main">
           <div class="tweet-avatar-wrap">
-            <img class="tweet-avatar" src="\${author.avatar_url || '/public/icon-dark.png'}" alt="\${author.screen_name}" onclick="circusApp.viewProfile('\${author.screen_name}')">
+            <img class="tweet-avatar \${this.isSquareAvatar(author) ? 'avatar-square' : ''}" src="\${author.avatar_url || '/public/icon-dark.png'}" alt="\${author.screen_name}" onclick="event.stopPropagation();circusApp.viewProfile('\${author.screen_name}')">
           </div>
           <div class="tweet-content">
             <div class="tweet-header">
-              <span class="tweet-author-name" onclick="circusApp.viewProfile('\${author.screen_name}')">
+              <span class="tweet-author-name" onclick="event.stopPropagation();circusApp.viewProfile('\${author.screen_name}')">
                 \${this.escape(author.name)}
               </span>
               \${this.renderBadges(author)}
-              <span class="tweet-author-handle">@\${this.escape(author.screen_name)}</span>
+              <span class="tweet-author-handle" onclick="event.stopPropagation();circusApp.viewProfile('\${author.screen_name}')">@\${this.escape(author.screen_name)}</span>
               <span class="tweet-time">· \${timeAgo}</span>
             </div>
             <div class="tweet-body" id="text-\${p.id}">\${formattedText}</div>
@@ -2400,27 +2888,27 @@ const circusApp = {
             \${pollHtml}
             
             <div class="tweet-actions">
-              <button class="action-btn" onclick="circusApp.openReplyModal('\${p.id}', '\${author.screen_name}')" title="\${this.t('reply')}">
+              <button class="action-btn" onclick="event.stopPropagation();circusApp.openTweetDetail('\${p.id}', true)" title="\${this.t('reply')}">
                 <svg class="action-icon" viewBox="0 0 24 24"><path d="M14.046 2.242l-4.148-.01h-.002c-4.374 0-7.8 3.427-7.8 7.802 0 4.098 3.186 7.206 7.465 7.37v3.828c0 .108.044.286.12.403.142.225.384.347.632.347.138 0 .277-.038.402-.118.264-.168 6.473-4.14 8.088-5.506 1.902-1.61 3.04-3.97 3.04-6.312v-.017c-.002-4.373-3.429-7.79-7.797-7.79zm6.297 7.788c0 1.906-.93 3.82-2.502 5.15-1.38 1.168-6.19 4.498-7.34 5.343v-2.923c0-.414-.336-.75-.75-.75-3.666-.14-6.197-2.73-6.197-6.03 0-3.55 2.77-6.302 6.3-6.302l4.147.01h.002c3.53 0 6.34 2.768 6.34 6.298v.014z"/></svg>
                 <span>\${p.counts?.replies || 0}</span>
               </button>
 
-              <button class="action-btn \${isReposted ? 'reposted' : ''}" onclick="circusApp.toggleRepost('\${p.id}', \${!!isReposted})" title="\${this.t('retweet')}">
+              <button class="action-btn \${isReposted ? 'reposted' : ''}" onclick="event.stopPropagation();circusApp.onRepostBtnClick(event, '\${p.id}', \${!!isReposted})" title="\${this.t('retweet')}">
                 <svg class="action-icon" viewBox="0 0 24 24"><path d="M23.77 15.67c-.292-.293-.767-.293-1.06 0l-2.22 2.22V7.65c0-2.068-1.683-3.75-3.75-3.75h-5.85c-.414 0-.75.336-.75.75s.336.75.75.75h5.85c1.24 0 2.25 1.01 2.25 2.25v10.24l-2.22-2.22c-.293-.293-.768-.293-1.06 0s-.294.768 0 1.06l3.5 3.5c.145.147.337.22.53.22s.383-.072.53-.22l3.5-3.5c.294-.292.294-.767 0-1.06zm-10.66 3.28H7.26c-1.24 0-2.25-1.01-2.25-2.25V6.46l2.22 2.22c.148.147.34.22.532.22s.384-.073.53-.22c.293-.293.293-.768 0-1.06l-3.5-3.5c-.293-.294-.768-.294-1.06 0l-3.5 3.5c-.294.292-.294.767 0 1.06s.767.293 1.06 0l2.22-2.22V16.7c0 2.068 1.683 3.75 3.75 3.75h5.85c.414 0 .75-.336.75-.75s-.337-.75-.75-.75z"/></svg>
                 <span>\${p.counts?.reposts || 0}</span>
               </button>
 
-              <button class="action-btn \${isLiked ? 'liked' : ''}" onclick="circusApp.toggleLike('\${p.id}', \${!!isLiked})" title="\${this.t('like')}">
+              <button class="action-btn \${isLiked ? 'liked' : ''}" onclick="event.stopPropagation();circusApp.toggleLike('\${p.id}', \${!!isLiked})" title="\${this.t('like')}">
                 <svg class="action-icon" viewBox="0 0 24 24"><path d="\${heartPath}"/></svg>
                 <span>\${p.counts?.likes || 0}</span>
               </button>
 
-              <button class="action-btn" onclick="circusApp.translateTweet('\${p.id}')" title="\${this.t('translate')}">
+              <button class="action-btn" onclick="event.stopPropagation();circusApp.translateTweet('\${p.id}')" title="\${this.t('translate')}">
                 <svg class="action-icon" viewBox="0 0 24 24"><path d="M12.87 15.07l-2.54-2.51.03-.03c1.74-1.94 2.98-4.17 3.71-6.53H17V4h-7V2H8v2H1v1.99h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/></svg>
               </button>
 
               \${canDelete ? \`
-                <button class="action-btn" onclick="circusApp.deletePost('\${p.id}')" title="Delete">
+                <button class="action-btn" onclick="event.stopPropagation();circusApp.deletePost('\${p.id}')" title="Delete">
                   <svg class="action-icon" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
                 </button>
               \` : ''}
@@ -2495,12 +2983,8 @@ const circusApp = {
       const json = await res.json();
       const translated = json.data?.translated_text || json.data?.text;
       if (json.data && translated) {
-        textEl.innerHTML = \`
-          <div>\${this.formatTweetText(translated)}</div>
-          <div style="font-size:11px;color:#657786;margin-top:4px">
-            🌐 \${this.t('translated_from')} <b>\${(json.data.source_lang || '').toUpperCase()}</b> \${this.t('to')} <b>\${(json.data.target_lang || this.viewer?.language || window.__LANG__ || 'es').toUpperCase()}</b>
-          </div>
-        \`;
+        const notice = this.formatTranslationNotice(json.data.source_lang, json.data.target_lang || this.viewer?.language || window.__LANG__ || 'es');
+        textEl.innerHTML = '<div style="white-space:pre-wrap">' + this.formatTweetText(translated) + '</div><div class="tweet-translation-notice">🌐 ' + this.escape(notice) + '</div>';
       } else {
         this.showNotice(this.t('translate_error'));
       }
@@ -2632,7 +3116,10 @@ const circusApp = {
     window.scrollTo(0, 0);
 
     document.getElementById('nav-item-home')?.classList.remove('active');
+    document.getElementById('nav-item-notifs')?.classList.remove('active');
     document.getElementById('home-view').style.display = 'none';
+    const notifView = document.getElementById('notifications-view');
+    if (notifView) notifView.style.display = 'none';
     const profileView = document.getElementById('profile-view');
     profileView.style.display = 'block';
 
@@ -2683,12 +3170,27 @@ const circusApp = {
         canopy.classList.add('has-banner');
       }
 
-      document.getElementById('profile-large-avatar').src = u.avatar_url || '/public/icon-dark.png';
+      const avatarEl = document.getElementById('profile-large-avatar');
+      avatarEl.src = u.avatar_url || '/public/icon-dark.png';
+      if (this.isSquareAvatar(u)) {
+        avatarEl.classList.add('avatar-square');
+      } else {
+        avatarEl.classList.remove('avatar-square');
+      }
+
       document.getElementById('profile-display-name').innerHTML = this.escape(u.name) + ' ' + this.renderBadges(u);
-      document.getElementById('profile-display-handle').textContent = '@' + u.screen_name;
+      let handleHtml = '@' + this.escape(u.screen_name);
+      if (u.pronouns) {
+        handleHtml += ' <span style="font-size:12px;color:var(--text-muted);font-weight:normal">(' + this.escape(u.pronouns) + ')</span>';
+      }
+      document.getElementById('profile-display-handle').innerHTML = handleHtml;
       document.getElementById('profile-display-bio').innerHTML = this.formatTweetText(u.bio || '');
 
-      document.getElementById('profile-stat-posts').textContent = u.counts?.posts || 0;
+      const rootPosts = u.counts?.root_posts ?? u.counts?.posts ?? 0;
+      const allPosts = u.counts?.posts_with_replies ?? u.counts?.posts ?? 0;
+      document.getElementById('profile-stat-posts').textContent = rootPosts;
+      const repStat = document.getElementById('profile-stat-replies');
+      if (repStat) repStat.textContent = allPosts;
       document.getElementById('profile-stat-following').textContent = u.counts?.following || 0;
       document.getElementById('profile-stat-followers').textContent = u.counts?.followers || 0;
       document.getElementById('profile-stat-likes').textContent = u.counts?.likes || 0;
@@ -2710,14 +3212,17 @@ const circusApp = {
         metaHtml += '<li><img src="' + this.escape(u.org.avatar_url || '/public/icon-dark.png') + '" style="width:16px;height:16px;border-radius:3px;vertical-align:-3px;margin-right:6px"><span>' + this.t('affiliated_to') + ' <a href="javascript:void(0)" onclick="circusApp.viewProfile(\\'' + this.escape(u.org.screen_name) + '\\')"><b>@' + this.escape(u.org.screen_name) + '</b></a></span></li>';
       }
 
-      // Verification status / date
+      // Verification status / date / type
       if (u.verified_type) {
-        metaHtml += '<li><svg class="profile-meta-icon" style="fill:#e5a93c" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15l-5-5 1.41-1.41L11 14.17l7.59-7.59L20 8l-9 9z"/></svg><span>' + (u.verified_at ? this.t('verified_since') + ' ' + this.formatJoinedDate(u.verified_at) : this.t('verified_account')) + '</span></li>';
+        const b = this.getVerifiedBadge(u.verified_type);
+        const dateStr = u.verified_at ? ' · ' + this.t('verified_since') + ' ' + this.formatJoinedDate(u.verified_at) : '';
+        metaHtml += '<li>' + b.svg + '<span style="vertical-align:middle;margin-left:4px">' + b.typeName + dateStr + '</span></li>';
       }
 
-      // Country / Region
-      if (u.country) {
-        metaHtml += '<li><svg class="profile-meta-icon" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg><span>' + this.t('region') + ': <b>' + this.escape(u.country.toUpperCase()) + '</b></span></li>';
+      // Country / Assigned Region
+      const reg = u.region || u.country;
+      if (reg) {
+        metaHtml += '<li><svg class="profile-meta-icon" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg><span>' + this.t('region') + ': <b>' + this.escape(reg) + '</b></span></li>';
       }
 
       // Instance
@@ -2732,7 +3237,7 @@ const circusApp = {
       const actionsEl = document.getElementById('profile-nav-actions');
 
       if (isMe) {
-        actionsEl.innerHTML = '<button class="btn-edit-profile" onclick="circusApp.openSettingsModal(\\'profile\\')">' + this.t('edit_profile') + '</button>';
+        actionsEl.innerHTML = '<button class="btn-edit-profile" onclick="circusApp.openEditProfileModal()">' + this.t('edit_profile') + '</button>';
       } else if (this.viewer) {
         actionsEl.innerHTML = '<button class="btn-follow ' + (isFollowing ? 'following' : '') + '" onclick="circusApp.toggleFollow(\\'' + u.screen_name + '\\', ' + !!isFollowing + ', \\'' + u.id + '\\')">' + (isFollowing ? this.t('following_btn') : this.t('follow')) + '</button>';
         document.getElementById('profile-action-btn-wrap').innerHTML = '<button class="btn btn-default btn-sm btn-block" style="border-radius:100px;font-weight:bold;margin-top:10px" onclick="circusApp.tweetTo(\\'' + u.screen_name + '\\')">' + this.t('tweet_to') + ' @' + this.escape(u.screen_name) + '</button>';
@@ -2891,8 +3396,11 @@ const circusApp = {
   goHome() {
     window.scrollTo(0, 0);
     document.getElementById('profile-view').style.display = 'none';
+    const notifView = document.getElementById('notifications-view');
+    if (notifView) notifView.style.display = 'none';
     document.getElementById('home-view').style.display = 'block';
     document.getElementById('nav-item-home')?.classList.add('active');
+    document.getElementById('nav-item-notifs')?.classList.remove('active');
     if (window.location.pathname !== '/') {
       history.pushState({ type: 'home' }, '', '/');
     }
@@ -3048,16 +3556,666 @@ const circusApp = {
     window.location.href = '/logout';
   },
 
+  /* Tweet Card Click & Detail View */
+  onTweetCardClick(e, postId) {
+    if (e.target.closest('a, button, input, textarea, video, .quote-card, .poll-choice-btn, .circus-badge-org')) return;
+    this.openTweetDetail(postId, false);
+  },
+
+  async openTweetDetail(postId, focusReply = false) {
+    const modal = document.getElementById('tweet-detail-modal');
+    const content = document.getElementById('tweet-detail-content');
+    if (!modal || !content) return;
+
+    content.innerHTML = '<div style="padding:40px;text-align:center;color:#657786">...</div>';
+    $('#tweet-detail-modal').modal('show');
+
+    try {
+      const [postRes, repliesRes] = await Promise.all([
+        fetch('/api/v1/posts/' + postId),
+        fetch('/api/v1/posts/' + postId + '/replies')
+      ]);
+      const postJson = await postRes.json();
+      const repliesJson = await repliesRes.json();
+
+      const p = postJson.data;
+      if (!p) {
+        content.innerHTML = '<div style="padding:30px;text-align:center;color:#657786">Post not found</div>';
+        return;
+      }
+
+      const author = p.author || {};
+      const repliesList = repliesJson.data || [];
+      const isLiked = p.viewer && p.viewer.liked;
+      const isReposted = p.viewer && p.viewer.reposted;
+      const canDelete = this.viewer && author.id === this.viewer.id;
+      const heartPath = isLiked
+        ? 'M12 21.638h-.014C9.403 21.59 1.95 14.856 1.95 8.478c0-3.064 2.525-5.754 5.403-5.754 2.29 0 3.83 1.58 4.646 2.73.814-1.148 2.354-2.73 4.645-2.73 2.88 0 5.404 2.69 5.404 5.755 0 6.376-7.454 13.11-10.037 13.157H12z'
+        : 'M12 21.638h-.014C9.403 21.59 1.95 14.856 1.95 8.478c0-3.064 2.525-5.754 5.403-5.754 2.29 0 3.83 1.58 4.646 2.73.814-1.148 2.354-2.73 4.645-2.73 2.88 0 5.404 2.69 5.404 5.755 0 6.376-7.454 13.11-10.037 13.157H12zM7.354 4.224c-2.08 0-3.903 1.988-3.903 4.255 0 5.74 7.034 11.596 8.55 11.658 1.52-.062 8.55-5.917 8.55-11.658 0-2.267-1.823-4.255-3.903-4.255-2.528 0-3.94 2.936-3.952 2.965-.23.562-1.156.562-1.387 0-.014-.03-1.425-2.965-3.954-2.965z';
+
+      const dateObj = new Date(p.created_at);
+      const timeStr = dateObj.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      const dateStr = dateObj.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+
+      let mediaHtml = '';
+      const media = p.media || [];
+      if (media.length > 0) {
+        const video = media.find(m => m.type === 'video');
+        if (video) {
+          mediaHtml = \`<video class="tweet-video-player" src="\${video.url}" poster="\${video.poster_url || ''}" controls playsinline preload="metadata" style="margin-top:12px"></video>\`;
+        } else {
+          const count = Math.min(media.length, 4);
+          mediaHtml = \`<div class="tweet-media-grid grid-\${count}" style="margin-top:12px">\`;
+          media.slice(0, 4).forEach(m => {
+            mediaHtml += \`<img class="media-item" src="\${m.url}" loading="lazy" onclick="circusApp.openLightbox('\${m.url}')">\`;
+          });
+          mediaHtml += \`</div>\`;
+        }
+      }
+
+      let quoteHtml = '';
+      if (p.quoted) {
+        const q = p.quoted;
+        const qAuthor = q.author || {};
+        quoteHtml = \`
+          <div class="quote-card" onclick="circusApp.viewProfile('\${qAuthor.screen_name}')" style="margin-top:12px">
+            <div class="quote-header">
+              <b>\${this.escape(qAuthor.name)}</b>
+              \${this.renderBadges(qAuthor)}
+              <span class="tweet-author-handle">@\${this.escape(qAuthor.screen_name)}</span>
+            </div>
+            <div style="font-size:13px;line-height:18px">\${this.formatTweetText(q.text)}</div>
+          </div>
+        \`;
+      }
+
+      let pollHtml = '';
+      if (p.poll) {
+        const poll = p.poll;
+        const choices = poll.choices || [];
+        const counts = poll.counts || [];
+        const total = poll.total_votes || 0;
+        const hasVoted = poll.voted !== null && poll.voted !== undefined;
+
+        pollHtml = '<div class="tweet-poll-box" style="margin-top:12px">';
+        choices.forEach((choice, idx) => {
+          const choiceNum = idx + 1;
+          const count = counts[idx] || 0;
+          const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+          if (!hasVoted && !poll.closed && circusApp.viewer) {
+            pollHtml += \`<button class="poll-choice-btn" onclick="circusApp.votePoll('\${poll.id}', \${choiceNum})">\${this.escape(choice)}</button>\`;
+          } else {
+            pollHtml += \`
+              <div class="poll-result-bar">
+                <div class="poll-bar-fill \${poll.voted === choiceNum ? 'voted' : ''}" style="width:\${pct}%"></div>
+                <div class="poll-bar-text">
+                  <span><b>\${this.escape(choice)}</b> \${poll.voted === choiceNum ? '✓' : ''}</span>
+                  <span><b>\${pct}%</b> (\${count})</span>
+                </div>
+              </div>
+            \`;
+          }
+        });
+        pollHtml += \`<div style="font-size:12px;color:#657786;margin-top:6px">\${total} votes \${poll.closed ? '· Final' : ''}</div></div>\`;
+      }
+
+      let repliesHtml = '';
+      if (repliesList.length === 0) {
+        repliesHtml = '<div style="padding:24px;text-align:center;color:#657786;font-size:13px">No hay respuestas aún. Sé el primero en responder.</div>';
+      } else {
+        repliesList.forEach(rep => {
+          repliesHtml += this.renderTweetCard(rep);
+        });
+      }
+
+      content.innerHTML = \`
+        <div class="tweet-detail-container">
+          <div class="tweet-detail-header">
+            <img class="tweet-detail-avatar \${this.isSquareAvatar(author) ? 'avatar-square' : ''}" src="\${author.avatar_url || '/public/icon-dark.png'}" onclick="$('#tweet-detail-modal').modal('hide');circusApp.viewProfile('\${author.screen_name}')">
+            <div class="tweet-detail-name-wrap" onclick="$('#tweet-detail-modal').modal('hide');circusApp.viewProfile('\${author.screen_name}')" style="cursor:pointer">
+              <div class="tweet-detail-name">
+                \${this.escape(author.name)}
+                \${this.renderBadges(author)}
+              </div>
+              <div class="tweet-detail-handle">@\${this.escape(author.screen_name)}</div>
+            </div>
+            \${this.viewer && author.id !== this.viewer.id ? \`
+              <button class="btn-follow \${author.viewer?.following ? 'following' : ''}" onclick="circusApp.toggleFollow('\${author.screen_name}', \${!!author.viewer?.following}, '\${author.id}')">
+                \${author.viewer?.following ? this.t('following_btn') : this.t('follow')}
+              </button>
+            \` : ''}
+          </div>
+
+          <div class="tweet-detail-text" id="detail-text-\${p.id}">\${this.formatTweetText(p.text || '')}</div>
+          \${mediaHtml}
+          \${quoteHtml}
+          \${pollHtml}
+
+          <div class="tweet-detail-time">
+            \${timeStr} · \${dateStr}
+          </div>
+
+          <div class="tweet-detail-stats">
+            <span><b>\${p.counts?.reposts || 0}</b> \${this.t('retweet')}s</span>
+            <span><b>\${p.counts?.likes || 0}</b> \${this.t('like')}s</span>
+          </div>
+
+          <div class="tweet-detail-actions">
+            <button class="action-btn" onclick="document.getElementById('detail-reply-textarea')?.focus()" title="\${this.t('reply')}">
+              <svg class="action-icon" viewBox="0 0 24 24"><path d="M14.046 2.242l-4.148-.01h-.002c-4.374 0-7.8 3.427-7.8 7.802 0 4.098 3.186 7.206 7.465 7.37v3.828c0 .108.044.286.12.403.142.225.384.347.632.347.138 0 .277-.038.402-.118.264-.168 6.473-4.14 8.088-5.506 1.902-1.61 3.04-3.97 3.04-6.312v-.017c-.002-4.373-3.429-7.79-7.797-7.79zm6.297 7.788c0 1.906-.93 3.82-2.502 5.15-1.38 1.168-6.19 4.498-7.34 5.343v-2.923c0-.414-.336-.75-.75-.75-3.666-.14-6.197-2.73-6.197-6.03 0-3.55 2.77-6.302 6.3-6.302l4.147.01h.002c3.53 0 6.34 2.768 6.34 6.298v.014z"/></svg>
+            </button>
+            <button class="action-btn \${isReposted ? 'reposted' : ''}" onclick="circusApp.onRepostBtnClick(event, '\${p.id}', \${!!isReposted})" title="\${this.t('retweet')}">
+              <svg class="action-icon" viewBox="0 0 24 24"><path d="M23.77 15.67c-.292-.293-.767-.293-1.06 0l-2.22 2.22V7.65c0-2.068-1.683-3.75-3.75-3.75h-5.85c-.414 0-.75.336-.75.75s.336.75.75.75h5.85c1.24 0 2.25 1.01 2.25 2.25v10.24l-2.22-2.22c-.293-.293-.768-.293-1.06 0s-.294.768 0 1.06l3.5 3.5c.145.147.337.22.53.22s.383-.072.53-.22l3.5-3.5c.294-.292.294-.767 0-1.06zm-10.66 3.28H7.26c-1.24 0-2.25-1.01-2.25-2.25V6.46l2.22 2.22c.148.147.34.22.532.22s.384-.073.53-.22c.293-.293.293-.768 0-1.06l-3.5-3.5c-.293-.294-.768-.294-1.06 0l-3.5 3.5c-.294.292-.294.767 0 1.06s.767.293 1.06 0l2.22-2.22V16.7c0 2.068 1.683 3.75 3.75 3.75h5.85c.414 0 .75-.336.75-.75s-.337-.75-.75-.75z"/></svg>
+            </button>
+            <button class="action-btn \${isLiked ? 'liked' : ''}" onclick="circusApp.toggleLike('\${p.id}', \${!!isLiked})" title="\${this.t('like')}">
+              <svg class="action-icon" viewBox="0 0 24 24"><path d="\${heartPath}"/></svg>
+            </button>
+            <button class="action-btn" onclick="circusApp.openQuoteComposer('\${p.id}')" title="\${this.t('quote_tweet')}">
+              <svg class="action-icon" viewBox="0 0 24 24"><path d="M21.99 4c0-1.1-.89-2-1.99-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4-.01-18zM18 14H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
+            </button>
+            <button class="action-btn" onclick="circusApp.translateTweet('\${p.id}')" title="\${this.t('translate')}">
+              <svg class="action-icon" viewBox="0 0 24 24"><path d="M12.87 15.07l-2.54-2.51.03-.03c1.74-1.94 2.98-4.17 3.71-6.53H17V4h-7V2H8v2H1v1.99h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/></svg>
+            </button>
+            \${canDelete ? \`
+              <button class="action-btn" onclick="circusApp.deletePost('\${p.id}')" title="Delete">
+                <svg class="action-icon" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+              </button>
+            \` : ''}
+          </div>
+
+          \${this.viewer ? \`
+            <div class="tweet-detail-reply-wrap">
+              <div style="font-size:12px;color:#657786;margin-bottom:8px">
+                \${this.t('replying_to')} <a href="javascript:void(0)" onclick="$('#tweet-detail-modal').modal('hide');circusApp.viewProfile('\${author.screen_name}')">@\${this.escape(author.screen_name)}</a>
+              </div>
+              <div class="tweet-detail-reply-inner">
+                <img class="tweet-avatar \${this.isSquareAvatar(this.viewer) ? 'avatar-square' : ''}" src="\${this.viewer.avatar_url || '/public/icon-dark.png'}" style="width:36px;height:36px">
+                <div style="flex:1">
+                  <textarea class="tweet-detail-reply-textarea" id="detail-reply-textarea" rows="3" placeholder="\${this.t('tweet_your_reply')}"></textarea>
+                  <div style="display:flex;justify-content:flex-end;margin-top:8px">
+                    <button class="btn btn-primary btn-sm btn-tweet-nav" onclick="circusApp.submitDetailReply('\${p.id}')">\${this.t('reply')}</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          \` : ''}
+
+          <div class="tweet-detail-replies-list">
+            \${repliesHtml}
+          </div>
+        </div>
+      \`;
+
+      if (focusReply) {
+        setTimeout(() => {
+          const ta = document.getElementById('detail-reply-textarea');
+          if (ta) ta.focus();
+        }, 300);
+      }
+    } catch {
+      content.innerHTML = '<div style="padding:30px;text-align:center;color:#d90429">Error</div>';
+    }
+  },
+
+  async submitDetailReply(postId) {
+    const ta = document.getElementById('detail-reply-textarea');
+    const text = ta ? ta.value.trim() : '';
+    if (!text) return;
+
+    this.showNotice(this.t('publishing'));
+    try {
+      const res = await fetch('/api/v1/posts', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text, reply_to: postId })
+      });
+      const json = await res.json();
+      if (json.data) {
+        this.showNotice(this.t('published'));
+        this.openTweetDetail(postId, false);
+      } else {
+        this.showNotice(json.error || 'Error');
+      }
+    } catch {
+      this.showNotice('Error');
+    }
+  },
+
+  /* Repost / Quote Dialog */
+  onRepostBtnClick(e, postId, isReposted) {
+    if (isReposted) {
+      this.toggleRepost(postId, true);
+      return;
+    }
+    const modal = document.getElementById('repost-modal');
+    if (!modal) {
+      this.toggleRepost(postId, false);
+      return;
+    }
+    document.getElementById('btn-action-retweet').onclick = () => {
+      $('#repost-modal').modal('hide');
+      circusApp.toggleRepost(postId, false);
+    };
+    document.getElementById('btn-action-quote').onclick = () => {
+      $('#repost-modal').modal('hide');
+      circusApp.openQuoteComposer(postId);
+    };
+    $('#repost-modal').modal('show');
+  },
+
+  async openQuoteComposer(postId) {
+    if (!this.viewer) return this.showNotice('Sign in to quote posts.');
+    this.showNotice('...');
+    try {
+      const res = await fetch('/api/v1/posts/' + postId);
+      const json = await res.json();
+      if (json.data) {
+        this.composerQuotePost = json.data;
+        if (document.getElementById('tweet-detail-modal')) {
+          $('#tweet-detail-modal').modal('hide');
+        }
+        this.goHome();
+        this.renderComposerQuotePreview();
+        this.focusComposer();
+      }
+    } catch {}
+  },
+
+  renderComposerQuotePreview() {
+    const wrap = document.getElementById('composer-quote-preview');
+    if (!wrap) return;
+    if (!this.composerQuotePost) {
+      wrap.innerHTML = '';
+      return;
+    }
+    const q = this.composerQuotePost;
+    const author = q.author || {};
+    wrap.innerHTML = \`
+      <div class="composer-quote-box">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <div>
+            <b>\${this.escape(author.name)}</b>
+            \${this.renderBadges(author)}
+            <span style="color:#657786;font-size:12px">@\${this.escape(author.screen_name)}</span>
+          </div>
+          <button type="button" class="btn btn-link btn-xs" onclick="circusApp.removeComposerQuote()" style="color:#657786;font-size:16px;line-height:1;padding:0">&times;</button>
+        </div>
+        <div style="font-size:12px;color:#14171a;max-height:60px;overflow:hidden">\${this.formatTweetText(q.text || '')}</div>
+      </div>
+    \`;
+    const txt = document.getElementById('tweet-textarea');
+    if (txt) this.onComposerInput(txt);
+  },
+
+  removeComposerQuote() {
+    this.composerQuotePost = null;
+    this.renderComposerQuotePreview();
+    const txt = document.getElementById('tweet-textarea');
+    if (txt) this.onComposerInput(txt);
+  },
+
+  /* Typeahead Search Dropdown */
+  searchDebounceTimer: null,
+  onSearchInput(input) {
+    clearTimeout(this.searchDebounceTimer);
+    const q = input.value.trim();
+    const dropdown = document.getElementById('search-typeahead-dropdown');
+    if (!dropdown) return;
+
+    if (!q) {
+      dropdown.classList.remove('show');
+      dropdown.innerHTML = '';
+      return;
+    }
+
+    this.searchDebounceTimer = setTimeout(async () => {
+      try {
+        const cleanQuery = q.replace(/^@/, '');
+        const res = await fetch('/api/v1/search/users?q=' + encodeURIComponent(cleanQuery) + '&limit=6');
+        const json = await res.json();
+        const users = json.data || [];
+
+        let html = '';
+        if (users.length > 0) {
+          users.forEach(u => {
+            html += \`
+              <div class="search-typeahead-item" onclick="circusApp.viewProfile('\${u.screen_name}');circusApp.hideSearchDropdown()">
+                <img class="search-typeahead-avatar \${this.isSquareAvatar(u) ? 'avatar-square' : ''}" src="\${u.avatar_url || '/public/icon-dark.png'}">
+                <div class="search-typeahead-info">
+                  <div class="search-typeahead-name">
+                    <b>\${this.escape(u.name)}</b>
+                    \${this.renderBadges(u)}
+                  </div>
+                  <div class="search-typeahead-handle">@\${this.escape(u.screen_name)}</div>
+                </div>
+              </div>
+            \`;
+          });
+        }
+
+        html += \`
+          <div class="search-typeahead-item search-typeahead-footer" onclick="circusApp.searchPosts('\${this.escape(q)}');circusApp.hideSearchDropdown()">
+            <svg style="width:14px;height:14px;fill:currentColor;margin-right:8px" viewBox="0 0 24 24"><path d="M21.53 20.47l-3.66-3.66C19.195 15.24 20 13.214 20 11c0-4.97-4.03-9-9-9s-9 4.03-9 9 4.03 9 9 9c2.215 0 4.24-.804 5.808-2.13l3.66 3.66c.147.146.34.22.532.22s.385-.073.53-.22c.295-.293.295-.767.002-1.06zM3.5 11c0-4.135 3.365-7.5 7.5-7.5s7.5 3.365 7.5 7.5-3.365 7.5-7.5 7.5-7.5-3.365-7.5-7.5z"/></svg>
+            <span>\${this.t('search_for')} <b>"\${this.escape(q)}"</b></span>
+          </div>
+        \`;
+
+        dropdown.innerHTML = html;
+        dropdown.classList.add('show');
+      } catch {
+        dropdown.classList.remove('show');
+      }
+    }, 200);
+  },
+
+  hideSearchDropdown() {
+    const dropdown = document.getElementById('search-typeahead-dropdown');
+    if (dropdown) dropdown.classList.remove('show');
+  },
+
+  /* Notifications View */
+  currentNotifFilter: 'all',
+  viewNotifications() {
+    if (!this.viewer) {
+      window.location.href = '/';
+      return;
+    }
+    window.scrollTo(0, 0);
+
+    document.getElementById('home-view').style.display = 'none';
+    document.getElementById('profile-view').style.display = 'none';
+    const notifView = document.getElementById('notifications-view');
+    if (notifView) notifView.style.display = 'block';
+
+    document.getElementById('nav-item-home')?.classList.remove('active');
+    document.getElementById('nav-item-notifs')?.classList.add('active');
+
+    if (window.location.pathname !== '/notifications') {
+      history.pushState({ type: 'notifications' }, '', '/notifications');
+    }
+
+    const wrap = document.getElementById('notif-user-card-wrap');
+    if (wrap) {
+      const bannerStyle = this.viewer.banner_url ? "background-image:url('" + this.viewer.banner_url + "');background-size:cover;background-position:center;" : "";
+      wrap.innerHTML = \`
+        <div class="module-card">
+          <div class="profile-card-header" style="\${bannerStyle}"></div>
+          <div class="profile-card-content">
+            <a class="profile-card-avatar-link" onclick="circusApp.viewProfile('\${this.viewer.screen_name}')">
+              <img class="profile-card-avatar \${this.isSquareAvatar(this.viewer) ? 'avatar-square' : ''}" src="\${this.viewer.avatar_url || '/public/icon-dark.png'}" alt="\${this.viewer.screen_name}">
+            </a>
+            <div class="profile-card-user">
+              <a class="profile-card-name" onclick="circusApp.viewProfile('\${this.viewer.screen_name}')">
+                \${this.escape(this.viewer.name)} \${this.renderBadges(this.viewer)}
+              </a>
+              <span class="profile-card-handle">@\${this.escape(this.viewer.screen_name)}</span>
+            </div>
+            <div class="profile-stats-table">
+              <a class="profile-stat-box" onclick="circusApp.viewProfile('\${this.viewer.screen_name}')">
+                <span class="profile-stat-label">\${this.t('posts')}</span>
+                <span class="profile-stat-value">\${this.viewer.counts?.posts ?? '-'}</span>
+              </a>
+              <a class="profile-stat-box" onclick="circusApp.viewProfile('\${this.viewer.screen_name}')">
+                <span class="profile-stat-label">\${this.t('following')}</span>
+                <span class="profile-stat-value">\${this.viewer.counts?.following ?? '-'}</span>
+              </a>
+              <a class="profile-stat-box" onclick="circusApp.viewProfile('\${this.viewer.screen_name}')">
+                <span class="profile-stat-label">\${this.t('followers')}</span>
+                <span class="profile-stat-value">\${this.viewer.counts?.followers ?? '-'}</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      \`;
+    }
+
+    this.loadNotifSuggestions();
+    this.switchNotifFilter(this.currentNotifFilter || 'all');
+  },
+
+  async loadNotifSuggestions() {
+    const list = document.getElementById('notif-suggestions-list');
+    if (!list) return;
+    try {
+      const res = await fetch('/api/v1/suggestions');
+      const json = await res.json();
+      const users = json.data || [];
+      list.innerHTML = '';
+      users.forEach(u => {
+        const isFollowing = u.viewer && u.viewer.following;
+        list.insertAdjacentHTML('beforeend', \`
+          <div class="suggest-user-item">
+            <img class="suggest-avatar \${this.isSquareAvatar(u) ? 'avatar-square' : ''}" src="\${u.avatar_url || '/public/icon-dark.png'}" alt="\${u.screen_name}" onclick="circusApp.viewProfile('\${u.screen_name}')">
+            <div class="suggest-info">
+              <div class="suggest-name-row">
+                <span class="suggest-name" onclick="circusApp.viewProfile('\${u.screen_name}')">\${this.escape(u.name)}</span>
+                \${this.renderBadges(u)}
+              </div>
+              <div class="suggest-handle">@\${this.escape(u.screen_name)}</div>
+              \${this.viewer ? \`
+                <button class="btn-follow \${isFollowing ? 'following' : ''}" style="margin-top:6px" onclick="circusApp.toggleFollow('\${u.screen_name}', \${!!isFollowing}, '\${u.id}')">
+                  \${isFollowing ? this.t('following_btn') : this.t('follow')}
+                </button>
+              \` : ''}
+            </div>
+          </div>
+        \`);
+      });
+    } catch {
+      list.innerHTML = '<p style="color:#657786;font-size:12px">-</p>';
+    }
+  },
+
+  switchNotifFilter(filter) {
+    this.currentNotifFilter = filter;
+    document.querySelectorAll('#notifications-view .stream-tab').forEach(t => t.classList.remove('active'));
+    if (filter === 'mentions') {
+      document.getElementById('tab-notif-mentions')?.classList.add('active');
+    } else {
+      document.getElementById('tab-notif-all')?.classList.add('active');
+    }
+    this.loadNotifications(filter);
+  },
+
+  async loadNotifications(filter = 'all') {
+    const stream = document.getElementById('notifications-stream');
+    if (!stream) return;
+    stream.innerHTML = '<div style="padding:40px;text-align:center;color:#657786">...</div>';
+
+    try {
+      const url = '/api/v1/notifications' + (filter === 'mentions' ? '?filter=mentions' : '');
+      const res = await fetch(url);
+      const json = await res.json();
+      const notifs = json.data || [];
+
+      if (notifs.length === 0) {
+        stream.innerHTML = '<div style="padding:40px;text-align:center;color:#657786">' + this.t('no_notifications') + '</div>';
+        return;
+      }
+
+      stream.innerHTML = '';
+      notifs.forEach(n => {
+        if (n.kind === 'reply' || n.kind === 'mention' || n.kind === 'quote') {
+          if (n.post) {
+            stream.insertAdjacentHTML('beforeend', this.renderTweetCard(n.post));
+          }
+        } else {
+          const firstUser = n.users && n.users[0];
+          if (!firstUser) return;
+          let iconSvg = '';
+          let textDesc = '';
+
+          if (n.kind === 'like') {
+            iconSvg = '<svg style="width:20px;height:20px;fill:#e0245e" viewBox="0 0 24 24"><path d="M12 21.638h-.014C9.403 21.59 1.95 14.856 1.95 8.478c0-3.064 2.525-5.754 5.403-5.754 2.29 0 3.83 1.58 4.646 2.73.814-1.148 2.354-2.73 4.645-2.73 2.88 0 5.404 2.69 5.404 5.755 0 6.376-7.454 13.11-10.037 13.157H12z"/></svg>';
+            const others = (n.total || n.users.length) - 1;
+            textDesc = '<b>' + this.escape(firstUser.name) + '</b>' + (others > 0 ? ' y ' + others + ' más' : '') + ' le dieron Me gusta a tu post';
+          } else if (n.kind === 'repost') {
+            iconSvg = '<svg style="width:20px;height:20px;fill:#17bf63" viewBox="0 0 24 24"><path d="M23.77 15.67c-.292-.293-.767-.293-1.06 0l-2.22 2.22V7.65c0-2.068-1.683-3.75-3.75-3.75h-5.85c-.414 0-.75.336-.75.75s.336.75.75.75h5.85c1.24 0 2.25 1.01 2.25 2.25v10.24l-2.22-2.22c-.293-.293-.768-.293-1.06 0s-.294.768 0 1.06l3.5 3.5c.145.147.337.22.53.22s.383-.072.53-.22l3.5-3.5c.294-.292.294-.767 0-1.06zm-10.66 3.28H7.26c-1.24 0-2.25-1.01-2.25-2.25V6.46l2.22 2.22c.148.147.34.22.532.22s.384-.073.53-.22c.293-.293.293-.768 0-1.06l-3.5-3.5c-.293-.294-.768-.294-1.06 0l-3.5 3.5c-.294.292-.294.767 0 1.06s.767.293 1.06 0l2.22-2.22V16.7c0 2.068 1.683 3.75 3.75 3.75h5.85c.414 0 .75-.336.75-.75s-.337-.75-.75-.75z"/></svg>';
+            const others = (n.total || n.users.length) - 1;
+            textDesc = '<b>' + this.escape(firstUser.name) + '</b>' + (others > 0 ? ' y ' + others + ' más' : '') + ' reposteó tu post';
+          } else if (n.kind === 'follow') {
+            iconSvg = '<svg style="width:20px;height:20px;fill:#1da1f2" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>';
+            textDesc = '<b>' + this.escape(firstUser.name) + '</b> comenzó a seguirte';
+          } else {
+            iconSvg = '<svg style="width:20px;height:20px;fill:#657786" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/></svg>';
+            textDesc = n.text || '';
+          }
+
+          let avatarsHtml = '';
+          (n.users || []).slice(0, 7).forEach(u => {
+            avatarsHtml += \`<img class="notif-user-avatar \${this.isSquareAvatar(u) ? 'avatar-square' : ''}" src="\${u.avatar_url || '/public/icon-dark.png'}" onclick="event.stopPropagation();circusApp.viewProfile('\${u.screen_name}')">\`;
+          });
+
+          let postSnippet = '';
+          if (n.post) {
+            postSnippet = \`
+              <div class="notif-post-snippet" style="cursor:pointer;margin-top:6px" onclick="circusApp.openTweetDetail('\${n.post.id}', false)">
+                \${this.formatTweetText(n.post.text || '')}
+              </div>
+            \`;
+          }
+
+          stream.insertAdjacentHTML('beforeend', \`
+            <div class="notif-item">
+              <div class="notif-icon-col">\${iconSvg}</div>
+              <div class="notif-content-col">
+                <div class="notif-user-avatars">\${avatarsHtml}</div>
+                <div class="notif-text">\${textDesc}</div>
+                \${postSnippet}
+              </div>
+            </div>
+          \`);
+        }
+      });
+    } catch {
+      stream.innerHTML = '<div style="padding:30px;text-align:center;color:#d90429">Error</div>';
+    }
+  },
+
+  /* Dedicated Edit Profile Modal */
+  pendingAvatarUrl: null,
+  pendingBannerUrl: null,
+
+  openEditProfileModal() {
+    if (!this.viewer) return;
+    this.pendingAvatarUrl = null;
+    this.pendingBannerUrl = null;
+
+    const nameInput = document.getElementById('edit-profile-name');
+    const bioInput = document.getElementById('edit-profile-bio');
+    const pronInput = document.getElementById('edit-profile-pronouns');
+    const flagSelect = document.getElementById('edit-profile-flag');
+    const locInput = document.getElementById('edit-profile-location');
+    const webInput = document.getElementById('edit-profile-website');
+    const avatarImg = document.getElementById('edit-avatar-img');
+    const bannerBox = document.getElementById('edit-banner-preview');
+
+    if (nameInput) nameInput.value = this.viewer.name || '';
+    if (bioInput) bioInput.value = this.viewer.bio || '';
+    if (pronInput) pronInput.value = this.viewer.pronouns || '';
+    if (flagSelect) flagSelect.value = (this.viewer.flag || '').split(',')[0].trim();
+    if (locInput) locInput.value = this.viewer.location || '';
+    if (webInput) webInput.value = this.viewer.website || '';
+    if (avatarImg) avatarImg.src = this.viewer.avatar_url || '/public/icon-dark.png';
+    if (bannerBox) {
+      if (this.viewer.banner_url) {
+        bannerBox.style.backgroundImage = "url('" + this.viewer.banner_url + "')";
+      } else {
+        bannerBox.style.backgroundImage = '';
+      }
+    }
+
+    $('#edit-profile-modal').modal('show');
+  },
+
+  async onAvatarFileSelect(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+
+    this.showNotice('...');
+    const formData = new FormData();
+    formData.set('media', file);
+
+    try {
+      const res = await fetch('/api/v1/media', { method: 'POST', body: formData });
+      const json = await res.json();
+      if (json.data && json.data.media_id) {
+        const url = '/media/' + json.data.media_id + '.jpg';
+        this.pendingAvatarUrl = url;
+        const avatarImg = document.getElementById('edit-avatar-img');
+        if (avatarImg) avatarImg.src = url;
+      }
+    } catch {}
+  },
+
+  async onBannerFileSelect(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+
+    this.showNotice('...');
+    const formData = new FormData();
+    formData.set('media', file);
+
+    try {
+      const res = await fetch('/api/v1/media', { method: 'POST', body: formData });
+      const json = await res.json();
+      if (json.data && json.data.media_id) {
+        const url = '/media/' + json.data.media_id + '.jpg';
+        this.pendingBannerUrl = url;
+        const bannerBox = document.getElementById('edit-banner-preview');
+        if (bannerBox) bannerBox.style.backgroundImage = "url('" + url + "')";
+      }
+    } catch {}
+  },
+
+  async saveProfileDetails(e) {
+    e.preventDefault();
+    const name = document.getElementById('edit-profile-name').value.trim();
+    const bio = document.getElementById('edit-profile-bio').value;
+    const pronouns = document.getElementById('edit-profile-pronouns').value.trim();
+    const flag = document.getElementById('edit-profile-flag').value;
+    const location = document.getElementById('edit-profile-location').value;
+    const website = document.getElementById('edit-profile-website').value.trim();
+
+    const payload = { name, bio, pronouns, flag, location, website };
+    if (this.pendingAvatarUrl) payload.avatar_url = this.pendingAvatarUrl;
+    if (this.pendingBannerUrl) payload.banner_url = this.pendingBannerUrl;
+
+    this.showNotice('...');
+    try {
+      const res = await fetch('/api/v1/account/settings', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const json = await res.json();
+      if (json.data) {
+        this.viewer = json.data;
+        window.__VIEWER__ = json.data;
+        this.renderLeftColumn();
+        $('#edit-profile-modal').modal('hide');
+        this.showNotice(this.t('published'));
+        if (this.currentProfileUser && this.currentProfileUser.id === this.viewer.id) {
+          this.viewProfile(this.viewer.screen_name);
+        }
+      } else {
+        this.showNotice(json.error || 'Error');
+      }
+    } catch {
+      this.showNotice('Error');
+    }
+  },
+
   formatTweetText(text) {
     if (!text) return '';
     let out = this.decodeEntities(text);
     out = this.escape(out);
     // URLs
-    out = out.replace(/(https?:\\/\\/[^\\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+    out = out.replace(/(https?:\\/\\/[^\\s<]+)/g, '<a href="$1" target="_blank" rel="noopener" onclick="event.stopPropagation()">$1</a>');
     // Hashtags
-    out = out.replace(/#([\\w\\u00c0-\\u024f]+)/g, '<a href="javascript:void(0)" onclick="circusApp.searchPosts(\\'#$1\\')">#$1</a>');
-    // Mentions
-    out = out.replace(/@([a-zA-Z0-9_]+)/g, '<a href="javascript:void(0)" onclick="circusApp.viewProfile(\\'$1\\')">@$1</a>');
+    out = out.replace(/#([\\w\\u00c0-\\u024f]+)/g, '<a href="javascript:void(0)" onclick="event.stopPropagation();circusApp.searchPosts(\\'#$1\\')">#$1</a>');
+    // Mentions (including fediverse handles like @user@instance.domain)
+    out = out.replace(/@([a-zA-Z0-9_]+(?:@[a-zA-Z0-9_.-]+)?)/g, '<a href="javascript:void(0)" onclick="event.stopPropagation();circusApp.viewProfile(\\'$1\\')">@$1</a>');
     return out;
   },
 

@@ -14,7 +14,8 @@ import { callOperation } from "./graphql";
 import { isId, newId } from "./ids";
 import { absolute, mediaUpload, mediaUrl, posterUrl } from "./media";
 import type { PostRow } from "./model";
-import { PostError, feed, getPost, likedPosts, postsByIds, replies, type FeedItem } from "./posts";
+import { PostError, feed, forYouFeed, getPost, likedPosts, postsByIds, replies, type FeedItem } from "./posts";
+import { listNotifications } from "./notifications";
 import { type Bucket, limitHeaders, limitedResponse, noteRefusal, take } from "./ratelimit";
 import { cachedTrends, searchPosts, searchUsers } from "./search";
 import { settings } from "./settings";
@@ -86,6 +87,8 @@ function userJson(u: User) {
 		verified_type: u.verified_type,
 		verified_at: iso(u.verified_at),
 		country: u.country ?? null,
+		region: u.region ?? u.country ?? null,
+		pronouns: u.pronouns ?? null,
 		protected: !!u.protected,
 		created_at: iso(u.created_at),
 		url: `${PUBLIC_ORIGIN}/${u.screen_name}`,
@@ -109,7 +112,14 @@ function userJson(u: User) {
 		instance: u.instance || null,
 		...(u.stats
 			? {
-					counts: { posts: u.stats.posts, followers: u.stats.followers, following: u.stats.following, likes: u.stats.likes },
+					counts: {
+						posts: u.stats.rootPosts ?? u.stats.posts,
+						posts_with_replies: u.stats.posts,
+						root_posts: u.stats.rootPosts ?? u.stats.posts,
+						followers: u.stats.followers,
+						following: u.stats.following,
+						likes: u.stats.likes,
+					},
 					viewer: { following: u.stats.followedByViewer, followed_by: u.stats.followsViewer },
 				}
 			: {}),
@@ -323,6 +333,18 @@ const ROUTES: Route[] = [
 			if (typeof b.website === "string" && (b.website === "" || /^https?:\/\/\S+$/.test(b.website)) && b.website.length <= 100) {
 				changes.website = b.website || null;
 			}
+			if (typeof b.avatar_url === "string") {
+				changes.avatar_url = b.avatar_url.trim() || null;
+			}
+			if (typeof b.banner_url === "string") {
+				changes.banner_url = b.banner_url.trim() || null;
+			}
+			if (typeof b.pronouns === "string") {
+				changes.pronouns = b.pronouns.trim().slice(0, 30) || null;
+			}
+			if (typeof b.flag === "string") {
+				changes.flag = b.flag.trim() || null;
+			}
 			if (Object.keys(changes).length) {
 				await sql`update users set ${sql(changes)} where id = ${v.id}::bigint`;
 			}
@@ -361,14 +383,30 @@ const ROUTES: Route[] = [
 		run: async (v, _m, _r, url) => {
 			const limit = limitOf(url);
 			const feedParam = url.searchParams.get("feed") || "for_you";
-			let authors: FeedQuery["authors"] = {};
-			let localOnly = false;
-			if (feedParam === "following" && v.id !== "0") {
-				authors = { following: true };
-			} else if (feedParam === "for_you") {
-				localOnly = true;
+			if (feedParam === "for_you") {
+				return page(await forYouFeed(v.id, limit, cursorOf(url)), limit);
 			}
-			return page(await feed({ viewerId: v.id, authors, replies: false, kinds: "both", localOnly, limit, before: cursorOf(url) }), limit);
+			const authors: FeedQuery["authors"] = feedParam === "following" && v.id !== "0" ? { following: true } : {};
+			return page(await feed({ viewerId: v.id, authors, replies: false, kinds: "both", limit, before: cursorOf(url) }), limit);
+		},
+	},
+	{
+		method: "GET", pattern: /^\/notifications$/, scope: "read",
+		run: async (v, _m, _r, url) => {
+			if (v.id === "0") throw new ApiError(401, "Sign in to view notifications.");
+			const mentionsOnly = url.searchParams.get("filter") === "mentions";
+			const limit = limitOf(url);
+			const notifs = await listNotifications(v.id, { mentionsOnly, limit });
+			return {
+				data: notifs.map((n) => ({
+					kind: n.kind,
+					at: n.at.toISOString(),
+					users: n.users.map(userJson),
+					post: n.post ? postJson(n.post) : null,
+					total: n.total,
+					text: n.text,
+				})),
+			};
 		},
 	},
 	{ method: "GET", pattern: /^\/posts\/(\d{1,19})$/, scope: "read", run: async (v, m) => ({ data: postJson(await postOr404(v, m[1])) }) },

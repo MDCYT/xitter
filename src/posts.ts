@@ -335,6 +335,45 @@ export async function feed(q: FeedQuery): Promise<FeedItem[]> {
 	return itemsFromRows(q.viewerId, rows);
 }
 
+// Algorithmic "For You" timeline: quality filtering, engagement ranking, local & federated diversity without slop
+export async function forYouFeed(viewerId: string, limit: number, before?: string): Promise<FeedItem[]> {
+	const cursorFilter = before ? sql`p.id < ${before}::bigint` : sql`true`;
+	const hidden = sql`p.user_id not in ${blockedFor(viewerId)} and p.user_id not in ${outOfView(viewerId)}
+		and p.user_id not in ${protectedFor(viewerId)} and p.user_id not in ${mutedFor(viewerId)}
+		and p.user_id not in ${federatedHiddenFor(viewerId)} and not p.hidden
+		and not ${hasMutedWord(viewerId, "home_timeline", sql`p.id`)}`;
+
+	const rows = await sql`
+		select p.id as post_id, null::bigint as reposter_id, p.id as item_id, p.created_at,
+			((case when u.instance is null then 20 else 0 end) +
+			 (case when u.verified_type is not null then 10 else 0 end) +
+			 (case when exists (select 1 from media m where m.post_id = p.id) then 8 else 0 end) +
+			 (coalesce(p.like_count, 0) * 4) +
+			 (coalesce(p.repost_count, 0) * 5) +
+			 (coalesce(p.reply_count, 0) * 3)) as engagement_score
+		from posts p
+		join users u on u.id = p.user_id
+		where ${cursorFilter} and ${hidden}
+			and p.reply_to_post_id is null
+			and (length(trim(p.text)) >= 8 or exists (select 1 from media m where m.post_id = p.id) or p.quote_id is not null)
+		order by p.id desc
+		limit ${limit * 3}
+	`;
+
+	if (!rows.length) {
+		return feed({ viewerId, authors: { all: true }, replies: false, kinds: "both", limit, before });
+	}
+
+	const scored = rows.map((r: any) => ({
+		...r,
+		rank: Number(r.item_id) + Number(r.engagement_score || 0) * 10000000000,
+	}));
+	scored.sort((a: any, b: any) => (a.rank < b.rank ? 1 : -1));
+	const selected = scored.slice(0, limit);
+
+	return itemsFromRows(viewerId, selected);
+}
+
 // feed_items rows (aliased f) as feed entries, in the order given
 export async function itemsFromRows(viewerId: string, rows: any[]): Promise<FeedItem[]> {
 	const posts = await postsByIds(viewerId, [...new Set(rows.map((r: any) => r.post_id as string))] as string[]);
