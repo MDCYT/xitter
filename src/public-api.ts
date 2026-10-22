@@ -12,6 +12,8 @@ import { PUBLIC_ORIGIN } from "./config";
 import { sql } from "./db";
 import { callOperation } from "./graphql";
 import { isId, newId } from "./ids";
+import { activeCards } from "./explore-cards";
+import { postLimitFor } from "./textlen";
 import { absolute, mediaUpload, mediaUrl, posterUrl } from "./media";
 import type { PostRow } from "./model";
 import { PostError, feed, forYouFeed, getPost, likedPosts, postsByIds, replies, type FeedItem } from "./posts";
@@ -110,6 +112,7 @@ function userJson(u: User) {
 		} : null,
 		parody_label: u.parody_label && u.parody_label !== "None" ? u.parody_label : null,
 		instance: u.instance || null,
+		max_chars: postLimitFor(u.verified_type),
 		...(u.stats
 			? {
 					counts: {
@@ -149,6 +152,11 @@ function postJson(p: PostRow, repostBy?: { by: User; created_at: Date }) {
 			alt_text: m.alt_text ?? null,
 		})),
 		quoted: p.quoted ? postJson(p.quoted) : null,
+		card: p.conversationCard ? {
+			title: p.conversationCard.title,
+			thanks: p.conversationCard.thanks,
+			choices: p.conversationCard.choices,
+		} : null,
 		poll: p.poll ? {
 			id: p.poll_id,
 			choices: (p.poll as any).choices ?? [],
@@ -283,7 +291,12 @@ async function uploadMedia(req: Request, v: Viewer) {
 		segForm.set("media", new Blob([data], { type }));
 		await callMedia(v, { command: "APPEND", media_id: id, segment_index: "0" }, segForm);
 		const done = await callMedia(v, { command: "FINALIZE", media_id: id });
-		return { media_id: id, processing: done.processing_info?.state ?? "succeeded" };
+		return {
+			media_id: id,
+			processing: done.processing_info?.state ?? "succeeded",
+			kind: video ? "video" : type === "image/gif" ? "gif" : "image",
+			poster_url: video ? `/media/poster/${id}.jpg` : null,
+		};
 	}
 	const type = ct.split(";")[0].trim();
 	if (!/^(image|video)\//.test(type)) throw new ApiError(415, "Send the file as the body with its image/* or video/* content type.");
@@ -296,7 +309,12 @@ async function uploadMedia(req: Request, v: Viewer) {
 	form.set("media", new Blob([data], { type }));
 	await callMedia(v, { command: "APPEND", media_id: id, segment_index: "0" }, form);
 	const done = await callMedia(v, { command: "FINALIZE", media_id: id });
-	return { media_id: id, processing: done.processing_info?.state ?? "succeeded" };
+	return {
+		media_id: id,
+		processing: done.processing_info?.state ?? "succeeded",
+		kind: video ? "video" : type === "image/gif" ? "gif" : "image",
+		poster_url: video ? `/media/poster/${id}.jpg` : null,
+	};
 }
 
 type Route = { method: string; pattern: RegExp; scope: "read" | "write"; bucket?: Bucket; run: (v: Viewer, m: RegExpExecArray, req: Request, url: URL) => Promise<unknown> };
@@ -352,7 +370,27 @@ const ROUTES: Route[] = [
 			return { data: userJson(toUser(updated)) };
 		},
 	},
-	{ method: "GET", pattern: /^\/trends$/, scope: "read", run: async () => ({ data: await cachedTrends(7, 10) }) },
+	{
+		method: "GET", pattern: /^\/trends$/, scope: "read",
+		run: async () => {
+			let trends = await cachedTrends(7, 10);
+			if (!trends.length) {
+				try {
+					const fallback = await sql`
+						select lower((regexp_matches(text, '#([a-zA-Z0-9_\u00c0-\u024f]+)', 'g'))[1]) as tag, count(*)::int as posts
+						from posts
+						where created_at > now() - interval '30 days' and not hidden
+						group by 1
+						order by 2 desc
+						limit 10
+					`;
+					trends = (fallback as any[]).map((r) => ({ tag: r.tag, posts: r.posts }));
+				} catch {}
+			}
+			return { data: trends };
+		},
+	},
+	{ method: "GET", pattern: /^\/cards$/, scope: "read", run: async () => ({ data: await activeCards() }) },
 	{ method: "GET", pattern: /^\/suggestions$/, scope: "read", run: async (v) => ({ data: (await suggestedUsers(v.id, 5)).map(userJson) }) },
 	{ method: "GET", pattern: /^\/users\/([^/]+)$/, scope: "read", run: async (v, m) => ({ data: userJson(await userOr404(v, m[1])) }) },
 	{
@@ -418,7 +456,7 @@ const ROUTES: Route[] = [
 		},
 	},
 	{
-		method: "GET", pattern: /^\/search\/posts$/, scope: "read",
+		method: "GET", pattern: /^\/search(?:\/posts)?$/, scope: "read",
 		run: async (v, _m, _r, url) => {
 			const q = (url.searchParams.get("q") ?? "").trim().slice(0, 500);
 			if (!q) throw new ApiError(400, "Give a query in q.");

@@ -2,7 +2,7 @@ import type { User } from "./auth";
 import { PUBLIC_ORIGIN } from "./config";
 import { sql } from "./db";
 import { INSTANCE_ID } from "./federation";
-import { idAt, newId } from "./ids";
+import { idAt, isId, newId } from "./ids";
 import { hateIn } from "./hate";
 import { automodStrike } from "./moderation";
 import { hasBlockedPhrase, settings } from "./settings";
@@ -336,8 +336,45 @@ export async function feed(q: FeedQuery): Promise<FeedItem[]> {
 }
 
 // Algorithmic "For You" timeline: quality filtering, local & federated diversity without slop
+// Scores posts based on recency decay, engagement (likes/reposts/replies), in-network follow boost,
+// rich media boost, and federated instance diversity.
 export async function forYouFeed(viewerId: string, limit: number, before?: string): Promise<FeedItem[]> {
-	return feed({ viewerId, authors: { all: true }, replies: false, kinds: "both", limit, before });
+	const viewerBigInt = isId(viewerId) && viewerId !== "0" ? viewerId : null;
+	const rows = await sql`
+		with candidates as (
+			select p.id, p.user_id, p.created_at,
+				(
+					-- Recency: smooth decay over 72 hours
+					greatest(0.0, 60.0 - (extract(epoch from (now() - p.created_at)) / 4320.0))
+					-- Engagement signals
+					+ coalesce((select count(*)::float from likes l where l.post_id = p.id), 0.0) * 4.0
+					+ coalesce((select count(*)::float from reposts rep where rep.post_id = p.id), 0.0) * 6.0
+					+ coalesce((select count(*)::float from posts rep_p where rep_p.reply_to_id = p.id), 0.0) * 3.0
+					-- In-network social boost (accounts viewer follows)
+					+ case when ${viewerBigInt}::bigint is not null and exists (
+						select 1 from follows f where f.follower_id = ${viewerBigInt}::bigint and f.followee_id = p.user_id
+					) then 35.0 else 0.0 end
+					-- Rich content boost (media, photos, videos)
+					+ case when exists (select 1 from media m where m.post_id = p.id) then 15.0 else 0.0 end
+					-- Cross-instance federation diversity
+					+ case when u.instance is not null then 12.0 else 0.0 end
+				) as score
+			from posts p
+			join users u on u.id = p.user_id
+			where p.reply_to_id is null
+				and not p.hidden
+				and u.status = 'active'
+				and not u.protected
+				and p.user_id not in ${blockedFor(viewerId)}
+				and p.user_id not in ${outOfView(viewerId)}
+				and p.user_id not in ${federatedHiddenFor(viewerId)}
+				${before && isId(before) ? sql`and p.id < ${before}::bigint` : sql``}
+			order by score desc, p.id desc
+			limit ${limit}
+		)
+		select id::text as post_id, id::text as item_id, null::text as reposter_id, created_at from candidates
+	`;
+	return itemsFromRows(viewerId, rows as any[]);
 }
 
 // feed_items rows (aliased f) as feed entries, in the order given

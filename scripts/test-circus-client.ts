@@ -27,12 +27,29 @@ describe("Circus 2016 Custom Client", () => {
 		expect(html).toContain("<!DOCTYPE html>");
 		expect(html).toContain("bootstrap.min.css");
 		expect(html).toContain("Digital Circus - Inicio");
-		expect(html).toContain("circus-tent-svg");
+		expect(html).toContain("navbar-instance-logo");
 		expect(html).toContain("Twittear");
 		expect(html).toContain("window.__VIEWER__ = {");
 		expect(html).toContain('"screen_name":"pomni"');
 		expect(html).toContain('"name":"Pomni"');
 		expect(html).toContain('"banner_url":"/media/banner/8888"');
+	});
+
+	test("includes dedicated search view, explore cards, and composer tools", () => {
+		const html = circusClientHtml({
+			viewer: sampleViewer,
+			instanceName: "Digital Circus",
+			origin: "https://x.glitchprod.xyz",
+		});
+
+		expect(html).toContain('id="search-view"');
+		expect(html).toContain('id="search-subtab-top"');
+		expect(html).toContain('id="search-subtab-latest"');
+		expect(html).toContain('id="search-subtab-people"');
+		expect(html).toContain('id="search-subtab-media"');
+		expect(html).toContain('id="explore-cards-module"');
+		expect(html).toContain('id="composer-sticker-picker"');
+		expect(html).toContain('id="composer-emoji-picker"');
 	});
 
 	test("includes authentic 2016 Twitter profile layout and canopy elements", () => {

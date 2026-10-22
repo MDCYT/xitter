@@ -147,7 +147,7 @@ a:hover, a:focus {
   fill: currentColor;
 }
 
-/* Circus Tent Logo */
+/* Instance Navbar Logo */
 .circus-logo-link {
   display: flex;
   align-items: center;
@@ -157,11 +157,14 @@ a:hover, a:focus {
   transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 .circus-logo-link:hover {
-  transform: scale(1.1) rotate(-3deg);
+  transform: scale(1.08);
 }
-.circus-tent-svg {
+.navbar-instance-logo {
   width: 32px;
   height: 32px;
+  border-radius: 6px;
+  object-fit: cover;
+  display: block;
 }
 
 /* Nav Right */
@@ -513,6 +516,20 @@ a:hover, a:focus {
   text-align: center;
   padding: 0;
   cursor: pointer;
+  z-index: 2;
+}
+.composer-thumb-badge {
+  position: absolute;
+  bottom: 2px;
+  left: 2px;
+  background: rgba(0,0,0,0.7);
+  color: #fff;
+  font-size: 9px;
+  font-weight: bold;
+  padding: 1px 4px;
+  border-radius: 3px;
+  pointer-events: none;
+  z-index: 2;
 }
 .composer-poll-form {
   background: #ffffff;
@@ -533,6 +550,95 @@ a:hover, a:focus {
   display: flex;
   gap: 12px;
   align-items: center;
+  position: relative;
+}
+.composer-picker-popover {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 1050;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.18);
+  width: 320px;
+  max-width: 90vw;
+  display: none;
+  margin-top: 6px;
+}
+.composer-picker-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color);
+  font-weight: bold;
+  font-size: 13px;
+  background: #f8fafc;
+}
+.composer-picker-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-color);
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.composer-picker-tab {
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 12px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+.composer-picker-tab.active {
+  background: var(--circus-red);
+  color: #ffffff;
+  font-weight: bold;
+}
+.composer-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  padding: 10px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.emoji-item-btn {
+  background: none;
+  border: none;
+  font-size: 20px;
+  line-height: 24px;
+  padding: 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.1s;
+}
+.emoji-item-btn:hover {
+  background: #f0f3f5;
+}
+.sticker-item-btn {
+  background: none;
+  border: none;
+  padding: 2px;
+  border-radius: 4px;
+  cursor: pointer;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s;
+}
+.sticker-item-btn:hover {
+  background: #f0f3f5;
+}
+.sticker-item-btn img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
 }
 .composer-tool-btn {
   background: none;
@@ -955,7 +1061,7 @@ a:hover, a:focus {
   padding: 0 15px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   height: 60px;
 }
 .profile-nav-spacer {
@@ -966,7 +1072,7 @@ a:hover, a:focus {
   display: flex;
   align-items: center;
   list-style: none;
-  margin: 0;
+  margin: 0 0 0 15px;
   padding: 0;
   height: 60px;
 }
@@ -1011,6 +1117,7 @@ a:hover, a:focus {
   display: flex;
   align-items: center;
   gap: 10px;
+  margin-left: auto;
 }
 
 /* Profile Grid */
@@ -1076,6 +1183,12 @@ a:hover, a:focus {
   align-items: center;
   gap: 8px;
   margin-bottom: 6px;
+}
+.profile-meta-list li .circus-badge-check {
+  margin-left: 0;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
 }
 .profile-meta-icon {
   width: 16px;
@@ -1367,14 +1480,18 @@ a:hover, a:focus {
   align-items: flex-start;
 }
 .tweet-detail-reply-textarea {
-  flex: 1;
+  width: 100%;
+  box-sizing: border-box;
+  display: block;
   border: 1px solid var(--border-color);
   border-radius: 4px;
-  padding: 8px 10px;
-  font-size: 13px;
+  padding: 10px 12px;
+  font-size: 14px;
   resize: vertical;
-  min-height: 60px;
+  min-height: 90px;
   outline: none;
+  font-family: inherit;
+  background: #ffffff;
 }
 .tweet-detail-reply-textarea:focus {
   border-color: var(--circus-red);
@@ -1425,6 +1542,176 @@ a:hover, a:focus {
   font-size: 13px;
   margin-top: 4px;
 }
+
+/* Dedicated Search View */
+.search-header-canopy {
+  background: #ffffff;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 15px;
+}
+.search-title-row {
+  max-width: 1190px;
+  margin: 0 auto;
+  padding: 18px 15px 12px;
+}
+.search-title-h1 {
+  font-size: 24px;
+  font-weight: 800;
+  margin: 0 0 4px 0;
+  color: var(--text-main);
+  word-break: break-word;
+}
+.search-title-sub {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0;
+}
+.search-tabs-row {
+  max-width: 1190px;
+  margin: 0 auto;
+  padding: 0 15px;
+  display: flex;
+  gap: 20px;
+}
+.search-tab {
+  padding: 12px 6px;
+  font-size: 13px;
+  font-weight: bold;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  transition: all 0.15s;
+}
+.search-tab:hover {
+  color: var(--circus-red);
+}
+.search-tab.active {
+  color: var(--circus-red);
+  border-bottom-color: var(--circus-red);
+}
+.search-user-card {
+  display: flex;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-color);
+  background: #ffffff;
+  gap: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.search-user-card:hover {
+  background: #f9fbfd;
+}
+.search-user-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+/* Explore News & Sports Cards */
+.explore-cards-card {
+  margin-bottom: 15px;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 14px 16px;
+}
+.explore-card-item {
+  border-bottom: 1px solid #f0f3f5;
+  padding: 10px 0;
+  cursor: pointer;
+}
+.explore-card-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.explore-card-item:hover .explore-card-title {
+  color: var(--circus-red);
+}
+.explore-card-meta {
+  font-size: 11px;
+  text-transform: uppercase;
+  font-weight: bold;
+  color: var(--text-muted);
+  margin-bottom: 3px;
+}
+.explore-card-body {
+  display: flex;
+  gap: 10px;
+}
+.explore-card-title {
+  font-size: 13px;
+  font-weight: bold;
+  line-height: 17px;
+  color: var(--text-main);
+  margin-bottom: 4px;
+}
+.explore-card-summary {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 16px;
+}
+.explore-card-img {
+  width: 68px;
+  height: 68px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.explore-sports-scoreboard {
+  background: #f5f8fa;
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin-top: 6px;
+}
+.explore-sports-team {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: bold;
+  margin-bottom: 2px;
+}
+.explore-sports-clock {
+  font-size: 11px;
+  color: #e63946;
+  font-weight: bold;
+  margin-top: 4px;
+}
+.tweet-conversation-card {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+}
+.conversation-card-title {
+  font-size: 13px;
+  font-weight: bold;
+  margin-bottom: 8px;
+  color: var(--text-main);
+}
+.conversation-card-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.conversation-card-btn {
+  border-radius: 100px;
+  font-size: 12px;
+  font-weight: bold;
+  padding: 5px 14px;
+  background: #ffffff;
+  border: 1px solid var(--circus-red);
+  color: var(--circus-red);
+  transition: all 0.15s;
+  cursor: pointer;
+}
+.conversation-card-btn:hover {
+  background: var(--circus-red);
+  color: #ffffff;
+}
 </style>
 </head>
 <body>
@@ -1448,19 +1735,9 @@ a:hover, a:focus {
       </li>
     </ul>
 
-    <!-- Center Tent Logo -->
+    <!-- Center Instance Logo -->
     <a href="javascript:void(0)" class="circus-logo-link" onclick="circusApp.goHome()" title="${name}">
-      <svg class="circus-tent-svg" viewBox="0 0 100 100">
-        <polygon points="50,15 15,48 85,48" fill="#e63946"/>
-        <polygon points="50,15 35,48 50,48" fill="#ffd166"/>
-        <polygon points="50,15 65,48 50,48" fill="#ffd166"/>
-        <polygon points="50,5 50,15 56,10" fill="#ffd166"/>
-        <line x1="50" y1="5" x2="50" y2="15" stroke="#780000" stroke-width="2"/>
-        <rect x="20" y="48" width="60" height="38" fill="#ffffff" stroke="#c1121f" stroke-width="2"/>
-        <polygon points="20,48 35,48 35,86 20,86" fill="#c1121f"/>
-        <polygon points="50,48 65,48 65,86 50,86" fill="#c1121f"/>
-        <path d="M 40,86 Q 50,62 60,86 Z" fill="#14171a"/>
-      </svg>
+      <img src="/public/icon-dark.png" class="navbar-instance-logo" alt="${name}" title="${name}">
     </a>
 
     <!-- Right Controls -->
@@ -1600,6 +1877,12 @@ a:hover, a:focus {
 
       <!-- RIGHT COLUMN (290px) -->
       <div class="col-md-3">
+        <!-- Explore Cards (News & Sports) -->
+        <div class="module-card explore-cards-card" id="explore-cards-module" style="display:none">
+          <h4 class="trends-header" id="txt-cards-header" style="margin-bottom:10px">Qué está pasando</h4>
+          <div id="explore-cards-list"></div>
+        </div>
+
         <!-- Who to Follow -->
         <div class="module-card who-to-follow-card">
           <h4 class="trends-header" id="txt-suggestions-header" style="margin-bottom:12px">A quién seguir</h4>
@@ -1732,7 +2015,71 @@ a:hover, a:focus {
   </div>
 </div>
 
-<!-- Modal: Dedicated Edit Profile Modal -->
+<!-- VIEW: DEDICATED SEARCH VIEW (2016 Style) -->
+<div id="search-view" style="display:none">
+  <div class="search-header-canopy">
+    <div class="search-title-row">
+      <h1 class="search-title-h1" id="search-view-title">Búsqueda</h1>
+      <p class="search-title-sub" id="search-view-sub">Explora resultados en toda la red</p>
+    </div>
+    <div class="search-tabs-row">
+      <div class="search-tab active" id="search-subtab-top" onclick="circusApp.switchSearchTab('top')">
+        <span id="lbl-search-top">Destacados</span>
+      </div>
+      <div class="search-tab" id="search-subtab-latest" onclick="circusApp.switchSearchTab('latest')">
+        <span id="lbl-search-latest">Más reciente</span>
+      </div>
+      <div class="search-tab" id="search-subtab-people" onclick="circusApp.switchSearchTab('people')">
+        <span id="lbl-search-people">Personas</span>
+      </div>
+      <div class="search-tab" id="search-subtab-media" onclick="circusApp.switchSearchTab('media')">
+        <span id="lbl-search-media">Fotos y videos</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="container circus-main-container">
+    <div class="row">
+      <!-- Left Column (290px): Filters & Trends -->
+      <div class="col-md-3">
+        <div class="module-card" style="margin-bottom:15px">
+          <h4 class="trends-header" id="lbl-search-filters-header" style="margin-bottom:8px">Filtros de búsqueda</h4>
+          <p style="font-size:12px;color:var(--text-muted);margin:0" id="lbl-search-filters-desc">Explora el contenido de todas las instancias federadas y la comunidad local.</p>
+        </div>
+
+        <div class="module-card trends-card">
+          <h4 class="trends-header" id="txt-search-trends-header">Tendencias</h4>
+          <div id="search-trends-list">
+            <p style="color:#657786;font-size:12px">Cargando...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Center Column (590px): Search Results -->
+      <div class="col-md-6">
+        <div class="tweet-stream" id="search-results-stream">
+          <div style="padding:40px;text-align:center;color:#657786">Cargando resultados...</div>
+        </div>
+        <div style="text-align:center;margin:15px 0" id="search-load-more-wrap">
+          <button class="btn btn-default" id="search-load-more-btn" onclick="circusApp.loadMoreSearch()" style="display:none;font-weight:bold;border-radius:100px;padding:8px 24px">Cargar más</button>
+        </div>
+      </div>
+
+      <!-- Right Column (290px): Explore Cards & Who to Follow -->
+      <div class="col-md-3">
+        <div class="module-card explore-cards-card" id="search-cards-module" style="display:none">
+          <h4 class="trends-header" style="margin-bottom:10px">Qué está pasando</h4>
+          <div id="search-cards-list"></div>
+        </div>
+
+        <div class="module-card who-to-follow-card">
+          <h4 class="trends-header" style="margin-bottom:12px" id="txt-search-suggestions-header">A quién seguir</h4>
+          <div id="search-suggestions-list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 <div class="modal fade" id="edit-profile-modal" tabindex="-1" role="dialog">
   <div class="modal-dialog" role="document" style="max-width:540px">
     <div class="modal-content" style="border-radius:8px;overflow:hidden">
@@ -2087,7 +2434,18 @@ const I18N_DICT = {
     attached_quote: "Cita adjunta",
     mentions: "Menciones",
     no_notifications: "No tienes notificaciones todavía.",
-    view_tweet: "Ver tweet"
+    view_tweet: "Ver tweet",
+    search_top: "Destacados",
+    search_latest: "Más reciente",
+    search_people: "Personas",
+    search_media: "Fotos y videos",
+    search_filters: "Filtros de búsqueda",
+    search_filters_desc: "Explora el contenido de todas las instancias federadas y la comunidad local.",
+    what_is_happening: "Qué está pasando",
+    sports: "Deportes",
+    news: "Noticias",
+    stickers: "Stickers",
+    emojis: "Emojis"
   },
   en: {
     home: "Home",
@@ -2189,7 +2547,18 @@ const I18N_DICT = {
     attached_quote: "Attached quote",
     mentions: "Mentions",
     no_notifications: "You don't have any notifications yet.",
-    view_tweet: "View tweet"
+    view_tweet: "View tweet",
+    search_top: "Top",
+    search_latest: "Latest",
+    search_people: "People",
+    search_media: "Photos & videos",
+    search_filters: "Search filters",
+    search_filters_desc: "Explore content from across federated instances and your local community.",
+    what_is_happening: "What's happening",
+    sports: "Sports",
+    news: "News",
+    stickers: "Stickers",
+    emojis: "Emojis"
   }
 };
 
@@ -2198,12 +2567,21 @@ const circusApp = {
   feedType: 'for_you',
   nextCursor: null,
   isLoading: false,
-  composerMediaIds: [],
+  composerMedia: [],
   composerPollActive: false,
   currentProfileUser: null,
   currentProfileHandle: null,
   currentProfileTab: 'posts',
   profileNextCursor: null,
+  currentSearchQuery: null,
+  currentSearchTab: 'top',
+  searchNextCursor: null,
+  stickerPacks: null,
+  selectedStickerPack: null,
+
+  getMaxChars() {
+    return this.viewer?.max_chars || 4000;
+  },
 
   t(key) {
     const lang = (this.viewer?.language || window.__LANG__ || 'es').slice(0, 2).toLowerCase();
@@ -2217,10 +2595,15 @@ const circusApp = {
     this.renderComposer();
     this.loadTrends();
     this.loadSuggestions();
+    this.loadCards();
 
     // Check URL path
-    const p = window.location.pathname.replace(/^\\/+/, '');
-    if (p === 'settings' || p.startsWith('settings/')) {
+    const urlParams = new URLSearchParams(window.location.search);
+    const searchParam = urlParams.get('q');
+    const p = window.location.pathname.replace(/^\/+/, '');
+    if (p === 'search' || searchParam) {
+      this.searchPosts(searchParam || '', urlParams.get('f') || 'top');
+    } else if (p === 'settings' || p.startsWith('settings/')) {
       this.loadTimeline();
       this.openSettingsModal(p === 'settings/language' ? 'language' : 'profile');
     } else if (p === 'notifications') {
@@ -2233,8 +2616,11 @@ const circusApp = {
 
     // Handle back / forward
     window.addEventListener('popstate', () => {
-      const path = window.location.pathname.replace(/^\\/+/, '');
-      if (path === 'notifications') {
+      const path = window.location.pathname.replace(/^\/+/, '');
+      const searchParam = new URLSearchParams(window.location.search).get('q');
+      if (path === 'search' || searchParam) {
+        this.searchPosts(searchParam || '', new URLSearchParams(window.location.search).get('f') || 'top');
+      } else if (path === 'notifications') {
         this.viewNotifications();
       } else if (path && !path.includes('/') && path !== 'home' && path !== 'timeline' && !path.startsWith('settings')) {
         this.viewProfile(path);
@@ -2243,7 +2629,7 @@ const circusApp = {
       }
     });
 
-    // Close user dropdown and search dropdown on click outside
+    // Close user dropdown, search dropdown and composer pickers on click outside
     document.addEventListener('click', (e) => {
       const drop = document.getElementById('user-nav-dropdown');
       const btn = document.getElementById('nav-avatar-btn');
@@ -2253,6 +2639,12 @@ const circusApp = {
       if (!e.target.closest('.search-form')) {
         this.hideSearchDropdown();
       }
+      if (!e.target.closest('.composer-tools')) {
+        this.closePickers();
+      }
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') this.closePickers();
     });
   },
 
@@ -2314,6 +2706,15 @@ const circusApp = {
     setTxt('lbl-repost-modal-title', 'retweet');
     setTxt('txt-modal-retweet', 'retweet');
     setTxt('txt-modal-quote', 'quote_tweet');
+    setTxt('lbl-search-top', 'search_top');
+    setTxt('lbl-search-latest', 'search_latest');
+    setTxt('lbl-search-people', 'search_people');
+    setTxt('lbl-search-media', 'search_media');
+    setTxt('lbl-search-filters-header', 'search_filters');
+    setTxt('lbl-search-filters-desc', 'search_filters_desc');
+    setTxt('txt-cards-header', 'what_is_happening');
+    setTxt('txt-search-trends-header', 'trends_for_you');
+    setTxt('txt-search-suggestions-header', 'who_to_follow');
 
     const sq = document.getElementById('search-query');
     if (sq) sq.placeholder = this.t('search_placeholder');
@@ -2569,12 +2970,37 @@ const circusApp = {
             <button class="composer-tool-btn" type="button" onclick="document.getElementById('media-upload-input').click()" title="Add photo or video">
               <svg class="composer-tool-icon" viewBox="0 0 24 24"><path d="M19.75 2H4.25C3.01 2 2 3.01 2 4.25v15.5C2 20.99 3.01 22 4.25 22h15.5c1.24 0 2.25-1.01 2.25-2.25V4.25C22 3.01 20.99 2 19.75 2zM4.25 3.5h15.5c.41 0 .75.34.75.75v10.67l-1.44-1.44c-.29-.29-.77-.29-1.06 0l-5.35 5.35-3.07-3.07c-.29-.29-.77-.29-1.06 0L3.5 20.74V4.25c0-.41.34-.75.75-.75zM17.5 10.5c1.38 0 2.5-1.12 2.5-2.5s-1.12-2.5-2.5-2.5-2.5 1.12-2.5 2.5 1.12 2.5 2.5 2.5z"/></svg>
             </button>
+            <button class="composer-tool-btn" type="button" onclick="circusApp.toggleStickerPicker(event)" title="Add sticker">
+              <svg class="composer-tool-icon" viewBox="0 0 24 24"><path d="M14.5 2H6C4.9 2 4 2.9 4 4v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V7.5L14.5 2zm1.5 16h-8v-2h8v2zm0-4h-8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+            </button>
+            <button class="composer-tool-btn" type="button" onclick="circusApp.toggleEmojiPicker(event)" title="Add emoji">
+              <svg class="composer-tool-icon" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/></svg>
+            </button>
             <button class="composer-tool-btn" type="button" onclick="circusApp.togglePoll(true)" title="Add poll">
               <svg class="composer-tool-icon" viewBox="0 0 24 24"><path d="M6 5v14h3V5H6zm5 6v8h3v-8h-3zm5-3v11h3V8h-3z"/></svg>
             </button>
+
+            <!-- Sticker Popover -->
+            <div class="composer-picker-popover" id="composer-sticker-picker">
+              <div class="composer-picker-header">
+                <span>Stickers</span>
+                <button type="button" class="btn btn-link btn-xs" onclick="circusApp.closePickers()" style="color:#657786;font-size:16px;line-height:1">&times;</button>
+              </div>
+              <div class="composer-picker-tabs" id="composer-sticker-tabs"></div>
+              <div class="composer-picker-grid" id="composer-sticker-grid"></div>
+            </div>
+
+            <!-- Emoji Popover -->
+            <div class="composer-picker-popover" id="composer-emoji-picker">
+              <div class="composer-picker-header">
+                <span>Emojis</span>
+                <button type="button" class="btn btn-link btn-xs" onclick="circusApp.closePickers()" style="color:#657786;font-size:16px;line-height:1">&times;</button>
+              </div>
+              <div class="composer-picker-grid" id="composer-emoji-grid" style="grid-template-columns:repeat(7,1fr)"></div>
+            </div>
           </div>
           <div class="composer-right">
-            <span class="char-counter" id="char-counter">280</span>
+            <span class="char-counter" id="char-counter">\${this.getMaxChars()}</span>
             <button class="btn btn-primary btn-sm btn-tweet-nav" id="btn-submit-tweet" onclick="circusApp.submitTweet()">\${this.t('tweet')}</button>
           </div>
         </div>
@@ -2583,17 +3009,22 @@ const circusApp = {
   },
 
   onComposerInput(textarea) {
+    const max = this.getMaxChars();
     const len = textarea.value.length;
-    const remaining = 280 - len;
+    const remaining = max - len;
     const counter = document.getElementById('char-counter');
     const btn = document.getElementById('btn-submit-tweet');
 
-    counter.textContent = remaining;
-    counter.className = 'char-counter';
-    if (remaining < 20 && remaining >= 0) counter.classList.add('warning');
-    if (remaining < 0) counter.classList.add('danger');
+    if (counter) {
+      counter.textContent = remaining;
+      counter.className = 'char-counter';
+      if (remaining < 50 && remaining >= 0) counter.classList.add('warning');
+      if (remaining < 0) counter.classList.add('danger');
+    }
 
-    btn.disabled = remaining < 0 || (len === 0 && this.composerMediaIds.length === 0 && !this.composerQuotePost);
+    if (btn) {
+      btn.disabled = remaining < 0 || (len === 0 && this.composerMedia.length === 0 && !this.composerQuotePost);
+    }
   },
 
   focusComposer() {
@@ -2629,7 +3060,7 @@ const circusApp = {
     if (!files.length) return;
 
     for (const file of files) {
-      if (this.composerMediaIds.length >= 4) break;
+      if (this.composerMedia.length >= 4) break;
       this.showNotice('...');
       const formData = new FormData();
       formData.set('media', file);
@@ -2641,7 +3072,8 @@ const circusApp = {
         });
         const json = await res.json();
         if (json.data && json.data.media_id) {
-          this.composerMediaIds.push(json.data.media_id);
+          const isVideo = file.type.startsWith('video/') || (json.data.kind === 'video');
+          this.composerMedia.push({ id: json.data.media_id, kind: isVideo ? 'video' : 'image' });
           this.renderMediaPreviews();
         }
       } catch {}
@@ -2653,22 +3085,174 @@ const circusApp = {
 
   renderMediaPreviews() {
     const previews = document.getElementById('composer-media-previews');
+    if (!previews) return;
     previews.innerHTML = '';
-    this.composerMediaIds.forEach((id, idx) => {
+    this.composerMedia.forEach((m, idx) => {
+      const isVideo = m.kind === 'video';
       previews.insertAdjacentHTML('beforeend', \`
         <div class="composer-thumb-wrap">
-          <img class="composer-thumb" src="/media/\${id}.jpg" onerror="this.src='/public/icon-dark.png'">
-          <button class="composer-thumb-del" onclick="circusApp.removeMedia(\${idx})">&times;</button>
+          \${isVideo ? \`
+            <video class="composer-thumb" src="/media/\${m.id}.mp4" poster="/media/poster/\${m.id}.jpg" muted autoplay loop playsinline></video>
+            <span class="composer-thumb-badge">▶ Video</span>
+          \` : \`
+            <img class="composer-thumb" src="/media/\${m.id}.jpg" onerror="if(!this.dataset.retried){this.dataset.retried='1';this.src='/media/poster/\${m.id}.jpg';}else{this.src='/public/icon-dark.png';}">
+          \`}
+          <button class="composer-thumb-del" type="button" onclick="circusApp.removeMedia(\${idx})">&times;</button>
         </div>
       \`);
     });
   },
 
   removeMedia(index) {
-    this.composerMediaIds.splice(index, 1);
+    this.composerMedia.splice(index, 1);
     this.renderMediaPreviews();
     const txt = document.getElementById('tweet-textarea');
     if (txt) this.onComposerInput(txt);
+  },
+
+  async toggleStickerPicker(e) {
+    e.stopPropagation();
+    const emPicker = document.getElementById('composer-emoji-picker');
+    if (emPicker) emPicker.style.display = 'none';
+    const stPicker = document.getElementById('composer-sticker-picker');
+    if (!stPicker) return;
+    if (stPicker.style.display === 'block') {
+      stPicker.style.display = 'none';
+      return;
+    }
+    stPicker.style.display = 'block';
+    if (!this.stickerPacks) {
+      try {
+        const res = await fetch('/i/api/xitter/stickers');
+        this.stickerPacks = await res.json();
+      } catch {
+        this.stickerPacks = [];
+      }
+    }
+    this.renderStickerPicker();
+  },
+
+  renderStickerPicker() {
+    const tabsEl = document.getElementById('composer-sticker-tabs');
+    const gridEl = document.getElementById('composer-sticker-grid');
+    if (!tabsEl || !gridEl) return;
+    tabsEl.innerHTML = '';
+    gridEl.innerHTML = '';
+    const packs = (this.stickerPacks || []).filter(p => Array.isArray(p.stickers) && p.stickers.length > 0);
+    if (packs.length === 0) {
+      gridEl.innerHTML = '<div style="grid-column:span 6;text-align:center;padding:20px;color:var(--text-muted);font-size:12px">No hay stickers disponibles</div>';
+      return;
+    }
+    const currentPack = this.selectedStickerPack || packs[0];
+    packs.forEach(p => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'composer-picker-tab' + (p.id === currentPack.id ? ' active' : '');
+      btn.textContent = p.name;
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        this.selectedStickerPack = p;
+        this.renderStickerPicker();
+      };
+      tabsEl.appendChild(btn);
+    });
+    currentPack.stickers.forEach(s => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'sticker-item-btn';
+      btn.title = s.name || '';
+      btn.innerHTML = \`<img src="\${s.url}" alt="\${this.escape(s.name || '')}" loading="lazy">\`;
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        this.attachSticker(s);
+      };
+      gridEl.appendChild(btn);
+    });
+  },
+
+  async attachSticker(s) {
+    this.closePickers();
+    this.showNotice('...');
+    try {
+      const res = await fetch(s.url);
+      const blob = await res.blob();
+      const ext = blob.type.split('/')[1] || 'png';
+      const file = new File([blob], (s.name || 'sticker') + '.' + ext, { type: blob.type });
+      const formData = new FormData();
+      formData.set('media', file);
+      const uploadRes = await fetch('/api/v1/media', { method: 'POST', body: formData });
+      const json = await uploadRes.json();
+      if (json.data && json.data.media_id) {
+        this.composerMedia.push({ id: json.data.media_id, kind: 'image' });
+        this.renderMediaPreviews();
+        const txt = document.getElementById('tweet-textarea');
+        if (txt) this.onComposerInput(txt);
+      }
+    } catch {
+      this.showNotice('Error');
+    }
+  },
+
+  toggleEmojiPicker(e) {
+    e.stopPropagation();
+    const stPicker = document.getElementById('composer-sticker-picker');
+    if (stPicker) stPicker.style.display = 'none';
+    const emPicker = document.getElementById('composer-emoji-picker');
+    if (!emPicker) return;
+    if (emPicker.style.display === 'block') {
+      emPicker.style.display = 'none';
+      return;
+    }
+    emPicker.style.display = 'block';
+    this.renderEmojiPicker();
+  },
+
+  renderEmojiPicker() {
+    const grid = document.getElementById('composer-emoji-grid');
+    if (!grid || grid.children.length > 0) return;
+    const emojis = [
+      '😀','😃','😄','😁','😆','😅','😂','🤣','🥲','☺️','😊','😇','🙂','🙃','😉','😌',
+      '😍','🥰','😘','😗','😋','😛','😜','🤪','🤨','🧐','🤓','😎','🥸','🤩','🥳','😏',
+      '😒','😞','😔','😟','😕','🙁','😣','😖','😫','😩','🥺','😢','😭','😤','😠','😡',
+      '🤯','😳','🥵','🥶','😱','😨','😰','😥','😓','🤗','🤔','🤭','🤫','🤥','😶','😐',
+      '😬','🙄','😯','😦','😧','😮','😲','🥱','😴','🤤','😪','😵','🤐','🥴','🤢','🤮',
+      '🤧','😷','🤒','🤕','🤑','🤠','😈','👿','👹','👺','🤡','💩','👻','💀','☠️','👽',
+      '👾','🤖','🎃','😺','😸','😹','😻','😼','😽','👍','👎','👊','✊','🤛','🤜','🤞',
+      '✌️','🤟','🤘','👌','🤌','🤏','👈','👉','👆','👇','☝️','✋','🤚','🖐','🖖','👋',
+      '🤙','💪','🖕','✍️','🙏','🦶','🦵','👂','🦻','👃','🧠','🫀','🫁','🦷','🦴','👀',
+      '👁','👅','👄','❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❣️','💕','💞',
+      '💓','💗','💖','💘','💝','🔥','💥','✨','🌟','💫','⚡️','☄️','🎉','🎊','🎈','🎁',
+      '🏆','🥇','🥈','🥉','⚽️','🏀','🏈','⚾️','🥎','🎾','🏐','🏐','🥏','🎱','🎪','🎭'
+    ];
+    emojis.forEach(em => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'emoji-item-btn';
+      btn.textContent = em;
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        this.insertEmoji(em);
+      };
+      grid.appendChild(btn);
+    });
+  },
+
+  insertEmoji(em) {
+    const txt = document.getElementById('tweet-textarea');
+    if (!txt) return;
+    const start = txt.selectionStart || txt.value.length;
+    const end = txt.selectionEnd || txt.value.length;
+    txt.value = txt.value.slice(0, start) + em + txt.value.slice(end);
+    txt.selectionStart = txt.selectionEnd = start + em.length;
+    txt.focus();
+    this.onComposerInput(txt);
+  },
+
+  closePickers() {
+    const st = document.getElementById('composer-sticker-picker');
+    if (st) st.style.display = 'none';
+    const em = document.getElementById('composer-emoji-picker');
+    if (em) em.style.display = 'none';
   },
 
   async submitTweet() {
@@ -2685,7 +3269,7 @@ const circusApp = {
       poll = { choices, minutes: 1440 };
     }
 
-    if (!text && this.composerMediaIds.length === 0 && !poll && !this.composerQuotePost) {
+    if (!text && this.composerMedia.length === 0 && !poll && !this.composerQuotePost) {
       return this.showNotice(this.t('write_something'));
     }
 
@@ -2693,7 +3277,7 @@ const circusApp = {
     try {
       const payload = {
         text,
-        media_ids: this.composerMediaIds,
+        media_ids: this.composerMedia.map(m => m.id || m),
         poll
       };
       if (this.composerQuotePost) {
@@ -2707,7 +3291,7 @@ const circusApp = {
       const json = await res.json();
       if (json.data) {
         if (textarea) textarea.value = '';
-        this.composerMediaIds = [];
+        this.composerMedia = [];
         this.composerQuotePost = null;
         this.renderComposerQuotePreview();
         this.togglePoll(false);
@@ -2858,6 +3442,23 @@ const circusApp = {
       pollHtml += \`<div style="font-size:12px;color:#657786;margin-top:6px">\${total} votes \${poll.closed ? '· Final' : ''}</div></div>\`;
     }
 
+    // Conversation Card
+    let cardHtml = '';
+    if (p.card && Array.isArray(p.card.choices) && p.card.choices.length > 0) {
+      cardHtml = \`
+        <div class="tweet-conversation-card" onclick="event.stopPropagation()">
+          \${p.card.title ? \`<div class="conversation-card-title">\${this.escape(p.card.title)}</div>\` : ''}
+          <div class="conversation-card-buttons">
+            \${p.card.choices.map(c => \`
+              <button type="button" class="conversation-card-btn" onclick="circusApp.quoteCard('\${p.id}', '\${this.escape(c.hashtag)}')">
+                \${this.escape(c.hashtag)}
+              </button>
+            \`).join('')}
+          </div>
+        </div>
+      \`;
+    }
+
     const isLiked = p.viewer && p.viewer.liked;
     const isReposted = p.viewer && p.viewer.reposted;
     const canDelete = this.viewer && author.id === this.viewer.id;
@@ -2886,6 +3487,7 @@ const circusApp = {
             \${mediaHtml}
             \${quoteHtml}
             \${pollHtml}
+            \${cardHtml}
             
             <div class="tweet-actions">
               <button class="action-btn" onclick="event.stopPropagation();circusApp.openTweetDetail('\${p.id}', true)" title="\${this.t('reply')}">
@@ -3002,27 +3604,91 @@ const circusApp = {
 
   async loadTrends() {
     const list = document.getElementById('trends-list');
+    const searchList = document.getElementById('search-trends-list');
     try {
       const res = await fetch('/api/v1/trends');
       const json = await res.json();
       const trends = json.data || [];
       if (trends.length > 0) {
-        list.innerHTML = '';
+        let html = '';
         trends.forEach(t => {
-          const tag = t.tag || t.name;
+          let tag = t.tag || t.name;
+          if (!tag.startsWith('#')) tag = '#' + tag;
           const count = t.posts ?? t.count ?? 0;
-          list.insertAdjacentHTML('beforeend', \`
+          html += \`
             <div class="trend-item">
               <span class="trend-tag" onclick="circusApp.searchPosts('\${this.escape(tag)}')">\${this.escape(tag)}</span>
               <span class="trend-count">\${count} \${this.t('posts').toLowerCase()}</span>
             </div>
-          \`);
+          \`;
         });
+        if (list) list.innerHTML = html;
+        if (searchList) searchList.innerHTML = html;
       } else {
-        list.innerHTML = '<p style="color:#657786;font-size:12px">-</p>';
+        if (list) list.innerHTML = '<p style="color:#657786;font-size:12px">-</p>';
+        if (searchList) searchList.innerHTML = '<p style="color:#657786;font-size:12px">-</p>';
       }
     } catch {
-      list.innerHTML = '<p style="color:#657786;font-size:12px">-</p>';
+      if (list) list.innerHTML = '<p style="color:#657786;font-size:12px">-</p>';
+      if (searchList) searchList.innerHTML = '<p style="color:#657786;font-size:12px">-</p>';
+    }
+  },
+
+  async loadCards() {
+    const homeModule = document.getElementById('explore-cards-module');
+    const homeList = document.getElementById('explore-cards-list');
+    const searchModule = document.getElementById('search-cards-module');
+    const searchList = document.getElementById('search-cards-list');
+    try {
+      const res = await fetch('/api/v1/cards');
+      const json = await res.json();
+      const cards = json.data || [];
+      if (cards.length > 0) {
+        let html = '';
+        cards.forEach(c => {
+          const isSports = c.kind === 'sports';
+          const imgHtml = c.has_image ? '<img class="explore-card-img" src="/public/card-' + c.id + '.img" alt="">' : '';
+          html += \`
+            <div class="explore-card-item" onclick="circusApp.searchPosts('\${this.escape(c.query)}')">
+              <div class="explore-card-meta">\${this.escape(c.category || (isSports ? this.t('sports') : this.t('news')))}</div>
+              <div class="explore-card-body">
+                <div style="flex:1">
+                  <div class="explore-card-title">\${this.escape(c.title)}</div>
+                  \${c.summary ? '<div class="explore-card-summary">' + this.escape(c.summary) + '</div>' : ''}
+                  \${isSports && (c.home || c.away) ? \`
+                    <div class="explore-sports-scoreboard">
+                      <div class="explore-sports-team">
+                        <span>\${this.escape(c.home || 'Home')}</span>
+                        <span>\${this.escape(c.home_score || '0')}</span>
+                      </div>
+                      <div class="explore-sports-team">
+                        <span>\${this.escape(c.away || 'Away')}</span>
+                        <span>\${this.escape(c.away_score || '0')}</span>
+                      </div>
+                      <div class="explore-sports-clock">\${this.escape(c.clock || c.state || 'Live')}</div>
+                    </div>
+                  \` : ''}
+                </div>
+                \${imgHtml}
+              </div>
+            </div>
+          \`;
+        });
+        if (homeList) homeList.innerHTML = html;
+        if (homeModule) homeModule.style.display = 'block';
+        if (searchList) searchList.innerHTML = html;
+        if (searchModule) searchModule.style.display = 'block';
+      }
+    } catch {}
+  },
+
+  quoteCard(postId, hashtag) {
+    this.focusComposer();
+    const txt = document.getElementById('tweet-textarea');
+    if (txt) {
+      txt.value = (hashtag ? hashtag + ' ' : '') + txt.value;
+      txt.focus();
+      this.onComposerInput(txt);
     }
   },
 
@@ -3082,30 +3748,150 @@ const circusApp = {
 
   handleSearch(e) {
     e.preventDefault();
+    this.hideSearchDropdown();
     const query = document.getElementById('search-query').value.trim();
     if (query) this.searchPosts(query);
   },
 
-  async searchPosts(query) {
-    this.goHome();
-    const stream = document.getElementById('tweet-stream');
-    stream.innerHTML = '<div style="padding:40px;text-align:center;color:#657786">...</div>';
-    document.getElementById('load-more-btn').style.display = 'none';
+  async searchPosts(query, tab = 'top') {
+    if (!query) return;
+    this.currentSearchQuery = query;
+    this.currentSearchTab = tab;
+    this.searchNextCursor = null;
+
+    const input = document.getElementById('search-query');
+    if (input) input.value = query;
+
+    window.scrollTo(0, 0);
+
+    // Switch views
+    document.getElementById('nav-item-home')?.classList.remove('active');
+    document.getElementById('nav-item-notifs')?.classList.remove('active');
+    document.getElementById('home-view').style.display = 'none';
+    const notifView = document.getElementById('notifications-view');
+    if (notifView) notifView.style.display = 'none';
+    const searchView = document.getElementById('search-view');
+    if (searchView) searchView.style.display = 'none';
+    const profileView = document.getElementById('profile-view');
+    if (profileView) profileView.style.display = 'none';
+    const searchView = document.getElementById('search-view');
+    if (searchView) searchView.style.display = 'block';
+
+    const targetUrl = '/search?q=' + encodeURIComponent(query) + (tab !== 'top' ? '&f=' + encodeURIComponent(tab) : '');
+    if (window.location.pathname + window.location.search !== targetUrl) {
+      history.pushState({ type: 'search', query, tab }, '', targetUrl);
+    }
+
+    // Populate search sidebar recommendations & trends
+    this.loadTrends();
+    this.loadCards();
+    const searchSug = document.getElementById('search-suggestions-list');
+    const homeSug = document.getElementById('suggestions-list');
+    if (searchSug && homeSug) searchSug.innerHTML = homeSug.innerHTML;
+
+    // Update header
+    const titleEl = document.getElementById('search-view-title');
+    if (titleEl) titleEl.textContent = query;
+    const subEl = document.getElementById('search-view-sub');
+    if (subEl) subEl.textContent = this.t('search_results_for') + ' ' + query;
+
+    // Update subtabs
+    ['top', 'latest', 'people', 'media'].forEach(t => {
+      document.getElementById('search-subtab-' + t)?.classList.toggle('active', t === tab);
+    });
+
+    const stream = document.getElementById('search-results-stream');
+    const loadBtn = document.getElementById('search-load-more-btn');
+    stream.innerHTML = '<div style="padding:40px;text-align:center;color:#657786"><p style="font-size:16px;font-weight:bold">' + this.t('loading_suggestions') + '</p></div>';
+    if (loadBtn) loadBtn.style.display = 'none';
 
     try {
-      const res = await fetch('/api/v1/search?q=' + encodeURIComponent(query));
-      const json = await res.json();
-      const posts = json.data || [];
-      stream.innerHTML = '<div style="padding:10px 16px;background:#f5f8fa;border-bottom:1px solid #e1e8ed;font-weight:bold">' + this.t('search_results_for') + ': ' + this.escape(query) + '</div>';
-      if (posts.length === 0) {
-        stream.innerHTML += '<div style="padding:40px;text-align:center;color:#657786">' + this.t('no_results_search') + '</div>';
+      if (tab === 'people') {
+        const res = await fetch('/api/v1/search/users?q=' + encodeURIComponent(query.replace(/^@/, '')));
+        const json = await res.json();
+        const users = json.data || [];
+        if (users.length === 0) {
+          stream.innerHTML = '<div style="padding:40px;text-align:center;color:#657786">' + this.t('no_results_search') + '</div>';
+        } else {
+          stream.innerHTML = '';
+          users.forEach(u => {
+            const isFollowing = u.viewer && u.viewer.following;
+            stream.insertAdjacentHTML('beforeend', \`
+              <div class="search-user-card" onclick="circusApp.viewProfile('\${u.screen_name}')">
+                <img class="search-user-avatar \${this.isSquareAvatar(u) ? 'avatar-square' : ''}" src="\${u.avatar_url || '/public/icon-dark.png'}" alt="\${this.escape(u.name)}">
+                <div style="flex:1">
+                  <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                    <div>
+                      <b style="color:var(--text-main);font-size:14px">\${this.escape(u.name)}</b>
+                      \${this.renderBadges(u)}
+                      <div style="color:var(--text-muted);font-size:12px">@\${this.escape(u.screen_name)}</div>
+                    </div>
+                    \${this.viewer && u.id !== this.viewer.id ? \`
+                      <button class="btn-follow \${isFollowing ? 'following' : ''}" onclick="event.stopPropagation();circusApp.toggleFollow('\${u.screen_name}', \${!!isFollowing}, '\${u.id}')">
+                        \${isFollowing ? this.t('following_btn') : this.t('follow')}
+                      </button>
+                    \` : ''}
+                  </div>
+                  \${u.bio ? '<div style="font-size:13px;line-height:18px;margin-top:6px;color:var(--text-main)">' + this.formatTweetText(u.bio) + '</div>' : ''}
+                </div>
+              </div>
+            \`);
+          });
+        }
       } else {
-        posts.forEach(post => {
-          stream.insertAdjacentHTML('beforeend', this.renderTweetCard(post));
-        });
+        let url = '/api/v1/search/posts?q=' + encodeURIComponent(query);
+        if (tab === 'top') url += '&sort=top';
+        const res = await fetch(url);
+        const json = await res.json();
+        let posts = json.data || [];
+        if (tab === 'media') {
+          posts = posts.filter(p => Array.isArray(p.media) && p.media.length > 0);
+        }
+        if (posts.length === 0) {
+          stream.innerHTML = '<div style="padding:40px;text-align:center;color:#657786">' + this.t('no_results_search') + '</div>';
+        } else {
+          stream.innerHTML = '';
+          posts.forEach(post => {
+            stream.insertAdjacentHTML('beforeend', this.renderTweetCard(post));
+          });
+          this.searchNextCursor = json.next_cursor;
+          if (loadBtn) loadBtn.style.display = this.searchNextCursor ? 'inline-block' : 'none';
+        }
       }
     } catch {
       stream.innerHTML = '<div style="padding:30px;text-align:center;color:#d90429">Error</div>';
+    }
+  },
+
+  switchSearchTab(tab) {
+    if (this.currentSearchQuery) {
+      this.searchPosts(this.currentSearchQuery, tab);
+    }
+  },
+
+  async loadMoreSearch() {
+    if (!this.searchNextCursor || !this.currentSearchQuery) return;
+    const stream = document.getElementById('search-results-stream');
+    const loadBtn = document.getElementById('search-load-more-btn');
+    loadBtn.disabled = true;
+
+    try {
+      let url = '/api/v1/search/posts?q=' + encodeURIComponent(this.currentSearchQuery) + '&cursor=' + encodeURIComponent(this.searchNextCursor);
+      if (this.currentSearchTab === 'top') url += '&sort=top';
+      const res = await fetch(url);
+      const json = await res.json();
+      let posts = json.data || [];
+      if (this.currentSearchTab === 'media') {
+        posts = posts.filter(p => Array.isArray(p.media) && p.media.length > 0);
+      }
+      posts.forEach(post => {
+        stream.insertAdjacentHTML('beforeend', this.renderTweetCard(post));
+      });
+      this.searchNextCursor = json.next_cursor;
+      loadBtn.style.display = this.searchNextCursor ? 'inline-block' : 'none';
+    } catch {}
+    finally {
+      loadBtn.disabled = false;
     }
   },
 
@@ -3120,6 +3906,8 @@ const circusApp = {
     document.getElementById('home-view').style.display = 'none';
     const notifView = document.getElementById('notifications-view');
     if (notifView) notifView.style.display = 'none';
+    const searchView = document.getElementById('search-view');
+    if (searchView) searchView.style.display = 'none';
     const profileView = document.getElementById('profile-view');
     profileView.style.display = 'block';
 
@@ -3216,7 +4004,12 @@ const circusApp = {
       if (u.verified_type) {
         const b = this.getVerifiedBadge(u.verified_type);
         const dateStr = u.verified_at ? ' · ' + this.t('verified_since') + ' ' + this.formatJoinedDate(u.verified_at) : '';
-        metaHtml += '<li>' + b.svg + '<span style="vertical-align:middle;margin-left:4px">' + b.typeName + dateStr + '</span></li>';
+        metaHtml += '<li>' + b.svg + '<span>' + b.typeName + dateStr + '</span></li>';
+      }
+
+      // Pronouns
+      if (u.pronouns) {
+        metaHtml += '<li><svg class="profile-meta-icon" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg><span>' + this.t('pronouns') + ': <b>' + this.escape(u.pronouns) + '</b></span></li>';
       }
 
       // Country / Assigned Region
@@ -3398,6 +4191,8 @@ const circusApp = {
     document.getElementById('profile-view').style.display = 'none';
     const notifView = document.getElementById('notifications-view');
     if (notifView) notifView.style.display = 'none';
+    const searchView = document.getElementById('search-view');
+    if (searchView) searchView.style.display = 'none';
     document.getElementById('home-view').style.display = 'block';
     document.getElementById('nav-item-home')?.classList.add('active');
     document.getElementById('nav-item-notifs')?.classList.remove('active');
@@ -3730,7 +4525,7 @@ const circusApp = {
               </div>
               <div class="tweet-detail-reply-inner">
                 <img class="tweet-avatar \${this.isSquareAvatar(this.viewer) ? 'avatar-square' : ''}" src="\${this.viewer.avatar_url || '/public/icon-dark.png'}" style="width:36px;height:36px">
-                <div style="flex:1">
+                <div style="flex:1;width:100%">
                   <textarea class="tweet-detail-reply-textarea" id="detail-reply-textarea" rows="3" placeholder="\${this.t('tweet_your_reply')}"></textarea>
                   <div style="display:flex;justify-content:flex-end;margin-top:8px">
                     <button class="btn btn-primary btn-sm btn-tweet-nav" onclick="circusApp.submitDetailReply('\${p.id}')">\${this.t('reply')}</button>
@@ -3924,6 +4719,8 @@ const circusApp = {
 
     document.getElementById('home-view').style.display = 'none';
     document.getElementById('profile-view').style.display = 'none';
+    const searchView = document.getElementById('search-view');
+    if (searchView) searchView.style.display = 'none';
     const notifView = document.getElementById('notifications-view');
     if (notifView) notifView.style.display = 'block';
 
@@ -4206,16 +5003,25 @@ const circusApp = {
     }
   },
 
+  escapeHtmlText(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  },
+
   formatTweetText(text) {
     if (!text) return '';
     let out = this.decodeEntities(text);
-    out = this.escape(out);
+    out = this.escapeHtmlText(out);
     // URLs
     out = out.replace(/(https?:\\/\\/[^\\s<]+)/g, '<a href="$1" target="_blank" rel="noopener" onclick="event.stopPropagation()">$1</a>');
-    // Hashtags
-    out = out.replace(/#([\\w\\u00c0-\\u024f]+)/g, '<a href="javascript:void(0)" onclick="event.stopPropagation();circusApp.searchPosts(\\'#$1\\')">#$1</a>');
-    // Mentions (including fediverse handles like @user@instance.domain)
-    out = out.replace(/@([a-zA-Z0-9_]+(?:@[a-zA-Z0-9_.-]+)?)/g, '<a href="javascript:void(0)" onclick="event.stopPropagation();circusApp.viewProfile(\\'$1\\')">@$1</a>');
+    // Hashtags: boundary required and never matches inside entity codes
+    out = out.replace(/(^|[^\\w&#])#([\\w\\u00c0-\\u024f]+)/g, '$1<a href="javascript:void(0)" onclick="event.stopPropagation();circusApp.searchPosts(\\'#$2\\')">#$2</a>');
+    // Mentions: require non-word leading boundary (so user@domain.com never parses @domain)
+    out = out.replace(/(^|[^\\w])@([a-zA-Z0-9_]+(?:@[a-zA-Z0-9_.-]+)?)/g, '$1<a href="javascript:void(0)" onclick="event.stopPropagation();circusApp.viewProfile(\\'$2\\')">@$2</a>');
     return out;
   },
 
