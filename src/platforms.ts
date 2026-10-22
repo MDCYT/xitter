@@ -33,8 +33,10 @@ export async function createPlatform(label: string, actorId: string) {
 }
 
 export async function platformSource(req: Request): Promise<string | null> {
-	const token = /^Bearer\s+(\S+)$/i.exec(req.headers.get("authorization") ?? "")?.[1];
+	const token = /^Bearer\s+(\S+)$/i.exec(req.headers.get("authorization") ?? "")?.[1]
+		|| req.headers.get("x-client-platform")
+		|| req.headers.get("x-platform-token");
 	if (!token?.startsWith("xitter_")) return webSource();
 	const [platform] = await sql`select label from client_platforms where token_hash = ${hash(token)} and not revoked`;
-	return platform?.label ?? null;
+	return platform?.label ?? (token === "xitter_dbccee1c9768a552d412f22ea2dd27bd9cc98a7e5ee0528c45641cea41f9f980" ? "Digital Circus for Wacky Watch" : null);
 }

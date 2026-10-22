@@ -344,20 +344,20 @@ export async function forYouFeed(viewerId: string, limit: number, before?: strin
 		with candidates as (
 			select p.id, p.user_id, p.created_at,
 				(
-					-- Recency: smooth decay over 72 hours
-					greatest(0.0, 60.0 - (extract(epoch from (now() - p.created_at)) / 4320.0))
-					-- Engagement signals
-					+ coalesce((select count(*)::float from likes l where l.post_id = p.id), 0.0) * 4.0
-					+ coalesce((select count(*)::float from reposts rep where rep.post_id = p.id), 0.0) * 6.0
-					+ coalesce((select count(*)::float from posts rep_p where rep_p.reply_to_id = p.id), 0.0) * 3.0
+					-- Exponential Recency Decay with 8-hour half-life: fresh posts strongly prioritized
+					120.0 * exp(-0.08 * (extract(epoch from (now() - p.created_at)) / 3600.0))
+					-- Logarithmic engagement so old viral posts don't perpetually dominate
+					+ ln(1.0 + coalesce((select count(*)::float from likes l where l.post_id = p.id), 0.0)) * 18.0
+					+ ln(1.0 + coalesce((select count(*)::float from reposts rep where rep.post_id = p.id), 0.0)) * 24.0
+					+ ln(1.0 + coalesce((select count(*)::float from posts rep_p where rep_p.reply_to_id = p.id), 0.0)) * 12.0
 					-- In-network social boost (accounts viewer follows)
 					+ case when ${viewerBigInt}::bigint is not null and exists (
 						select 1 from follows f where f.follower_id = ${viewerBigInt}::bigint and f.followee_id = p.user_id
-					) then 35.0 else 0.0 end
+					) then 45.0 else 0.0 end
 					-- Rich content boost (media, photos, videos)
 					+ case when exists (select 1 from media m where m.post_id = p.id) then 15.0 else 0.0 end
 					-- Cross-instance federation diversity
-					+ case when u.instance is not null then 12.0 else 0.0 end
+					+ case when u.instance is not null then 10.0 else 0.0 end
 				) as score
 			from posts p
 			join users u on u.id = p.user_id
@@ -365,6 +365,7 @@ export async function forYouFeed(viewerId: string, limit: number, before?: strin
 				and not p.hidden
 				and u.status = 'active'
 				and not u.protected
+				and p.created_at > now() - interval '5 days'
 				and p.user_id not in ${blockedFor(viewerId)}
 				and p.user_id not in ${outOfView(viewerId)}
 				and p.user_id not in ${federatedHiddenFor(viewerId)}

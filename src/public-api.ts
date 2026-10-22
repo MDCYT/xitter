@@ -137,7 +137,9 @@ function postJson(p: PostRow, repostBy?: { by: User; created_at: Date }) {
 		edited_at: iso(p.edited_at),
 		url: `${PUBLIC_ORIGIN}/${p.author.screen_name}/status/${p.id}`,
 		author: userJson(p.author),
+		source: p.source || null,
 		reply_to: p.reply_to_id,
+		reply_to_screen_name: p.reply_screen_name ?? null,
 		quote_of: p.quote_id,
 		sensitive: !!p.sensitive,
 		counts: { likes: p.like_count, reposts: p.repost_count, replies: p.reply_count, quotes: p.quote_count, bookmarks: p.bookmark_count, views: p.view_count ?? 0 },
@@ -202,13 +204,18 @@ async function body(req: Request): Promise<Record<string, any>> {
 }
 
 async function userOr404(v: Viewer, name: string) {
-	const decoded = (() => {
+	let decoded = (() => {
 		try {
 			return decodeURIComponent(name);
 		} catch {
 			return "";
 		}
 	})();
+	if (decoded.includes("%")) {
+		try {
+			decoded = decodeURIComponent(decoded);
+		} catch {}
+	}
 	const u = decoded ? await userByName(v.id, decoded) : undefined;
 	if (!u || u.status === "suspended") throw new ApiError(404, "No account goes by that name.");
 	return u;

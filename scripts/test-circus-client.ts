@@ -192,10 +192,10 @@ describe("Circus 2016 Custom Client", () => {
 			text: "Hello @discord and @YouTube and @localUser@xitter.space!"
 		};
 		const formatted = app.formatTweetText(remotePost.text, remotePost);
-		expect(formatted).toContain('href="/discord%40xitter.opuadm.com"');
+		expect(formatted).toContain('href="/discord@xitter.opuadm.com"');
 		expect(formatted).toContain("circusApp.viewProfile('discord@xitter.opuadm.com')");
-		expect(formatted).toContain('href="/YouTube%40xitter.opuadm.com"');
-		expect(formatted).toContain('href="/localUser%40xitter.space"');
+		expect(formatted).toContain('href="/YouTube@xitter.opuadm.com"');
+		expect(formatted).toContain('href="/localUser@xitter.space"');
 
 		// Local post mentions
 		const localPost = {
@@ -205,5 +205,21 @@ describe("Circus 2016 Custom Client", () => {
 		const localFormatted = app.formatTweetText(localPost.text, localPost);
 		expect(localFormatted).toContain('href="/discord"');
 		expect(localFormatted).toContain("circusApp.viewProfile('discord')");
+
+		// Replies and source indicator
+		const replyPost = {
+			id: "12345",
+			author: { screen_name: "ragatha", name: "Ragatha" },
+			text: "Replying to you!",
+			created_at: new Date().toISOString(),
+			reply_to: "999",
+			reply_to_screen_name: "pomni",
+			source: "Digital Circus for Wacky Watch"
+		};
+		const cardHtml = app.renderTweetCard(replyPost);
+		expect(cardHtml).toContain("tweet-reply-context");
+		expect(cardHtml).toContain("@pomni");
+		expect(cardHtml).toContain("tweet-source");
+		expect(cardHtml).toContain("Digital Circus for Wacky Watch");
 	});
 });

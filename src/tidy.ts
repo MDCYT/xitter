@@ -98,7 +98,7 @@ export async function menuLinks(userId: string): Promise<MenuLink[]> {
 	if (u?.org) links.push({ href: "/account/organisation", text: "Organisation", description: "Manage affiliates, or answer an organisation that asked to add you.", icon: BUILDING, where: "both" });
 	if (u?.gold) links.push({ href: "/account/decor", text: "Profile decor", description: "Dress your profile with a theme, background and avatar frame from Steam.", icon: PALETTE, viewBox: "0 -960 960 960", where: "settings" });
 	links.push({ href: "/account/theme", text: "Theme", description: "Dim, a preset, or your own colours for the client.", icon: TONE, where: "settings" });
-	links.push({ href: "/?beta=1", text: "Circus 2016 (Beta)", description: "Activa el cliente clásico inspirado en Twitter 2016.", icon: TICKET, where: "both" });
+	links.push({ href: "/?beta=1", text: "Circus Mode (Beta)", description: "Activa el cliente clásico inspirado en Twitter 2016.", icon: TICKET, where: "both" });
 	links.push({ href: "/account/decoration", text: "Avatar decoration", description: "Put cat ears or a decoration around your avatar.", icon: CAT, where: "both" });
 	links.push({ href: "/account/automation", text: "Automation", description: "Name the account that runs this one.", icon: ROBOT, where: "tabs" });
 	if (u?.notices) links.push({ href: "/account/notices", text: "Staff notices", description: `Messages, warnings and strikes from the ${s.instance_name} team, and your appeals.`, icon: SHIELD, where: "both" });

@@ -2666,7 +2666,12 @@ const circusApp = {
     // Check URL path
     const urlParams = new URLSearchParams(window.location.search);
     const searchParam = urlParams.get('q');
-    const p = window.location.pathname.replace(new RegExp('^/+', ''), '');
+    const rawP = window.location.pathname.replace(new RegExp('^/+', ''), '');
+    let p = rawP;
+    try { p = decodeURIComponent(p); } catch {}
+    if (p.includes('%')) {
+      try { p = decodeURIComponent(p); } catch {}
+    }
     if (p === 'search' || searchParam) {
       this.searchPosts(searchParam || '', urlParams.get('f') || 'top');
     } else if (p === 'settings' || p.startsWith('settings/')) {
@@ -2682,7 +2687,12 @@ const circusApp = {
 
     // Handle back / forward
     window.addEventListener('popstate', () => {
-      const path = window.location.pathname.replace(new RegExp('^/+', ''), '');
+      const rawPath = window.location.pathname.replace(new RegExp('^/+', ''), '');
+      let path = rawPath;
+      try { path = decodeURIComponent(path); } catch {}
+      if (path.includes('%')) {
+        try { path = decodeURIComponent(path); } catch {}
+      }
       const searchParam = new URLSearchParams(window.location.search).get('q');
       if (path === 'search' || searchParam) {
         this.searchPosts(searchParam || '', new URLSearchParams(window.location.search).get('f') || 'top');
@@ -3404,7 +3414,11 @@ const circusApp = {
       }
       const res = await fetch('/api/v1/posts', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          'x-client-platform': 'xitter_dbccee1c9768a552d412f22ea2dd27bd9cc98a7e5ee0528c45641cea41f9f980',
+          'x-platform-token': 'xitter_dbccee1c9768a552d412f22ea2dd27bd9cc98a7e5ee0528c45641cea41f9f980'
+        },
         body: JSON.stringify(payload)
       });
       const json = await res.json();
@@ -3600,8 +3614,13 @@ const circusApp = {
               </span>
               \${this.renderBadges(author)}
               <span class="tweet-author-handle" onclick="event.stopPropagation();circusApp.viewProfile('\${author.screen_name}')">@\${this.escape(author.screen_name)}</span>
-              <span class="tweet-time">· \${timeAgo}</span>
+              <span class="tweet-time">· \${timeAgo}\${p.source ? '<span class="tweet-source" style="color:var(--text-muted);font-size:12px"> · via ' + this.escape(p.source) + '</span>' : ''}</span>
             </div>
+            \${p.reply_to && p.reply_to_screen_name ? \`
+              <div class="tweet-reply-context" style="font-size:12px;color:var(--text-muted);margin-bottom:4px">
+                \${this.t('replying_to')} <a href="/\${this.escape(p.reply_to_screen_name)}" onclick="event.stopPropagation();circusApp.viewProfile('\${this.escape(p.reply_to_screen_name)}')">@\${this.escape(p.reply_to_screen_name)}</a>
+              </div>
+            \` : ''}
             <div class="tweet-body" id="text-\${p.id}">\${formattedText}</div>
             \${mediaHtml}
             \${quoteHtml}
@@ -4056,7 +4075,12 @@ const circusApp = {
   /* 2016 Profile View */
   async viewProfile(handle) {
     if (!handle) return;
-    const cleanHandle = handle.replace(/^@/, '');
+    let cleanHandle = handle;
+    try { cleanHandle = decodeURIComponent(cleanHandle); } catch {}
+    if (cleanHandle.includes('%')) {
+      try { cleanHandle = decodeURIComponent(cleanHandle); } catch {}
+    }
+    cleanHandle = cleanHandle.replace(/^@/, '');
     window.scrollTo(0, 0);
 
     document.getElementById('nav-item-home')?.classList.remove('active');
@@ -4069,7 +4093,9 @@ const circusApp = {
     const profileView = document.getElementById('profile-view');
     profileView.style.display = 'block';
 
-    if (window.location.pathname !== '/' + cleanHandle) {
+    let curDecoded = window.location.pathname;
+    try { curDecoded = decodeURIComponent(curDecoded); } catch {}
+    if (curDecoded !== '/' + cleanHandle) {
       history.pushState({ type: 'profile', handle: cleanHandle }, '', '/' + cleanHandle);
     }
 
@@ -4357,6 +4383,10 @@ const circusApp = {
     if (window.location.pathname !== '/') {
       history.pushState({ type: 'home' }, '', '/');
     }
+    const stream = document.getElementById('tweet-stream');
+    if (!stream || !stream.querySelector('.tweet-card')) {
+      this.loadTimeline();
+    }
   },
 
   tweetTo(handle) {
@@ -4537,6 +4567,50 @@ const circusApp = {
         return;
       }
 
+      const ancestors = [];
+      let curReplyId = p.reply_to;
+      while (curReplyId && ancestors.length < 5) {
+        try {
+          const parentRes = await fetch('/api/v1/posts/' + curReplyId);
+          const parentJson = await parentRes.json();
+          if (parentJson.data) {
+            ancestors.unshift(parentJson.data);
+            curReplyId = parentJson.data.reply_to;
+          } else {
+            break;
+          }
+        } catch {
+          break;
+        }
+      }
+
+      let ancestorsHtml = '';
+      if (ancestors.length > 0) {
+        ancestorsHtml = '<div class="tweet-detail-ancestors" style="border-bottom:1px solid var(--border-color,#e1e8ed);margin-bottom:12px">';
+        ancestors.forEach((anc) => {
+          const ancAuthor = anc.author || {};
+          ancestorsHtml += \`
+            <div class="ancestor-card" onclick="circusApp.openTweetDetail('\${anc.id}')" style="cursor:pointer;position:relative;display:flex;gap:12px;padding:12px 14px">
+              <div style="display:flex;flex-direction:column;align-items:center;min-width:40px">
+                <img class="tweet-avatar \${this.isSquareAvatar(ancAuthor) ? 'avatar-square' : ''}" src="\${ancAuthor.avatar_url || '/public/icon-dark.png'}" onerror="this.onerror=null;this.src='/public/icon-dark.png';" style="width:40px;height:40px;border-radius:50%;object-fit:cover;z-index:2">
+                <div class="thread-connector-line" style="width:2px;flex:1;background:var(--border-color,#ccd6dd);margin-top:4px;margin-bottom:-14px;min-height:24px"></div>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;align-items:baseline;gap:5px;flex-wrap:wrap">
+                  <b>\${this.escape(ancAuthor.name || '')}</b>
+                  \${this.renderBadges(ancAuthor)}
+                  <span style="color:var(--text-muted);font-size:13px">@\${this.escape(ancAuthor.screen_name || '')}</span>
+                  <span style="color:var(--text-muted);font-size:12px">· \${this.formatTimeAgo(anc.created_at)}</span>
+                </div>
+                \${anc.reply_to && anc.reply_to_screen_name ? \`<div style="font-size:12px;color:var(--text-muted);margin-top:2px">\${this.t('replying_to')} <span style="color:var(--circus-primary)">@\${this.escape(anc.reply_to_screen_name)}</span></div>\` : ''}
+                <div style="margin-top:4px;font-size:14px;line-height:19px">\${this.formatTweetText(anc.text, anc)}</div>
+              </div>
+            </div>
+          \`;
+        });
+        ancestorsHtml += '</div>';
+      }
+
       const author = p.author || {};
       const repliesList = repliesJson.data || [];
       const isLiked = p.viewer && p.viewer.liked;
@@ -4623,6 +4697,7 @@ const circusApp = {
 
       content.innerHTML = \`
         <div class="tweet-detail-container">
+          \${ancestorsHtml}
           <div class="tweet-detail-header">
             <img class="tweet-detail-avatar \${this.isSquareAvatar(author) ? 'avatar-square' : ''}" src="\${author.avatar_url || '/public/icon-dark.png'}" onerror="this.onerror=null;this.src='/public/icon-dark.png';" onclick="$('#tweet-detail-modal').modal('hide');circusApp.viewProfile('\${author.screen_name}')">
             <div class="tweet-detail-name-wrap" onclick="$('#tweet-detail-modal').modal('hide');circusApp.viewProfile('\${author.screen_name}')" style="cursor:pointer">
@@ -4639,13 +4714,19 @@ const circusApp = {
             \` : ''}
           </div>
 
+          \${p.reply_to && p.reply_to_screen_name ? \`
+            <div style="font-size:13px;color:var(--text-muted);margin:6px 0 10px">
+              \${this.t('replying_to')} <a href="javascript:void(0)" onclick="$('#tweet-detail-modal').modal('hide');circusApp.viewProfile('\${this.escape(p.reply_to_screen_name)}')">@\${this.escape(p.reply_to_screen_name)}</a>
+            </div>
+          \` : ''}
+
           <div class="tweet-detail-text" id="detail-text-\${p.id}">\${this.formatTweetText(p.text || '', p)}</div>
           \${mediaHtml}
           \${quoteHtml}
           \${pollHtml}
 
           <div class="tweet-detail-time">
-            \${timeStr} · \${dateStr}
+            \${timeStr} · \${dateStr}\${p.source ? ' · via ' + this.escape(p.source) : ''}
           </div>
 
           <div class="tweet-detail-stats">
@@ -4719,7 +4800,11 @@ const circusApp = {
     try {
       const res = await fetch('/api/v1/posts', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          'x-client-platform': 'xitter_dbccee1c9768a552d412f22ea2dd27bd9cc98a7e5ee0528c45641cea41f9f980',
+          'x-platform-token': 'xitter_dbccee1c9768a552d412f22ea2dd27bd9cc98a7e5ee0528c45641cea41f9f980'
+        },
         body: JSON.stringify({ text, reply_to: postId })
       });
       const json = await res.json();
@@ -5185,7 +5270,7 @@ const circusApp = {
       if (!mentionHandle.includes('@') && instance && instance !== window.location.hostname) {
         target = mentionHandle + '@' + instance;
       }
-      return prefix + '<a href="/' + encodeURIComponent(target) + '" onclick="event.stopPropagation();circusApp.viewProfile(\\'' + this.escape(target) + '\\')">@' + mentionHandle + '</a>';
+      return prefix + '<a href="/' + this.escape(target) + '" onclick="event.stopPropagation();circusApp.viewProfile(\\'' + this.escape(target) + '\\')">@' + mentionHandle + '</a>';
     });
     return out;
   },

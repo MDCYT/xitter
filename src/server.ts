@@ -396,7 +396,9 @@ async function route(req: Request): Promise<Response | undefined> {
 	// the public API signs in with its own tokens or browser cookies
 	if (p.startsWith("/api/v1/") || p === "/api/v1") {
 		const viewer = await getViewer(req);
-		return publicApi(req, url, viewer);
+		const source = await platformSource(req);
+		const effectiveViewer = viewer ? { ...viewer, postSource: source ?? viewer.postSource } : undefined;
+		return publicApi(req, url, effectiveViewer);
 	}
 	if (p === "/oauth/token") return oauthToken(req);
 	const appIcon = /^\/oauth\/apps\/(\d{1,19})\/icon$/.exec(p);
