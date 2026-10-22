@@ -569,19 +569,19 @@ async function route(req: Request): Promise<Response | undefined> {
 		])
 		: [[], [], []];
 
+	const guestLang = cookies.lang || req.headers.get("accept-language")?.slice(0, 2).toLowerCase();
 	const isBeta = (enterBeta || cookies.client_mode === "beta" || (flagRows[0]?.preferences && typeof flagRows[0].preferences === "object" && (flagRows[0].preferences as any).client === "beta")) && !exitBeta;
 	if (isBeta) {
 		const headers = new Headers({ "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
 		headers.append("set-cookie", "client_mode=beta; Path=/; Max-Age=31536000; SameSite=Lax");
 		if (viewer && cookies.ct0 !== viewer.csrf) headers.append("set-cookie", csrfCookie(viewer.csrf));
-		return new Response(circusClientHtml({ viewer: viewer ?? null, instanceName: settings().instance_name, origin: PUBLIC_ORIGIN }), { headers });
+		return new Response(circusClientHtml({ viewer: viewer ?? null, instanceName: settings().instance_name, origin: PUBLIC_ORIGIN, lang: viewer?.language || guestLang || "es" }), { headers });
 	}
 
 	const prefs = readPrefs(flagRows[0]?.preferences);
 	const look = prefs.look;
 	const painted = look?.kind === "painted" ? look.theme : null;
 	const paint = viewer && painted ? await resolveBackground(viewer.id, painted) : undefined;
-	const guestLang = cookies.lang || req.headers.get("accept-language")?.slice(0, 2).toLowerCase();
 	const page = shell(viewer ?? null, !!cookies.auth_multi, communityRows.length > 0, flagRows[0]?.education_flags ?? {}, links, look, prefs.accent, paint, viewer?.csrf, guestLang);
 	const headers = new Headers({ "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": PAGE_CSP });
 	if (exitBeta) headers.append("set-cookie", "client_mode=; Path=/; Max-Age=0; SameSite=Lax");

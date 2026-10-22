@@ -14,7 +14,7 @@ import { callOperation } from "./graphql";
 import { isId, newId } from "./ids";
 import { absolute, mediaUpload, mediaUrl, posterUrl } from "./media";
 import type { PostRow } from "./model";
-import { PostError, feed, getPost, postsByIds, replies, type FeedItem } from "./posts";
+import { PostError, feed, getPost, likedPosts, postsByIds, replies, type FeedItem } from "./posts";
 import { type Bucket, limitHeaders, limitedResponse, noteRefusal, take } from "./ratelimit";
 import { cachedTrends, searchPosts, searchUsers } from "./search";
 import { settings } from "./settings";
@@ -84,6 +84,8 @@ function userJson(u: User) {
 		avatar_url: absolute(u.avatar_url),
 		banner_url: absolute(u.banner_url),
 		verified_type: u.verified_type,
+		verified_at: iso(u.verified_at),
+		country: u.country ?? null,
 		protected: !!u.protected,
 		created_at: iso(u.created_at),
 		url: `${PUBLIC_ORIGIN}/${u.screen_name}`,
@@ -96,6 +98,7 @@ function userJson(u: User) {
 			name: u.org.name,
 			screen_name: u.org.screen_name,
 			avatar_url: absolute(u.org.avatar_url),
+			since: iso(u.org.since),
 		} : null,
 		label: u.label ? {
 			text: u.label.text,
@@ -346,11 +349,26 @@ const ROUTES: Route[] = [
 		},
 	},
 	{
+		method: "GET", pattern: /^\/users\/([^/]+)\/likes$/, scope: "read",
+		run: async (v, m, _r, url) => {
+			const u = await userOr404(v, m[1]);
+			const posts = await likedPosts(v.id, u.id, limitOf(url));
+			return { data: posts.map((p) => postJson(p)) };
+		},
+	},
+	{
 		method: "GET", pattern: /^\/timeline$/, scope: "read",
 		run: async (v, _m, _r, url) => {
 			const limit = limitOf(url);
-			const all = url.searchParams.get("feed") === "all" || v.id === "0";
-			return page(await feed({ viewerId: v.id, authors: all ? {} : { following: true }, replies: false, kinds: "both", limit, before: cursorOf(url) }), limit);
+			const feedParam = url.searchParams.get("feed") || "for_you";
+			let authors: FeedQuery["authors"] = {};
+			let localOnly = false;
+			if (feedParam === "following" && v.id !== "0") {
+				authors = { following: true };
+			} else if (feedParam === "for_you") {
+				localOnly = true;
+			}
+			return page(await feed({ viewerId: v.id, authors, replies: false, kinds: "both", localOnly, limit, before: cursorOf(url) }), limit);
 		},
 	},
 	{ method: "GET", pattern: /^\/posts\/(\d{1,19})$/, scope: "read", run: async (v, m) => ({ data: postJson(await postOr404(v, m[1])) }) },
@@ -409,7 +427,7 @@ const ROUTES: Route[] = [
 			const target = String(b.target_lang ?? v.language ?? "es");
 			const post = await postOr404(v, m[1]);
 			const res = await translateText(post.text, target);
-			return { data: { text: res.translated_text, source_lang: res.source_lang } };
+			return { data: { text: res.translated_text, translated_text: res.translated_text, source_lang: res.source_lang, target_lang: target } };
 		},
 	},
 	{

@@ -270,6 +270,7 @@ export type FeedQuery = {
 	onlyReplies?: boolean;
 	// posts that carry an article
 	articlesOnly?: boolean;
+	localOnly?: boolean;
 	limit: number;
 	// exclusive item ids
 	before?: string;
@@ -321,12 +322,13 @@ export async function feed(q: FeedQuery): Promise<FeedItem[]> {
 				: sql`exists (select 1 from media m where m.post_id = f.post_id and m.kind <> 'video')`;
 	// a community's posts stay in the community for everyone who isn't in it
 	const communityFilter = "community" in q.authors ? sql`true` : communityVisible(q.viewerId);
+	const localFilter = q.localOnly ? sql`f.author_id in (select id from users where instance is null)` : sql`true`;
 	const home = !("user" in q.authors);
 	const hidden = home ? ("list" in q.authors || "community" in q.authors ? homeHidden(q.viewerId) : sql`${homeHidden(q.viewerId)} and ${listMuted(q.viewerId)}`) : profileHidden(q.viewerId);
 	const rows = q.after
-		? await sql`select * from feed_items f where ${authorFilter} and ${kindFilter} and ${replyFilter} and ${mediaFilter} and ${articleFilter} and ${communityFilter} and ${hidden} and f.item_id > ${q.after}::bigint
+		? await sql`select * from feed_items f where ${authorFilter} and ${kindFilter} and ${replyFilter} and ${mediaFilter} and ${articleFilter} and ${communityFilter} and ${localFilter} and ${hidden} and f.item_id > ${q.after}::bigint
 			order by f.item_id asc limit ${q.limit}`
-		: await sql`select * from feed_items f where ${authorFilter} and ${kindFilter} and ${replyFilter} and ${mediaFilter} and ${articleFilter} and ${communityFilter} and ${hidden} and f.item_id < ${q.before ?? NO_LIMIT}::bigint
+		: await sql`select * from feed_items f where ${authorFilter} and ${kindFilter} and ${replyFilter} and ${mediaFilter} and ${articleFilter} and ${communityFilter} and ${localFilter} and ${hidden} and f.item_id < ${q.before ?? NO_LIMIT}::bigint
 			order by f.item_id desc limit ${q.limit}`;
 	if (q.after) rows.reverse();
 
