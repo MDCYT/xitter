@@ -1,4 +1,4 @@
-import { type Viewer, GUEST_VIEWER, getViewer, parseCookies, csrfCookie } from "./auth";
+import { type Viewer, GUEST_VIEWER, getViewer, parseCookies, csrfCookie, clearedCookies, logout } from "./auth";
 import { getClientFile, getClientFilePath } from "./client-cache";
 import { PORT, PUBLIC_ORIGIN } from "./config";
 import { migrate, sql } from "./db";
@@ -24,6 +24,7 @@ import { MEDIA_DIR, mediaUpload, serveMedia } from "./media";
 import { resumeVideos } from "./video";
 import { livePipeline, restRoute, TELEMETRY } from "./rest";
 import { bootScript, shell } from "./shell";
+import { circusClientHtml } from "./circus-client";
 import { platformSource } from "./platforms";
 import { badgeImage, expireSanctions } from "./moderation";
 import { appealRoute, noticesApi, noticesPage } from "./staff-notices";
@@ -392,8 +393,11 @@ async function route(req: Request): Promise<Response | undefined> {
 	// account migration: another instance reads an account here with the code
 	// the account made (migration.ts); never cookies
 	if (p.startsWith("/migration/v1/")) return migrationApi(req, url);
-	// the public API signs in with its own tokens, never cookies
-	if (p.startsWith("/api/v1/") || p === "/api/v1") return publicApi(req, url);
+	// the public API signs in with its own tokens or browser cookies
+	if (p.startsWith("/api/v1/") || p === "/api/v1") {
+		const viewer = await getViewer(req);
+		return publicApi(req, url, viewer);
+	}
 	if (p === "/oauth/token") return oauthToken(req);
 	const appIcon = /^\/oauth\/apps\/(\d{1,19})\/icon$/.exec(p);
 	if (appIcon && req.method === "GET") return oauthAppIcon(appIcon[1]!);
@@ -404,6 +408,13 @@ async function route(req: Request): Promise<Response | undefined> {
 		const h = hit("auth", requestIp(req) ?? "unknown");
 		if (!h.ok) return limitedResponse(h);
 		return handleLogin(req);
+	}
+	if (p === "/logout" || p === "/account/logout") {
+		const viewer = await getViewer(req);
+		if (viewer) await logout(viewer.token);
+		const res = Response.redirect("/", 302);
+		for (const c of clearedCookies()) res.headers.append("set-cookie", c);
+		return res;
 	}
 	if (p === "/rules" || p === "/tos" || p === "/privacy") return rulesPage();
 	// X's sign-in screens (jf.x.com), answered here
@@ -547,6 +558,9 @@ async function route(req: Request): Promise<Response | undefined> {
 		path.startsWith("/xchat") ||
 		path.startsWith("/i/bookmarks");
 	if (!viewer && isAuthOnly(p)) return Response.redirect("/", 302);
+	const cookies = parseCookies(req);
+	const exitBeta = url.searchParams.get("beta") === "0" || url.searchParams.get("beta") === "false" || url.searchParams.has("exit_beta") || url.searchParams.has("modern");
+	const enterBeta = url.searchParams.has("beta") || url.searchParams.has("circus") || url.searchParams.has("classic");
 	const [communityRows, flagRows, links] = viewer
 		? await Promise.all([
 			sql`select 1 from community_members where user_id = ${viewer.id}::bigint limit 1`,
@@ -554,13 +568,23 @@ async function route(req: Request): Promise<Response | undefined> {
 			menuLinks(viewer.id),
 		])
 		: [[], [], []];
+
+	const isBeta = (enterBeta || cookies.client_mode === "beta" || (flagRows[0]?.preferences && typeof flagRows[0].preferences === "object" && (flagRows[0].preferences as any).client === "beta")) && !exitBeta;
+	if (isBeta) {
+		const headers = new Headers({ "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+		headers.append("set-cookie", "client_mode=beta; Path=/; Max-Age=31536000; SameSite=Lax");
+		if (viewer && cookies.ct0 !== viewer.csrf) headers.append("set-cookie", csrfCookie(viewer.csrf));
+		return new Response(circusClientHtml({ viewer: viewer ?? null, instanceName: settings().instance_name, origin: PUBLIC_ORIGIN }), { headers });
+	}
+
 	const prefs = readPrefs(flagRows[0]?.preferences);
 	const look = prefs.look;
 	const painted = look?.kind === "painted" ? look.theme : null;
 	const paint = viewer && painted ? await resolveBackground(viewer.id, painted) : undefined;
-	const guestLang = parseCookies(req).lang || req.headers.get("accept-language")?.slice(0, 2).toLowerCase();
-	const page = shell(viewer ?? null, !!parseCookies(req).auth_multi, communityRows.length > 0, flagRows[0]?.education_flags ?? {}, links, look, prefs.accent, paint, viewer?.csrf, guestLang);
+	const guestLang = cookies.lang || req.headers.get("accept-language")?.slice(0, 2).toLowerCase();
+	const page = shell(viewer ?? null, !!cookies.auth_multi, communityRows.length > 0, flagRows[0]?.education_flags ?? {}, links, look, prefs.accent, paint, viewer?.csrf, guestLang);
 	const headers = new Headers({ "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": PAGE_CSP });
+	if (exitBeta) headers.append("set-cookie", "client_mode=; Path=/; Max-Age=0; SameSite=Lax");
 	const activeLang = viewer?.language || guestLang || "en";
 	headers.append("set-cookie", `lang=${activeLang}; Path=/; Max-Age=31536000; SameSite=Lax`);
 	// a guest token left from the signed-out page makes the signed-in client act

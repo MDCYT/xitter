@@ -7,7 +7,7 @@
 
 import { BodyTooLarge, boundedBody } from "./api-input";
 import { accountPage, esc } from "./account-page";
-import { type User, type Viewer } from "./auth";
+import { type User, type Viewer, GUEST_VIEWER } from "./auth";
 import { PUBLIC_ORIGIN } from "./config";
 import { sql } from "./db";
 import { callOperation } from "./graphql";
@@ -16,9 +16,11 @@ import { absolute, mediaUpload, mediaUrl, posterUrl } from "./media";
 import type { PostRow } from "./model";
 import { PostError, feed, getPost, postsByIds, replies, type FeedItem } from "./posts";
 import { type Bucket, limitHeaders, limitedResponse, noteRefusal, take } from "./ratelimit";
-import { searchPosts, searchUsers } from "./search";
+import { cachedTrends, searchPosts, searchUsers } from "./search";
 import { settings } from "./settings";
-import { followList, setFollow, userByName, usersByIds } from "./users";
+import { followList, setFollow, suggestedUsers, userByName, usersByIds } from "./users";
+import { translateText } from "./translate";
+import { votePoll } from "./polls";
 
 const hash = (token: string) => new Bun.CryptoHasher("sha256").update(token).digest("hex");
 const MAX_TOKENS = 10;
@@ -116,6 +118,15 @@ function postJson(p: PostRow, repostBy?: { by: User; created_at: Date }) {
 			height: m.height,
 			alt_text: m.alt_text ?? null,
 		})),
+		quoted: p.quoted ? postJson(p.quoted) : null,
+		poll: p.poll ? {
+			id: p.poll_id,
+			choices: (p.poll as any).choices ?? [],
+			counts: (p.poll as any).counts ?? [],
+			total_votes: (p.poll as any).totalVotes ?? 0,
+			closed: !!(p.poll as any).closed,
+			voted: (p.poll as any).voted ?? null,
+		} : null,
 		...(repostBy ? { reposted_by: userJson(repostBy.by), reposted_at: iso(repostBy.created_at) } : {}),
 	};
 }
@@ -226,7 +237,25 @@ async function finishMedia(v: Viewer, id: string) {
 // The simple whole-body endpoint remains useful for small files. Larger files
 // use the same uploader through bounded segments below the server's body cap.
 async function uploadMedia(req: Request, v: Viewer) {
-	const type = (req.headers.get("content-type") ?? "").split(";")[0].trim();
+	const ct = req.headers.get("content-type") ?? "";
+	if (ct.includes("multipart/form-data")) {
+		const form = await req.formData();
+		const file = (form.get("media") ?? form.get("file")) as Blob | null;
+		if (!file) throw new ApiError(400, "Provide a file in 'media' or 'file' field.");
+		const type = file.type || "image/jpeg";
+		if (!/^(image|video)\//.test(type)) throw new ApiError(415, "Only image and video uploads are allowed.");
+		const data = new Uint8Array(await file.arrayBuffer());
+		if (data.length > mediaLimit(type)) throw new ApiError(413, "That file is too large.");
+		const video = type.startsWith("video/");
+		const init = await callMedia(v, { command: "INIT", total_bytes: String(data.length), media_type: type, media_category: video ? "tweet_video" : type === "image/gif" ? "tweet_gif" : "tweet_image" });
+		const id = init.media_id_string;
+		const segForm = new FormData();
+		segForm.set("media", new Blob([data], { type }));
+		await callMedia(v, { command: "APPEND", media_id: id, segment_index: "0" }, segForm);
+		const done = await callMedia(v, { command: "FINALIZE", media_id: id });
+		return { media_id: id, processing: done.processing_info?.state ?? "succeeded" };
+	}
+	const type = ct.split(";")[0].trim();
 	if (!/^(image|video)\//.test(type)) throw new ApiError(415, "Send the file as the body with its image/* or video/* content type.");
 	const data = await boundedBody(req, mediaLimit(type));
 	if (!data.length) throw new ApiError(400, "The body is empty.");
@@ -252,7 +281,9 @@ const op = async (name: string, v: Viewer, vars: Record<string, unknown>) => {
 };
 
 const ROUTES: Route[] = [
-	{ method: "GET", pattern: /^\/me$/, scope: "read", run: async (v) => ({ data: userJson((await userByName(v.id, v.screen_name))!) }) },
+	{ method: "GET", pattern: /^\/me$/, scope: "read", run: async (v) => ({ data: v.id === "0" ? null : userJson((await userByName(v.id, v.screen_name))!) }) },
+	{ method: "GET", pattern: /^\/trends$/, scope: "read", run: async () => ({ data: await cachedTrends(7, 10) }) },
+	{ method: "GET", pattern: /^\/suggestions$/, scope: "read", run: async (v) => ({ data: (await suggestedUsers(v.id, 5)).map(userJson) }) },
 	{ method: "GET", pattern: /^\/users\/([^/]+)$/, scope: "read", run: async (v, m) => ({ data: userJson(await userOr404(v, m[1])) }) },
 	{
 		method: "GET", pattern: /^\/users\/([^/]+)\/posts$/, scope: "read",
@@ -273,7 +304,8 @@ const ROUTES: Route[] = [
 		method: "GET", pattern: /^\/timeline$/, scope: "read",
 		run: async (v, _m, _r, url) => {
 			const limit = limitOf(url);
-			return page(await feed({ viewerId: v.id, authors: { following: true }, replies: false, kinds: "both", limit, before: cursorOf(url) }), limit);
+			const all = url.searchParams.get("feed") === "all" || v.id === "0";
+			return page(await feed({ viewerId: v.id, authors: all ? {} : { following: true }, replies: false, kinds: "both", limit, before: cursorOf(url) }), limit);
 		},
 	},
 	{ method: "GET", pattern: /^\/posts\/(\d{1,19})$/, scope: "read", run: async (v, m) => ({ data: postJson(await postOr404(v, m[1])) }) },
@@ -326,6 +358,25 @@ const ROUTES: Route[] = [
 		},
 	},
 	{
+		method: "POST", pattern: /^\/posts\/(\d{1,19})\/translate$/, scope: "read",
+		run: async (v, m, req) => {
+			const b = await body(req);
+			const target = String(b.target_lang ?? v.language ?? "es");
+			const post = await postOr404(v, m[1]);
+			const res = await translateText(post.text, target);
+			return { data: { text: res.translated_text, source_lang: res.source_lang } };
+		},
+	},
+	{
+		method: "POST", pattern: /^\/polls\/(\d{1,19})\/vote$/, scope: "write", bucket: "engage",
+		run: async (v, m, req) => {
+			const b = await body(req);
+			const choice = Number(b.choice);
+			await votePoll(v.id, m[1], choice);
+			return { data: { voted: choice } };
+		},
+	},
+	{
 		method: "DELETE", pattern: /^\/posts\/(\d{1,19})$/, scope: "write",
 		run: async (v, m) => {
 			const p = await postOr404(v, m[1]);
@@ -368,11 +419,10 @@ const ROUTES: Route[] = [
 	} },
 ];
 
-export async function publicApi(req: Request, url: URL): Promise<Response> {
+export async function publicApi(req: Request, url: URL, sessionViewer?: Viewer): Promise<Response> {
 	const path = url.pathname.slice("/api/v1".length) || "/";
 	if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
-	const auth = await tokenViewer(req);
-	if (!auth) return withCors(fail(401, "Send a personal or connected-app token as Authorization: Bearer xit_..."));
+	const auth = (await tokenViewer(req)) ?? (sessionViewer ? { viewer: sessionViewer, scope: "write" } : { viewer: GUEST_VIEWER, scope: "read" });
 	const { viewer, scope } = auth;
 	let route: Route | undefined;
 	let match: RegExpExecArray | null = null;
@@ -386,12 +436,13 @@ export async function publicApi(req: Request, url: URL): Promise<Response> {
 		}
 	}
 	if (!route || !match) return withCors(fail(404, "No such endpoint. See /api for the list."));
-	if (route.scope === "write" && scope !== "write") return withCors(fail(403, "This token can only read."));
+	if (route.scope === "write" && (scope !== "write" || viewer.id === "0")) return withCors(fail(401, "Sign in to perform this action."));
 	if (settings().operations.maintenance) return withCors(fail(503, settings().operations.message || "The instance is under maintenance."));
 
+	const rateId = viewer.id === "0" ? "guest" : viewer.id;
 	const where = `api ${route.method} ${route.pattern.source}`;
-	const last = take(route.bucket ? [["read", viewer.id], [route.bucket, viewer.id]] : [["read", viewer.id]], (bucket, first) => {
-		if (first) noteRefusal(bucket, where, viewer.id);
+	const last = take(route.bucket ? [["read", rateId], [route.bucket, rateId]] : [["read", rateId]], (bucket, first) => {
+		if (first) noteRefusal(bucket, where, rateId);
 	});
 	if (!last.ok) return withCors(limitedResponse(last));
 	try {
