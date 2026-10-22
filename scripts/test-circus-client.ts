@@ -119,4 +119,21 @@ describe("Circus 2016 Custom Client", () => {
 			expect(html.toLowerCase()).not.toContain(word);
 		}
 	});
+
+	test("contains valid JavaScript syntax inside all script tags", () => {
+		for (const viewer of [sampleViewer, null]) {
+			const html = circusClientHtml({
+				viewer,
+				instanceName: "Digital Circus",
+				origin: "https://x.glitchprod.xyz",
+			});
+
+			const matches = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
+			expect(matches.length).toBeGreaterThan(0);
+			for (const match of matches) {
+				const scriptContent = match[1];
+				expect(() => new Function(scriptContent)).not.toThrow();
+			}
+		}
+	});
 });

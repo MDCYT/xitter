@@ -1072,7 +1072,7 @@ a:hover, a:focus {
   display: flex;
   align-items: center;
   list-style: none;
-  margin: 0 0 0 15px;
+  margin: 0 0 0 20px;
   padding: 0;
   height: 60px;
 }
@@ -2600,7 +2600,7 @@ const circusApp = {
     // Check URL path
     const urlParams = new URLSearchParams(window.location.search);
     const searchParam = urlParams.get('q');
-    const p = window.location.pathname.replace(/^\/+/, '');
+    const p = window.location.pathname.replace(new RegExp('^/+', ''), '');
     if (p === 'search' || searchParam) {
       this.searchPosts(searchParam || '', urlParams.get('f') || 'top');
     } else if (p === 'settings' || p.startsWith('settings/')) {
@@ -2616,7 +2616,7 @@ const circusApp = {
 
     // Handle back / forward
     window.addEventListener('popstate', () => {
-      const path = window.location.pathname.replace(/^\/+/, '');
+      const path = window.location.pathname.replace(new RegExp('^/+', ''), '');
       const searchParam = new URLSearchParams(window.location.search).get('q');
       if (path === 'search' || searchParam) {
         this.searchPosts(searchParam || '', new URLSearchParams(window.location.search).get('f') || 'top');
@@ -3770,8 +3770,6 @@ const circusApp = {
     document.getElementById('home-view').style.display = 'none';
     const notifView = document.getElementById('notifications-view');
     if (notifView) notifView.style.display = 'none';
-    const searchView = document.getElementById('search-view');
-    if (searchView) searchView.style.display = 'none';
     const profileView = document.getElementById('profile-view');
     if (profileView) profileView.style.display = 'none';
     const searchView = document.getElementById('search-view');
