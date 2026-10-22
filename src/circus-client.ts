@@ -1609,6 +1609,17 @@ a:hover, a:focus {
   object-fit: cover;
   flex-shrink: 0;
 }
+.search-filter-option input[type="radio"],
+.search-filter-option input[type="checkbox"] {
+  margin: 0;
+  accent-color: var(--circus-red);
+  cursor: pointer;
+}
+.media-item.media-fallback-error {
+  background-color: #f5f8fa;
+  object-fit: contain !important;
+  padding: 16px;
+}
 
 /* Explore News & Sports Cards */
 .explore-cards-card {
@@ -1754,7 +1765,7 @@ a:hover, a:focus {
 				user
 					? `
         <button class="nav-avatar-btn" id="nav-avatar-btn" onclick="circusApp.toggleUserDropdown(event)" title="@${user.screen_name}">
-          <img class="nav-avatar" src="${user.avatar_url || "/public/icon-dark.png"}" alt="${user.screen_name}">
+          <img class="nav-avatar" src="${user.avatar_url || "/public/icon-dark.png"}" onerror="this.onerror=null;this.src='/public/icon-dark.png';" alt="${user.screen_name}">
         </button>
         <button class="btn-tweet-nav" id="btn-tweet-nav" onclick="circusApp.focusComposer()">Twittear</button>
       `
@@ -1894,12 +1905,12 @@ a:hover, a:focus {
         <!-- Footer Info -->
         <div class="module-card footer-info-card">
           <p style="margin-bottom:8px">
-            <a href="/tos" id="txt-footer-terms">Términos</a>
-            <a href="/privacy" id="txt-footer-privacy">Privacidad</a>
-            <a href="/rules" id="txt-footer-rules">Reglas</a>
-            <a href="/?beta=0" style="color:var(--circus-red);font-weight:bold">Modo Moderno</a>
+            <a href="/tos" class="txt-footer-terms" id="txt-footer-terms">Términos</a>
+            <a href="/privacy" class="txt-footer-privacy" id="txt-footer-privacy">Privacidad</a>
+            <a href="/rules" class="txt-footer-rules" id="txt-footer-rules">Reglas</a>
+            <a href="/?beta=0" class="txt-footer-modern" style="color:var(--circus-red);font-weight:bold">${activeLang === 'en' ? 'Modern Mode' : 'Modo Moderno'}</a>
           </p>
-          <p style="margin:0">© 2026 ${name}. Cliente clásico inspirado en 2016.</p>
+          <p style="margin:0">© 2026 ${name}.</p>
         </div>
       </div>
     </div>
@@ -1942,7 +1953,7 @@ a:hover, a:focus {
     <!-- Left Profile Details Column -->
     <div class="profile-sidebar">
       <div class="profile-avatar-container">
-        <img class="profile-avatar-large" id="profile-large-avatar" src="/public/icon-dark.png" alt="Avatar">
+        <img class="profile-avatar-large" id="profile-large-avatar" src="/public/icon-dark.png" onerror="this.onerror=null;this.src='/public/icon-dark.png';" alt="Avatar">
       </div>
       <div class="profile-details-card">
         <h1 class="profile-details-name" id="profile-display-name"></h1>
@@ -1972,10 +1983,10 @@ a:hover, a:focus {
       </div>
       <div class="module-card footer-info-card">
         <p style="margin-bottom:8px">
-          <a href="/tos">Términos</a>
-          <a href="/privacy">Privacidad</a>
-          <a href="/rules">Reglas</a>
-          <a href="/?beta=0" style="color:var(--circus-red);font-weight:bold">Modo Moderno</a>
+          <a href="/tos" class="txt-footer-terms">Términos</a>
+          <a href="/privacy" class="txt-footer-privacy">Privacidad</a>
+          <a href="/rules" class="txt-footer-rules">Reglas</a>
+          <a href="/?beta=0" class="txt-footer-modern" style="color:var(--circus-red);font-weight:bold">${activeLang === 'en' ? 'Modern Mode' : 'Modo Moderno'}</a>
         </p>
         <p style="margin:0">© 2026 ${name}.</p>
       </div>
@@ -1991,7 +2002,13 @@ a:hover, a:focus {
       <div class="col-md-3">
         <div id="notif-user-card-wrap"></div>
         <div class="module-card footer-info-card" style="margin-top:10px">
-          <p>© 2026 ${name}.</p>
+          <p style="margin-bottom:8px">
+            <a href="/tos" class="txt-footer-terms">Términos</a>
+            <a href="/privacy" class="txt-footer-privacy">Privacidad</a>
+            <a href="/rules" class="txt-footer-rules">Reglas</a>
+            <a href="/?beta=0" class="txt-footer-modern" style="color:var(--circus-red);font-weight:bold">${activeLang === 'en' ? 'Modern Mode' : 'Modo Moderno'}</a>
+          </p>
+          <p style="margin:0">© 2026 ${name}.</p>
         </div>
       </div>
       <!-- Center: Notifications stream -->
@@ -2042,9 +2059,40 @@ a:hover, a:focus {
     <div class="row">
       <!-- Left Column (290px): Filters & Trends -->
       <div class="col-md-3">
-        <div class="module-card" style="margin-bottom:15px">
-          <h4 class="trends-header" id="lbl-search-filters-header" style="margin-bottom:8px">Filtros de búsqueda</h4>
-          <p style="font-size:12px;color:var(--text-muted);margin:0" id="lbl-search-filters-desc">Explora el contenido de todas las instancias federadas y la comunidad local.</p>
+        <div class="module-card search-filters-card" style="margin-bottom:15px">
+          <h4 class="trends-header" id="lbl-search-filters-header" style="margin-bottom:12px">Filtros de búsqueda</h4>
+
+          <div class="search-filter-section" style="margin-bottom:12px">
+            <div style="font-size:11px;font-weight:bold;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px" id="lbl-filter-people">Personas</div>
+            <label class="search-filter-option" style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:6px;font-weight:normal">
+              <input type="radio" name="search-filter-people" value="anyone" checked onchange="circusApp.applySearchFilter('people', 'anyone')">
+              <span id="lbl-filter-anyone">De cualquiera</span>
+            </label>
+            <label class="search-filter-option" style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:0;font-weight:normal">
+              <input type="radio" name="search-filter-people" value="following" onchange="circusApp.applySearchFilter('people', 'following')">
+              <span id="lbl-filter-following">Personas que sigues</span>
+            </label>
+          </div>
+
+          <div class="search-filter-section" style="margin-bottom:12px;border-top:1px solid var(--border-color);padding-top:10px">
+            <div style="font-size:11px;font-weight:bold;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px" id="lbl-filter-location">Ubicación</div>
+            <label class="search-filter-option" style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:6px;font-weight:normal">
+              <input type="radio" name="search-filter-location" value="anywhere" checked onchange="circusApp.applySearchFilter('location', 'anywhere')">
+              <span id="lbl-filter-anywhere">Cualquier lugar</span>
+            </label>
+            <label class="search-filter-option" style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:0;font-weight:normal">
+              <input type="radio" name="search-filter-location" value="local" onchange="circusApp.applySearchFilter('location', 'local')">
+              <span id="lbl-filter-local">Instancia local</span>
+            </label>
+          </div>
+
+          <div class="search-filter-section" style="border-top:1px solid var(--border-color);padding-top:10px">
+            <div style="font-size:11px;font-weight:bold;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px" id="lbl-filter-quality">Calidad</div>
+            <label class="search-filter-option" style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:0;font-weight:normal">
+              <input type="checkbox" id="search-filter-verified" onchange="circusApp.applySearchFilter('verified', this.checked)">
+              <span id="lbl-filter-verified">Solo cuentas verificadas</span>
+            </label>
+          </div>
         </div>
 
         <div class="module-card trends-card">
@@ -2445,7 +2493,16 @@ const I18N_DICT = {
     sports: "Deportes",
     news: "Noticias",
     stickers: "Stickers",
-    emojis: "Emojis"
+    emojis: "Emojis",
+    modern_mode: "Modo Moderno",
+    filter_people: "Personas",
+    filter_anyone: "De cualquiera",
+    filter_following: "Personas que sigues",
+    filter_location: "Ubicación",
+    filter_anywhere: "Cualquier lugar",
+    filter_local: "Instancia local",
+    filter_quality: "Calidad",
+    filter_verified: "Solo cuentas verificadas"
   },
   en: {
     home: "Home",
@@ -2558,7 +2615,16 @@ const I18N_DICT = {
     sports: "Sports",
     news: "News",
     stickers: "Stickers",
-    emojis: "Emojis"
+    emojis: "Emojis",
+    modern_mode: "Modern Mode",
+    filter_people: "People",
+    filter_anyone: "From anyone",
+    filter_following: "People you follow",
+    filter_location: "Location",
+    filter_anywhere: "Anywhere",
+    filter_local: "Local instance",
+    filter_quality: "Quality",
+    filter_verified: "Verified accounts only"
   }
 };
 
@@ -2712,9 +2778,22 @@ const circusApp = {
     setTxt('lbl-search-media', 'search_media');
     setTxt('lbl-search-filters-header', 'search_filters');
     setTxt('lbl-search-filters-desc', 'search_filters_desc');
+    setTxt('lbl-filter-people', 'filter_people');
+    setTxt('lbl-filter-anyone', 'filter_anyone');
+    setTxt('lbl-filter-following', 'filter_following');
+    setTxt('lbl-filter-location', 'filter_location');
+    setTxt('lbl-filter-anywhere', 'filter_anywhere');
+    setTxt('lbl-filter-local', 'filter_local');
+    setTxt('lbl-filter-quality', 'filter_quality');
+    setTxt('lbl-filter-verified', 'filter_verified');
     setTxt('txt-cards-header', 'what_is_happening');
     setTxt('txt-search-trends-header', 'trends_for_you');
     setTxt('txt-search-suggestions-header', 'who_to_follow');
+
+    document.querySelectorAll('.txt-footer-terms').forEach(el => el.textContent = this.t('terms'));
+    document.querySelectorAll('.txt-footer-privacy').forEach(el => el.textContent = this.t('privacy'));
+    document.querySelectorAll('.txt-footer-rules').forEach(el => el.textContent = this.t('rules'));
+    document.querySelectorAll('.txt-footer-modern').forEach(el => el.textContent = this.t('modern_mode'));
 
     const sq = document.getElementById('search-query');
     if (sq) sq.placeholder = this.t('search_placeholder');
@@ -2746,6 +2825,46 @@ const circusApp = {
     if (!u) return false;
     const vt = u.verified_type;
     return vt === 'business' || vt === 'gold' || vt === 'government' || vt === 'government_individual';
+  },
+
+  formatNumber(n) {
+    if (n === null || n === undefined || n === '') return '0';
+    const num = Number(n);
+    if (isNaN(num)) return String(n);
+    if (num < 0) return '-' + this.formatNumber(-num);
+    if (num < 1000) return String(num);
+    const stripZero = s => s.endsWith('.0') ? s.slice(0, -2) : s;
+    if (num < 1000000) {
+      const k = num / 1000;
+      const str = k >= 100 ? String(Math.round(k)) : k.toFixed(1);
+      return stripZero(str) + 'K';
+    }
+    if (num < 1000000000) {
+      const m = num / 1000000;
+      const str = m >= 100 ? String(Math.round(m)) : m.toFixed(1);
+      return stripZero(str) + 'M';
+    }
+    const b = num / 1000000000;
+    const str = b >= 100 ? String(Math.round(b)) : b.toFixed(1);
+    return stripZero(str) + 'B';
+  },
+
+  getPostInstance(p) {
+    if (!p) return '';
+    if (typeof p === 'string') {
+      if (p.includes('@')) {
+        const parts = p.split('@');
+        return parts[parts.length - 1];
+      }
+      return p;
+    }
+    const author = p.author || p.user;
+    const handle = author?.screen_name || '';
+    if (handle.includes('@')) {
+      const parts = handle.split('@');
+      return parts[parts.length - 1];
+    }
+    return author?.instance || p.instance || '';
   },
 
   getVerifiedBadge(type) {
@@ -2803,7 +2922,7 @@ const circusApp = {
 
     // 2. Organization badge
     if (u.org && u.org.avatar_url) {
-      html += '<a href="javascript:void(0)" onclick="event.stopPropagation();circusApp.viewProfile(\\'' + this.escape(u.org.screen_name) + '\\')" title="' + this.t('affiliated_to') + ' ' + this.escape(u.org.name) + ' (@' + this.escape(u.org.screen_name) + ')"><img class="circus-badge-org" src="' + this.escape(u.org.avatar_url) + '" alt="' + this.escape(u.org.name) + '"></a>';
+      html += '<a href="javascript:void(0)" onclick="event.stopPropagation();circusApp.viewProfile(\\'' + this.escape(u.org.screen_name) + '\\')" title="' + this.t('affiliated_to') + ' ' + this.escape(u.org.name) + ' (@' + this.escape(u.org.screen_name) + ')"><img class="circus-badge-org" src="' + this.escape(u.org.avatar_url) + '" onerror="this.onerror=null;this.src=\\'/public/icon-dark.png\\';" alt="' + this.escape(u.org.name) + '"></a>';
     }
 
     // 3. Custom badges
@@ -2859,7 +2978,7 @@ const circusApp = {
           <div class="profile-card-header" style="\${bannerStyle}"></div>
           <div class="profile-card-content">
             <a class="profile-card-avatar-link" onclick="circusApp.viewProfile('\${this.viewer.screen_name}')">
-              <img class="profile-card-avatar" src="\${this.viewer.avatar_url || '/public/icon-dark.png'}" alt="\${this.viewer.screen_name}">
+              <img class="profile-card-avatar \${this.isSquareAvatar(this.viewer) ? 'avatar-square' : ''}" src="\${this.viewer.avatar_url || '/public/icon-dark.png'}" onerror="this.onerror=null;this.src='/public/icon-dark.png';" alt="\${this.viewer.screen_name}">
             </a>
             <div class="profile-card-user">
               <a class="profile-card-name" onclick="circusApp.viewProfile('\${this.viewer.screen_name}')">
@@ -2915,9 +3034,9 @@ const circusApp = {
           const sp = document.getElementById('stat-posts');
           const sfg = document.getElementById('stat-following');
           const sfr = document.getElementById('stat-followers');
-          if (sp) sp.textContent = json.data.counts.posts ?? 0;
-          if (sfg) sfg.textContent = json.data.counts.following ?? 0;
-          if (sfr) sfr.textContent = json.data.counts.followers ?? 0;
+          if (sp) sp.textContent = this.formatNumber(json.data.counts.posts ?? 0);
+          if (sfg) sfg.textContent = this.formatNumber(json.data.counts.following ?? 0);
+          if (sfr) sfr.textContent = this.formatNumber(json.data.counts.followers ?? 0);
         }
         if (json.data.banner_url) {
           const header = document.querySelector('.profile-card-header');
@@ -2941,7 +3060,7 @@ const circusApp = {
     el.innerHTML = \`
       <div class="composer-box">
         <div class="composer-top">
-          <img class="composer-avatar \${this.isSquareAvatar(this.viewer) ? 'avatar-square' : ''}" src="\${this.viewer.avatar_url || '/public/icon-dark.png'}" alt="\${this.viewer.screen_name}">
+          <img class="composer-avatar \${this.isSquareAvatar(this.viewer) ? 'avatar-square' : ''}" src="\${this.viewer.avatar_url || '/public/icon-dark.png'}" onerror="this.onerror=null;this.src='/public/icon-dark.png';" alt="\${this.viewer.screen_name}">
           <div class="composer-input-wrapper">
             <textarea class="composer-textarea" id="tweet-textarea" placeholder="\${this.t('composer_placeholder')}" oninput="circusApp.onComposerInput(this)"></textarea>
             
@@ -3362,7 +3481,7 @@ const circusApp = {
 
   renderTweetCard(p) {
     const author = p.author || {};
-    const formattedText = this.formatTweetText(p.text);
+    const formattedText = this.formatTweetText(p.text, p);
     const timeAgo = this.formatTimeAgo(p.created_at);
 
     // Repost header
@@ -3387,7 +3506,7 @@ const circusApp = {
         const count = Math.min(media.length, 4);
         mediaHtml = \`<div class="tweet-media-grid grid-\${count}">\`;
         media.slice(0, 4).forEach(m => {
-          mediaHtml += \`<img class="media-item" src="\${m.url}" loading="lazy" onclick="circusApp.openLightbox('\${m.url}')">\`;
+          mediaHtml += \`<img class="media-item" src="\${m.url}" loading="lazy" onerror="this.onerror=null;this.classList.add('media-fallback-error');this.src='/public/icon-dark.png';" onclick="circusApp.openLightbox('\${m.url}')">\`;
         });
         mediaHtml += \`</div>\`;
       }
@@ -3406,7 +3525,7 @@ const circusApp = {
             <span class="tweet-author-handle">@\${this.escape(qAuthor.screen_name)}</span>
             <span class="tweet-time">· \${this.formatTimeAgo(q.created_at)}</span>
           </div>
-          <div style="font-size:13px;line-height:18px">\${this.formatTweetText(q.text)}</div>
+          <div style="font-size:13px;line-height:18px">\${this.formatTweetText(q.text, q)}</div>
         </div>
       \`;
     }
@@ -3433,13 +3552,13 @@ const circusApp = {
               <div class="poll-bar-fill \${poll.voted === choiceNum ? 'voted' : ''}" style="width:\${pct}%"></div>
               <div class="poll-bar-text">
                 <span><b>\${this.escape(choice)}</b> \${poll.voted === choiceNum ? '✓' : ''}</span>
-                <span><b>\${pct}%</b> (\${count})</span>
+                <span><b>\${pct}%</b> (\${this.formatNumber(count)})</span>
               </div>
             </div>
           \`;
         }
       });
-      pollHtml += \`<div style="font-size:12px;color:#657786;margin-top:6px">\${total} votes \${poll.closed ? '· Final' : ''}</div></div>\`;
+      pollHtml += \`<div style="font-size:12px;color:#657786;margin-top:6px">\${this.formatNumber(total)} votes \${poll.closed ? '· Final' : ''}</div></div>\`;
     }
 
     // Conversation Card
@@ -3472,7 +3591,7 @@ const circusApp = {
         \${repostHtml}
         <div class="tweet-main">
           <div class="tweet-avatar-wrap">
-            <img class="tweet-avatar \${this.isSquareAvatar(author) ? 'avatar-square' : ''}" src="\${author.avatar_url || '/public/icon-dark.png'}" alt="\${author.screen_name}" onclick="event.stopPropagation();circusApp.viewProfile('\${author.screen_name}')">
+            <img class="tweet-avatar \${this.isSquareAvatar(author) ? 'avatar-square' : ''}" src="\${author.avatar_url || '/public/icon-dark.png'}" onerror="this.onerror=null;this.src='/public/icon-dark.png';" alt="\${author.screen_name}" onclick="event.stopPropagation();circusApp.viewProfile('\${author.screen_name}')">
           </div>
           <div class="tweet-content">
             <div class="tweet-header">
@@ -3492,17 +3611,17 @@ const circusApp = {
             <div class="tweet-actions">
               <button class="action-btn" onclick="event.stopPropagation();circusApp.openTweetDetail('\${p.id}', true)" title="\${this.t('reply')}">
                 <svg class="action-icon" viewBox="0 0 24 24"><path d="M14.046 2.242l-4.148-.01h-.002c-4.374 0-7.8 3.427-7.8 7.802 0 4.098 3.186 7.206 7.465 7.37v3.828c0 .108.044.286.12.403.142.225.384.347.632.347.138 0 .277-.038.402-.118.264-.168 6.473-4.14 8.088-5.506 1.902-1.61 3.04-3.97 3.04-6.312v-.017c-.002-4.373-3.429-7.79-7.797-7.79zm6.297 7.788c0 1.906-.93 3.82-2.502 5.15-1.38 1.168-6.19 4.498-7.34 5.343v-2.923c0-.414-.336-.75-.75-.75-3.666-.14-6.197-2.73-6.197-6.03 0-3.55 2.77-6.302 6.3-6.302l4.147.01h.002c3.53 0 6.34 2.768 6.34 6.298v.014z"/></svg>
-                <span>\${p.counts?.replies || 0}</span>
+                <span>\${this.formatNumber(p.counts?.replies || 0)}</span>
               </button>
 
               <button class="action-btn \${isReposted ? 'reposted' : ''}" onclick="event.stopPropagation();circusApp.onRepostBtnClick(event, '\${p.id}', \${!!isReposted})" title="\${this.t('retweet')}">
                 <svg class="action-icon" viewBox="0 0 24 24"><path d="M23.77 15.67c-.292-.293-.767-.293-1.06 0l-2.22 2.22V7.65c0-2.068-1.683-3.75-3.75-3.75h-5.85c-.414 0-.75.336-.75.75s.336.75.75.75h5.85c1.24 0 2.25 1.01 2.25 2.25v10.24l-2.22-2.22c-.293-.293-.768-.293-1.06 0s-.294.768 0 1.06l3.5 3.5c.145.147.337.22.53.22s.383-.072.53-.22l3.5-3.5c.294-.292.294-.767 0-1.06zm-10.66 3.28H7.26c-1.24 0-2.25-1.01-2.25-2.25V6.46l2.22 2.22c.148.147.34.22.532.22s.384-.073.53-.22c.293-.293.293-.768 0-1.06l-3.5-3.5c-.293-.294-.768-.294-1.06 0l-3.5 3.5c-.294.292-.294.767 0 1.06s.767.293 1.06 0l2.22-2.22V16.7c0 2.068 1.683 3.75 3.75 3.75h5.85c.414 0 .75-.336.75-.75s-.337-.75-.75-.75z"/></svg>
-                <span>\${p.counts?.reposts || 0}</span>
+                <span>\${this.formatNumber(p.counts?.reposts || 0)}</span>
               </button>
 
               <button class="action-btn \${isLiked ? 'liked' : ''}" onclick="event.stopPropagation();circusApp.toggleLike('\${p.id}', \${!!isLiked})" title="\${this.t('like')}">
                 <svg class="action-icon" viewBox="0 0 24 24"><path d="\${heartPath}"/></svg>
-                <span>\${p.counts?.likes || 0}</span>
+                <span>\${this.formatNumber(p.counts?.likes || 0)}</span>
               </button>
 
               <button class="action-btn" onclick="event.stopPropagation();circusApp.translateTweet('\${p.id}')" title="\${this.t('translate')}">
@@ -3586,7 +3705,7 @@ const circusApp = {
       const translated = json.data?.translated_text || json.data?.text;
       if (json.data && translated) {
         const notice = this.formatTranslationNotice(json.data.source_lang, json.data.target_lang || this.viewer?.language || window.__LANG__ || 'es');
-        textEl.innerHTML = '<div style="white-space:pre-wrap">' + this.formatTweetText(translated) + '</div><div class="tweet-translation-notice">🌐 ' + this.escape(notice) + '</div>';
+        textEl.innerHTML = '<div style="white-space:pre-wrap">' + this.formatTweetText(translated, json.data) + '</div><div class="tweet-translation-notice">🌐 ' + this.escape(notice) + '</div>';
       } else {
         this.showNotice(this.t('translate_error'));
       }
@@ -3618,7 +3737,7 @@ const circusApp = {
           html += \`
             <div class="trend-item">
               <span class="trend-tag" onclick="circusApp.searchPosts('\${this.escape(tag)}')">\${this.escape(tag)}</span>
-              <span class="trend-count">\${count} \${this.t('posts').toLowerCase()}</span>
+              <span class="trend-count">\${this.formatNumber(count)} \${this.t('posts').toLowerCase()}</span>
             </div>
           \`;
         });
@@ -3707,7 +3826,7 @@ const circusApp = {
         const isFollowing = u.viewer && u.viewer.following;
         list.insertAdjacentHTML('beforeend', \`
           <div class="suggest-user-item">
-            <img class="suggest-avatar" src="\${u.avatar_url || '/public/icon-dark.png'}" alt="\${u.screen_name}" onclick="circusApp.viewProfile('\${u.screen_name}')">
+            <img class="suggest-avatar \${this.isSquareAvatar(u) ? 'avatar-square' : ''}" src="\${u.avatar_url || '/public/icon-dark.png'}" onerror="this.onerror=null;this.src='/public/icon-dark.png';" alt="\${u.screen_name}" onclick="circusApp.viewProfile('\${u.screen_name}')">
             <div class="suggest-info">
               <div class="suggest-name-row">
                 <span class="suggest-name" onclick="circusApp.viewProfile('\${u.screen_name}')">\${this.escape(u.name)}</span>
@@ -3807,57 +3926,100 @@ const circusApp = {
       if (tab === 'people') {
         const res = await fetch('/api/v1/search/users?q=' + encodeURIComponent(query.replace(/^@/, '')));
         const json = await res.json();
-        const users = json.data || [];
-        if (users.length === 0) {
-          stream.innerHTML = '<div style="padding:40px;text-align:center;color:#657786">' + this.t('no_results_search') + '</div>';
-        } else {
-          stream.innerHTML = '';
-          users.forEach(u => {
-            const isFollowing = u.viewer && u.viewer.following;
-            stream.insertAdjacentHTML('beforeend', \`
-              <div class="search-user-card" onclick="circusApp.viewProfile('\${u.screen_name}')">
-                <img class="search-user-avatar \${this.isSquareAvatar(u) ? 'avatar-square' : ''}" src="\${u.avatar_url || '/public/icon-dark.png'}" alt="\${this.escape(u.name)}">
-                <div style="flex:1">
-                  <div style="display:flex;justify-content:space-between;align-items:flex-start">
-                    <div>
-                      <b style="color:var(--text-main);font-size:14px">\${this.escape(u.name)}</b>
-                      \${this.renderBadges(u)}
-                      <div style="color:var(--text-muted);font-size:12px">@\${this.escape(u.screen_name)}</div>
-                    </div>
-                    \${this.viewer && u.id !== this.viewer.id ? \`
-                      <button class="btn-follow \${isFollowing ? 'following' : ''}" onclick="event.stopPropagation();circusApp.toggleFollow('\${u.screen_name}', \${!!isFollowing}, '\${u.id}')">
-                        \${isFollowing ? this.t('following_btn') : this.t('follow')}
-                      </button>
-                    \` : ''}
-                  </div>
-                  \${u.bio ? '<div style="font-size:13px;line-height:18px;margin-top:6px;color:var(--text-main)">' + this.formatTweetText(u.bio) + '</div>' : ''}
-                </div>
-              </div>
-            \`);
-          });
-        }
+        this.rawSearchResults = json.data || [];
+        this.renderSearchResults();
       } else {
         let url = '/api/v1/search/posts?q=' + encodeURIComponent(query);
         if (tab === 'top') url += '&sort=top';
         const res = await fetch(url);
         const json = await res.json();
-        let posts = json.data || [];
-        if (tab === 'media') {
-          posts = posts.filter(p => Array.isArray(p.media) && p.media.length > 0);
-        }
-        if (posts.length === 0) {
-          stream.innerHTML = '<div style="padding:40px;text-align:center;color:#657786">' + this.t('no_results_search') + '</div>';
-        } else {
-          stream.innerHTML = '';
-          posts.forEach(post => {
-            stream.insertAdjacentHTML('beforeend', this.renderTweetCard(post));
-          });
-          this.searchNextCursor = json.next_cursor;
-          if (loadBtn) loadBtn.style.display = this.searchNextCursor ? 'inline-block' : 'none';
-        }
+        this.rawSearchResults = json.data || [];
+        this.renderSearchResults();
+        this.searchNextCursor = json.next_cursor;
+        if (loadBtn) loadBtn.style.display = this.searchNextCursor ? 'inline-block' : 'none';
       }
     } catch {
       stream.innerHTML = '<div style="padding:30px;text-align:center;color:#d90429">Error</div>';
+    }
+  },
+
+  searchFilters: { people: 'anyone', location: 'anywhere', verified: false },
+
+  applySearchFilter(key, val) {
+    this.searchFilters = this.searchFilters || { people: 'anyone', location: 'anywhere', verified: false };
+    this.searchFilters[key] = val;
+    this.renderSearchResults();
+  },
+
+  renderSearchResults() {
+    const stream = document.getElementById('search-results-stream');
+    if (!stream) return;
+    const tab = this.currentSearchTab || 'top';
+    const filters = this.searchFilters || { people: 'anyone', location: 'anywhere', verified: false };
+
+    if (tab === 'people') {
+      let users = this.rawSearchResults || [];
+      if (filters.people === 'following') {
+        users = users.filter(u => u.viewer && u.viewer.following);
+      }
+      if (filters.location === 'local') {
+        users = users.filter(u => !u.screen_name.includes('@'));
+      }
+      if (filters.verified) {
+        users = users.filter(u => !!u.verified_type);
+      }
+
+      if (users.length === 0) {
+        stream.innerHTML = '<div style="padding:40px;text-align:center;color:#657786">' + this.t('no_results_search') + '</div>';
+        return;
+      }
+      stream.innerHTML = '';
+      users.forEach(u => {
+        const isFollowing = u.viewer && u.viewer.following;
+        stream.insertAdjacentHTML('beforeend', \`
+          <div class="search-user-card" onclick="circusApp.viewProfile('\${u.screen_name}')">
+            <img class="search-user-avatar \${this.isSquareAvatar(u) ? 'avatar-square' : ''}" src="\${u.avatar_url || '/public/icon-dark.png'}" onerror="this.onerror=null;this.src='/public/icon-dark.png';" alt="\${this.escape(u.name)}">
+            <div style="flex:1">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                <div>
+                  <b style="color:var(--text-main);font-size:14px">\${this.escape(u.name)}</b>
+                  \${this.renderBadges(u)}
+                  <div style="color:var(--text-muted);font-size:12px">@\${this.escape(u.screen_name)}</div>
+                </div>
+                \${this.viewer && u.id !== this.viewer.id ? \`
+                  <button class="btn-follow \${isFollowing ? 'following' : ''}" onclick="event.stopPropagation();circusApp.toggleFollow('\${u.screen_name}', \${!!isFollowing}, '\${u.id}')">
+                    \${isFollowing ? this.t('following_btn') : this.t('follow')}
+                  </button>
+                \` : ''}
+              </div>
+              \${u.bio ? '<div style="font-size:13px;line-height:18px;margin-top:6px;color:var(--text-main)">' + this.formatTweetText(u.bio, u) + '</div>' : ''}
+            </div>
+          </div>
+        \`);
+      });
+    } else {
+      let posts = this.rawSearchResults || [];
+      if (tab === 'media') {
+        posts = posts.filter(p => Array.isArray(p.media) && p.media.length > 0);
+      }
+      if (filters.people === 'following') {
+        posts = posts.filter(p => p.author?.viewer?.following);
+      }
+      if (filters.location === 'local') {
+        posts = posts.filter(p => !p.author?.screen_name?.includes('@'));
+      }
+      if (filters.verified) {
+        posts = posts.filter(p => !!p.author?.verified_type);
+      }
+
+      if (posts.length === 0) {
+        stream.innerHTML = '<div style="padding:40px;text-align:center;color:#657786">' + this.t('no_results_search') + '</div>';
+        return;
+      }
+      stream.innerHTML = '';
+      posts.forEach(post => {
+        stream.insertAdjacentHTML('beforeend', this.renderTweetCard(post));
+      });
     }
   },
 
@@ -3879,12 +4041,10 @@ const circusApp = {
       const res = await fetch(url);
       const json = await res.json();
       let posts = json.data || [];
-      if (this.currentSearchTab === 'media') {
-        posts = posts.filter(p => Array.isArray(p.media) && p.media.length > 0);
+      if (posts.length > 0) {
+        this.rawSearchResults = (this.rawSearchResults || []).concat(posts);
+        this.renderSearchResults();
       }
-      posts.forEach(post => {
-        stream.insertAdjacentHTML('beforeend', this.renderTweetCard(post));
-      });
       this.searchNextCursor = json.next_cursor;
       loadBtn.style.display = this.searchNextCursor ? 'inline-block' : 'none';
     } catch {}
@@ -3974,12 +4134,12 @@ const circusApp = {
 
       const rootPosts = u.counts?.root_posts ?? u.counts?.posts ?? 0;
       const allPosts = u.counts?.posts_with_replies ?? u.counts?.posts ?? 0;
-      document.getElementById('profile-stat-posts').textContent = rootPosts;
+      document.getElementById('profile-stat-posts').textContent = this.formatNumber(rootPosts);
       const repStat = document.getElementById('profile-stat-replies');
-      if (repStat) repStat.textContent = allPosts;
-      document.getElementById('profile-stat-following').textContent = u.counts?.following || 0;
-      document.getElementById('profile-stat-followers').textContent = u.counts?.followers || 0;
-      document.getElementById('profile-stat-likes').textContent = u.counts?.likes || 0;
+      if (repStat) repStat.textContent = this.formatNumber(allPosts);
+      document.getElementById('profile-stat-following').textContent = this.formatNumber(u.counts?.following || 0);
+      document.getElementById('profile-stat-followers').textContent = this.formatNumber(u.counts?.followers || 0);
+      document.getElementById('profile-stat-likes').textContent = this.formatNumber(u.counts?.likes || 0);
 
       let metaHtml = '';
       if (u.location) {
@@ -3995,7 +4155,7 @@ const circusApp = {
 
       // Organization affiliation
       if (u.org) {
-        metaHtml += '<li><img src="' + this.escape(u.org.avatar_url || '/public/icon-dark.png') + '" style="width:16px;height:16px;border-radius:3px;vertical-align:-3px;margin-right:6px"><span>' + this.t('affiliated_to') + ' <a href="javascript:void(0)" onclick="circusApp.viewProfile(\\'' + this.escape(u.org.screen_name) + '\\')"><b>@' + this.escape(u.org.screen_name) + '</b></a></span></li>';
+        metaHtml += '<li><img src="' + this.escape(u.org.avatar_url || '/public/icon-dark.png') + '" onerror="this.onerror=null;this.src=\\'/public/icon-dark.png\\';" style="width:16px;height:16px;border-radius:3px;vertical-align:-3px;margin-right:6px"><span>' + this.t('affiliated_to') + ' <a href="javascript:void(0)" onclick="circusApp.viewProfile(\\'' + this.escape(u.org.screen_name) + '\\')"><b>@' + this.escape(u.org.screen_name) + '</b></a></span></li>';
       }
 
       // Verification status / date / type
@@ -4105,7 +4265,7 @@ const circusApp = {
         const isFollowing = u.viewer && u.viewer.following;
         stream.insertAdjacentHTML('beforeend', \`
           <div style="display:flex;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border-color);align-items:flex-start;background:#fff">
-            <img src="\${u.avatar_url || '/public/icon-dark.png'}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;cursor:pointer" onclick="circusApp.viewProfile('\${u.screen_name}')">
+            <img class="\${this.isSquareAvatar(u) ? 'avatar-square' : ''}" src="\${u.avatar_url || '/public/icon-dark.png'}" onerror="this.onerror=null;this.src='/public/icon-dark.png';" style="width:48px;height:48px;border-radius:50%;object-fit:cover;cursor:pointer" onclick="circusApp.viewProfile('\${u.screen_name}')">
             <div style="flex:1;min-width:0">
               <div style="display:flex;justify-content:space-between;align-items:center">
                 <div>
@@ -4163,7 +4323,7 @@ const circusApp = {
         const isFollowing = u.viewer && u.viewer.following;
         list.insertAdjacentHTML('beforeend', \`
           <div class="suggest-user-item">
-            <img class="suggest-avatar" src="\${u.avatar_url || '/public/icon-dark.png'}" alt="\${u.screen_name}" onclick="circusApp.viewProfile('\${u.screen_name}')">
+            <img class="suggest-avatar \${this.isSquareAvatar(u) ? 'avatar-square' : ''}" src="\${u.avatar_url || '/public/icon-dark.png'}" onerror="this.onerror=null;this.src='/public/icon-dark.png';" alt="\${u.screen_name}" onclick="circusApp.viewProfile('\${u.screen_name}')">
             <div class="suggest-info">
               <div class="suggest-name-row">
                 <span class="suggest-name" onclick="circusApp.viewProfile('\${u.screen_name}')">\${this.escape(u.name)}</span>
@@ -4464,7 +4624,7 @@ const circusApp = {
       content.innerHTML = \`
         <div class="tweet-detail-container">
           <div class="tweet-detail-header">
-            <img class="tweet-detail-avatar \${this.isSquareAvatar(author) ? 'avatar-square' : ''}" src="\${author.avatar_url || '/public/icon-dark.png'}" onclick="$('#tweet-detail-modal').modal('hide');circusApp.viewProfile('\${author.screen_name}')">
+            <img class="tweet-detail-avatar \${this.isSquareAvatar(author) ? 'avatar-square' : ''}" src="\${author.avatar_url || '/public/icon-dark.png'}" onerror="this.onerror=null;this.src='/public/icon-dark.png';" onclick="$('#tweet-detail-modal').modal('hide');circusApp.viewProfile('\${author.screen_name}')">
             <div class="tweet-detail-name-wrap" onclick="$('#tweet-detail-modal').modal('hide');circusApp.viewProfile('\${author.screen_name}')" style="cursor:pointer">
               <div class="tweet-detail-name">
                 \${this.escape(author.name)}
@@ -4479,7 +4639,7 @@ const circusApp = {
             \` : ''}
           </div>
 
-          <div class="tweet-detail-text" id="detail-text-\${p.id}">\${this.formatTweetText(p.text || '')}</div>
+          <div class="tweet-detail-text" id="detail-text-\${p.id}">\${this.formatTweetText(p.text || '', p)}</div>
           \${mediaHtml}
           \${quoteHtml}
           \${pollHtml}
@@ -4489,8 +4649,8 @@ const circusApp = {
           </div>
 
           <div class="tweet-detail-stats">
-            <span><b>\${p.counts?.reposts || 0}</b> \${this.t('retweet')}s</span>
-            <span><b>\${p.counts?.likes || 0}</b> \${this.t('like')}s</span>
+            <span><b>\${this.formatNumber(p.counts?.reposts || 0)}</b> \${this.t('retweet')}s</span>
+            <span><b>\${this.formatNumber(p.counts?.likes || 0)}</b> \${this.t('like')}s</span>
           </div>
 
           <div class="tweet-detail-actions">
@@ -4522,7 +4682,7 @@ const circusApp = {
                 \${this.t('replying_to')} <a href="javascript:void(0)" onclick="$('#tweet-detail-modal').modal('hide');circusApp.viewProfile('\${author.screen_name}')">@\${this.escape(author.screen_name)}</a>
               </div>
               <div class="tweet-detail-reply-inner">
-                <img class="tweet-avatar \${this.isSquareAvatar(this.viewer) ? 'avatar-square' : ''}" src="\${this.viewer.avatar_url || '/public/icon-dark.png'}" style="width:36px;height:36px">
+                <img class="tweet-avatar \${this.isSquareAvatar(this.viewer) ? 'avatar-square' : ''}" src="\${this.viewer.avatar_url || '/public/icon-dark.png'}" onerror="this.onerror=null;this.src='/public/icon-dark.png';" style="width:36px;height:36px">
                 <div style="flex:1;width:100%">
                   <textarea class="tweet-detail-reply-textarea" id="detail-reply-textarea" rows="3" placeholder="\${this.t('tweet_your_reply')}"></textarea>
                   <div style="display:flex;justify-content:flex-end;margin-top:8px">
@@ -4673,7 +4833,7 @@ const circusApp = {
           users.forEach(u => {
             html += \`
               <div class="search-typeahead-item" onclick="circusApp.viewProfile('\${u.screen_name}');circusApp.hideSearchDropdown()">
-                <img class="search-typeahead-avatar \${this.isSquareAvatar(u) ? 'avatar-square' : ''}" src="\${u.avatar_url || '/public/icon-dark.png'}">
+                <img class="search-typeahead-avatar \${this.isSquareAvatar(u) ? 'avatar-square' : ''}" src="\${u.avatar_url || '/public/icon-dark.png'}" onerror="this.onerror=null;this.src='/public/icon-dark.png';">
                 <div class="search-typeahead-info">
                   <div class="search-typeahead-name">
                     <b>\${this.escape(u.name)}</b>
@@ -4737,7 +4897,7 @@ const circusApp = {
           <div class="profile-card-header" style="\${bannerStyle}"></div>
           <div class="profile-card-content">
             <a class="profile-card-avatar-link" onclick="circusApp.viewProfile('\${this.viewer.screen_name}')">
-              <img class="profile-card-avatar \${this.isSquareAvatar(this.viewer) ? 'avatar-square' : ''}" src="\${this.viewer.avatar_url || '/public/icon-dark.png'}" alt="\${this.viewer.screen_name}">
+              <img class="profile-card-avatar \${this.isSquareAvatar(this.viewer) ? 'avatar-square' : ''}" src="\${this.viewer.avatar_url || '/public/icon-dark.png'}" onerror="this.onerror=null;this.src='/public/icon-dark.png';" alt="\${this.viewer.screen_name}">
             </a>
             <div class="profile-card-user">
               <a class="profile-card-name" onclick="circusApp.viewProfile('\${this.viewer.screen_name}')">
@@ -4748,15 +4908,15 @@ const circusApp = {
             <div class="profile-stats-table">
               <a class="profile-stat-box" onclick="circusApp.viewProfile('\${this.viewer.screen_name}')">
                 <span class="profile-stat-label">\${this.t('posts')}</span>
-                <span class="profile-stat-value">\${this.viewer.counts?.posts ?? '-'}</span>
+                <span class="profile-stat-value">\${this.viewer.counts?.posts !== undefined ? this.formatNumber(this.viewer.counts.posts) : '-'}</span>
               </a>
               <a class="profile-stat-box" onclick="circusApp.viewProfile('\${this.viewer.screen_name}')">
                 <span class="profile-stat-label">\${this.t('following')}</span>
-                <span class="profile-stat-value">\${this.viewer.counts?.following ?? '-'}</span>
+                <span class="profile-stat-value">\${this.viewer.counts?.following !== undefined ? this.formatNumber(this.viewer.counts.following) : '-'}</span>
               </a>
               <a class="profile-stat-box" onclick="circusApp.viewProfile('\${this.viewer.screen_name}')">
                 <span class="profile-stat-label">\${this.t('followers')}</span>
-                <span class="profile-stat-value">\${this.viewer.counts?.followers ?? '-'}</span>
+                <span class="profile-stat-value">\${this.viewer.counts?.followers !== undefined ? this.formatNumber(this.viewer.counts.followers) : '-'}</span>
               </a>
             </div>
           </div>
@@ -4780,7 +4940,7 @@ const circusApp = {
         const isFollowing = u.viewer && u.viewer.following;
         list.insertAdjacentHTML('beforeend', \`
           <div class="suggest-user-item">
-            <img class="suggest-avatar \${this.isSquareAvatar(u) ? 'avatar-square' : ''}" src="\${u.avatar_url || '/public/icon-dark.png'}" alt="\${u.screen_name}" onclick="circusApp.viewProfile('\${u.screen_name}')">
+            <img class="suggest-avatar \${this.isSquareAvatar(u) ? 'avatar-square' : ''}" src="\${u.avatar_url || '/public/icon-dark.png'}" onerror="this.onerror=null;this.src='/public/icon-dark.png';" alt="\${u.screen_name}" onclick="circusApp.viewProfile('\${u.screen_name}')">
             <div class="suggest-info">
               <div class="suggest-name-row">
                 <span class="suggest-name" onclick="circusApp.viewProfile('\${u.screen_name}')">\${this.escape(u.name)}</span>
@@ -4858,14 +5018,14 @@ const circusApp = {
 
           let avatarsHtml = '';
           (n.users || []).slice(0, 7).forEach(u => {
-            avatarsHtml += \`<img class="notif-user-avatar \${this.isSquareAvatar(u) ? 'avatar-square' : ''}" src="\${u.avatar_url || '/public/icon-dark.png'}" onclick="event.stopPropagation();circusApp.viewProfile('\${u.screen_name}')">\`;
+            avatarsHtml += \`<img class="notif-user-avatar \${this.isSquareAvatar(u) ? 'avatar-square' : ''}" src="\${u.avatar_url || '/public/icon-dark.png'}" onerror="this.onerror=null;this.src='/public/icon-dark.png';" onclick="event.stopPropagation();circusApp.viewProfile('\${u.screen_name}')">\`;
           });
 
           let postSnippet = '';
           if (n.post) {
             postSnippet = \`
               <div class="notif-post-snippet" style="cursor:pointer;margin-top:6px" onclick="circusApp.openTweetDetail('\${n.post.id}', false)">
-                \${this.formatTweetText(n.post.text || '')}
+                \${this.formatTweetText(n.post.text || '', n.post)}
               </div>
             \`;
           }
@@ -5010,8 +5170,9 @@ const circusApp = {
       .replace(/"/g, '&quot;');
   },
 
-  formatTweetText(text) {
+  formatTweetText(text, postOrAuthor) {
     if (!text) return '';
+    const instance = this.getPostInstance(postOrAuthor);
     let out = this.decodeEntities(text);
     out = this.escapeHtmlText(out);
     // URLs
@@ -5019,7 +5180,13 @@ const circusApp = {
     // Hashtags: boundary required and never matches inside entity codes
     out = out.replace(/(^|[^\\w&#])#([\\w\\u00c0-\\u024f]+)/g, '$1<a href="javascript:void(0)" onclick="event.stopPropagation();circusApp.searchPosts(\\'#$2\\')">#$2</a>');
     // Mentions: require non-word leading boundary (so user@domain.com never parses @domain)
-    out = out.replace(/(^|[^\\w])@([a-zA-Z0-9_]+(?:@[a-zA-Z0-9_.-]+)?)/g, '$1<a href="javascript:void(0)" onclick="event.stopPropagation();circusApp.viewProfile(\\'$2\\')">@$2</a>');
+    out = out.replace(/(^|[^\\w])@([a-zA-Z0-9_]+(?:@[a-zA-Z0-9_.-]+)?)/g, (match, prefix, mentionHandle) => {
+      let target = mentionHandle;
+      if (!mentionHandle.includes('@') && instance && instance !== window.location.hostname) {
+        target = mentionHandle + '@' + instance;
+      }
+      return prefix + '<a href="/' + encodeURIComponent(target) + '" onclick="event.stopPropagation();circusApp.viewProfile(\\'' + this.escape(target) + '\\')">@' + mentionHandle + '</a>';
+    });
     return out;
   },
 

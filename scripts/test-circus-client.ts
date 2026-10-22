@@ -136,4 +136,74 @@ describe("Circus 2016 Custom Client", () => {
 			}
 		}
 	});
+
+	test("includes search filters, modern mode localization, and image error fallbacks", () => {
+		const htmlEn = circusClientHtml({
+			viewer: { ...sampleViewer, language: "en" },
+			instanceName: "Digital Circus",
+			origin: "https://x.glitchprod.xyz",
+			lang: "en",
+		});
+
+		// Search filters radio and checkbox inputs
+		expect(htmlEn).toContain('name="search-filter-people"');
+		expect(htmlEn).toContain('name="search-filter-location"');
+		expect(htmlEn).toContain('id="search-filter-verified"');
+
+		// Modern mode translated in English
+		expect(htmlEn).toContain("Modern Mode");
+		// "Cliente clásico inspirado en 2016." removed completely
+		expect(htmlEn).not.toContain("Cliente clásico inspirado en 2016.");
+
+		// Image onerror fallbacks present
+		expect(htmlEn).toContain("onerror=");
+		expect(htmlEn).toContain("this.src='/public/icon-dark.png'");
+	});
+
+	test("formats large numbers and resolves federated mentions accurately", () => {
+		const html = circusClientHtml({
+			viewer: sampleViewer,
+			instanceName: "Digital Circus",
+			origin: "https://x.glitchprod.xyz",
+		});
+		const match = html.match(/<script>([\s\S]*?)<\/script>/);
+		expect(match).toBeTruthy();
+		const code = match![1];
+		const sandbox: any = {
+			window: { location: { hostname: "x.glitchprod.xyz", search: "", pathname: "/" } },
+			document: { addEventListener: () => {}, getElementById: () => null, querySelectorAll: () => [] },
+		};
+		const fn = new Function("window", "document", `${code}; return circusApp;`);
+		const app = fn(sandbox.window, sandbox.document);
+
+		// Test formatNumber
+		expect(app.formatNumber(0)).toBe("0");
+		expect(app.formatNumber(42)).toBe("42");
+		expect(app.formatNumber(999)).toBe("999");
+		expect(app.formatNumber(1000)).toBe("1K");
+		expect(app.formatNumber(97764)).toBe("97.8K");
+		expect(app.formatNumber(100000)).toBe("100K");
+		expect(app.formatNumber(2973464)).toBe("3M");
+		expect(app.formatNumber(33193746)).toBe("33.2M");
+
+		// Test federated mentions
+		const remotePost = {
+			author: { screen_name: "X@xitter.opuadm.com" },
+			text: "Hello @discord and @YouTube and @localUser@xitter.space!"
+		};
+		const formatted = app.formatTweetText(remotePost.text, remotePost);
+		expect(formatted).toContain('href="/discord%40xitter.opuadm.com"');
+		expect(formatted).toContain("circusApp.viewProfile('discord@xitter.opuadm.com')");
+		expect(formatted).toContain('href="/YouTube%40xitter.opuadm.com"');
+		expect(formatted).toContain('href="/localUser%40xitter.space"');
+
+		// Local post mentions
+		const localPost = {
+			author: { screen_name: "pomni" },
+			text: "Hello @discord!"
+		};
+		const localFormatted = app.formatTweetText(localPost.text, localPost);
+		expect(localFormatted).toContain('href="/discord"');
+		expect(localFormatted).toContain("circusApp.viewProfile('discord')");
+	});
 });
