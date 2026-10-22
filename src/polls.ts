@@ -173,3 +173,10 @@ export async function vote(viewerId: string, form: FormData): Promise<Record<str
 		},
 	};
 }
+
+export async function votePoll(viewerId: string, id: string, choice: number): Promise<Record<string, unknown>> {
+	const form = new FormData();
+	form.set("twitter:string:card_uri", `card://${id}`);
+	form.set("twitter:string:selected_choice", String(choice));
+	return vote(viewerId, form);
+}
