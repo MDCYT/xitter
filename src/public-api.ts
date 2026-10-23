@@ -24,6 +24,8 @@ import { settings } from "./settings";
 import { followList, setFollow, suggestedUsers, toUser, userByName, userCols, usersByIds } from "./users";
 import { translateText } from "./translate";
 import { votePoll } from "./polls";
+import { decorationUrl, parseDecoration } from "./decorations";
+import { DISCORD_DECORATIONS } from "./decoration-presets";
 
 const hash = (token: string) => new Bun.CryptoHasher("sha256").update(token).digest("hex");
 const MAX_TOKENS = 10;
@@ -84,7 +86,7 @@ function userJson(u: User) {
 		bio: u.bio ?? "",
 		location: u.location ?? "",
 		website: u.website || null,
-		avatar_url: absolute(u.avatar_url),
+		avatar_url: absolute(u.avatar_url) || `${PUBLIC_ORIGIN}/public/default-avatar.png`,
 		banner_url: absolute(u.banner_url),
 		verified_type: u.verified_type,
 		verified_at: iso(u.verified_at),
@@ -96,6 +98,14 @@ function userJson(u: User) {
 		url: `${PUBLIC_ORIGIN}/${u.screen_name}`,
 		translator: u.translator ?? null,
 		flag: u.flag ?? null,
+		decoration: u.decoration ? decorationUrl(parseDecoration(u.decoration), true) : null,
+		decoration_raw: u.decoration ? parseDecoration(u.decoration) : null,
+		followers_you_follow: (u.followers_you_follow ?? []).map((fu: any) => ({
+			screen_name: fu.screen_name,
+			name: fu.name,
+			avatar_url: absolute(fu.avatar_url) || `${PUBLIC_ORIGIN}/public/default-avatar.png`
+		})),
+		followers_you_follow_count: u.followers_you_follow_count ?? 0,
 		badges: (u.badges ?? []).map((b) => ({ id: b.id, name: b.name, url: `/public/badge-${b.id}.png` })),
 		remote_badges: u.remote_badges ?? [],
 		org: u.org ? {
@@ -370,6 +380,10 @@ const ROUTES: Route[] = [
 			if (typeof b.flag === "string") {
 				changes.flag = b.flag.trim() || null;
 			}
+			if (b.decoration !== undefined) {
+				const deco = parseDecoration(b.decoration);
+				changes.decoration = deco ? JSON.stringify(deco) : null;
+			}
 			if (Object.keys(changes).length) {
 				await sql`update users set ${sql(changes)} where id = ${v.id}::bigint`;
 			}
@@ -398,7 +412,8 @@ const ROUTES: Route[] = [
 		},
 	},
 	{ method: "GET", pattern: /^\/cards$/, scope: "read", run: async () => ({ data: await activeCards() }) },
-	{ method: "GET", pattern: /^\/suggestions$/, scope: "read", run: async (v) => ({ data: (await suggestedUsers(v.id, 5)).map(userJson) }) },
+	{ method: "GET", pattern: /^\/decorations$/, scope: "read", run: async () => ({ data: DISCORD_DECORATIONS }) },
+	{ method: "GET", pattern: /^\/suggestions$/, scope: "read", run: async (v, _m, _req, url) => ({ data: (await suggestedUsers(v.id, limitOf(url, 5))).map(userJson) }) },
 	{ method: "GET", pattern: /^\/users\/([^/]+)$/, scope: "read", run: async (v, m) => ({ data: userJson(await userOr404(v, m[1])) }) },
 	{
 		method: "GET", pattern: /^\/users\/([^/]+)\/posts$/, scope: "read",

@@ -142,8 +142,8 @@ export async function signUp(
 					where code = ${code} and not revoked and uses < max_uses and (expires_at is null or expires_at > now())
 						and not exists (select 1 from users c where c.id = invites.created_by and c.status = 'suspended' and c.deactivated_at is null) returning code, org_id`;
 		if (!invite && !(mode === "open" && !code)) throw new SignupError("That invite code is not valid or has been used up.");
-		await tx`insert into users (id, screen_name, name, password_hash, invite_code, flag, email, email_verified, signup_source, signup_country)
-			values (${id}::bigint, ${screenName}, ${name}, ${hash}, ${invite ? code : null}, ${flag}, ${email}, ${!!f.emailVerified}, ${f.source ?? null}, ${f.country ?? null})`;
+		await tx`insert into users (id, screen_name, name, password_hash, invite_code, flag, email, email_verified, signup_source, signup_country, avatar_url)
+			values (${id}::bigint, ${screenName}, ${name}, ${hash}, ${invite ? code : null}, ${flag}, ${email}, ${!!f.emailVerified}, ${f.source ?? null}, ${f.country ?? null}, '/public/default-avatar.png')`;
 		// an organisation's invite makes the new account its affiliate
 		if (invite?.org_id) await tx`insert into affiliations (org_id, user_id) values (${invite.org_id}::bigint, ${id}::bigint)`;
 		// the accounts the admin panel says everyone starts out following

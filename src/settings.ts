@@ -63,6 +63,8 @@ const DEFAULTS = {
 	announcement: { id: "", text: "", link: "", buttons: [] as { label: string; url: string }[] },
 	// handles every new account follows
 	default_follows: [] as string[],
+	// default avatar for new accounts and fallback
+	default_avatar: "/public/default-avatar.png",
 	// the instance's rules, shown at /rules and linked from sign-up
 	rules: "",
 	// AGPL-3.0: people using an instance can get its source here
@@ -139,3 +141,4 @@ export async function getSetting<K extends Key>(key: K): Promise<Settings[K]> {
 }
 
 export const allSettings = async () => current;
+export const defaultAvatar = () => current.default_avatar || "/public/default-avatar.png";

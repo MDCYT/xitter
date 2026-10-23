@@ -41,7 +41,27 @@ export const userCols = (viewerId: string) => sql`
 	exists (select 1 from blocks x where x.blocker_id = u.id and x.blocked_id = ${viewerId}::bigint) as a_blocked_by,
 	exists (select 1 from mutes x where x.muter_id = ${viewerId}::bigint and x.muted_id = u.id) as a_muting,
 	exists (select 1 from post_notifications x where x.user_id = ${viewerId}::bigint and x.target_id = u.id) as a_notifying,
-	exists (select 1 from repost_mutes x where x.user_id = ${viewerId}::bigint and x.target_id = u.id) as a_reposts_muted`;
+	exists (select 1 from repost_mutes x where x.user_id = ${viewerId}::bigint and x.target_id = u.id) as a_reposts_muted,
+	u.decoration as a_decoration,
+	case when ${viewerId}::bigint <> 0 and ${viewerId}::bigint <> u.id then
+		coalesce((select json_agg(json_build_object('screen_name', fu.screen_name, 'name', fu.name, 'avatar_url', fu.avatar_url))
+			from (
+				select fu.screen_name, fu.name, fu.avatar_url
+				from follows f
+				join users fu on fu.id = f.follower_id
+				where f.followee_id = u.id
+					and f.follower_id in (select followee_id from follows where follower_id = ${viewerId}::bigint)
+					and fu.status = 'active'
+				order by f.created_at desc
+				limit 3
+			) fu), '[]'::json)
+	else '[]'::json end as a_followers_you_follow,
+	case when ${viewerId}::bigint <> 0 and ${viewerId}::bigint <> u.id then
+		(select count(*)::int
+			from follows f
+			where f.followee_id = u.id
+				and f.follower_id in (select followee_id from follows where follower_id = ${viewerId}::bigint))
+	else 0 end as a_followers_you_follow_count`;
 
 export function toUser(r: any): User {
 	return {
@@ -54,7 +74,7 @@ export function toUser(r: any): User {
 		region: r.a_based_in_override ?? r.a_signup_country ?? r.a_country ?? null,
 		pronouns: r.a_pronouns ?? null,
 		website: r.a_website,
-		avatar_url: r.a_avatar_url,
+		avatar_url: r.a_avatar_url || '/public/default-avatar.png',
 		banner_url: r.a_banner_url,
 		pinned_post_id: r.a_pinned_post_id,
 		protected: !!r.a_protected,
@@ -64,6 +84,9 @@ export function toUser(r: any): User {
 		flag: r.a_flag,
 		badges: r.a_badges ?? [],
 		remote_badges: r.a_remote_badges ?? [],
+		decoration: r.a_decoration ?? null,
+		followers_you_follow: r.a_followers_you_follow ?? [],
+		followers_you_follow_count: r.a_followers_you_follow_count ?? 0,
 		status: r.a_status,
 		org: r.a_org ?? null,
 		more_orgs: r.a_more_orgs ?? [],
@@ -202,21 +225,37 @@ export async function affiliatesOf(viewerId: string, orgId: string, limit = 200)
 // follow them; contacts the viewer uploaded who let themselves be found by email
 // come before both.
 export async function suggestedUsers(viewerId: string, limit = 20, exclude: string[] = [], similarTo?: string): Promise<User[]> {
-	const rows = await sql`select ${userCols(viewerId)} from users u
-		where u.id <> ${viewerId}::bigint and u.status = 'active'
-			and u.id not in (select followee_id from follows where follower_id = ${viewerId}::bigint)
-			and u.id not in ${blockedFor(viewerId)} and u.id not in ${mutedFor(viewerId)} and u.id not in ${outOfView(viewerId)}
-			and u.id not in ${federatedHiddenFor(viewerId)}
-			${exclude.length ? sql`and u.id <> all(${sql.array(exclude, "INT8")})` : sql``}
-			${similarTo ? sql`and u.id <> ${similarTo}::bigint` : sql``}
-		order by exists (select 1 from contacts c where c.user_id = ${viewerId}::bigint and lower(u.email) = any(c.emails)
-				and u.preferences->>'discoverable_by_email' = 'true') desc,
-			${similarTo ? sql`(select count(*) from follows m where m.followee_id = u.id and m.follower_id <> ${viewerId}::bigint
-				and m.follower_id in (select follower_id from follows where followee_id = ${similarTo}::bigint)) desc,` : sql``}
-			(select count(*) from follows m where m.followee_id = u.id
-				and m.follower_id in (select followee_id from follows where follower_id = ${viewerId}::bigint)) desc,
-			(select count(*) from follows x where x.followee_id = u.id) desc, u.created_at desc
-		limit ${limit}`;
+	const rows = await sql`
+		with ranked as (
+			select u.id,
+				(
+					case when exists (select 1 from contacts c where c.user_id = ${viewerId}::bigint and lower(u.email) = any(c.emails)
+						and u.preferences->>'discoverable_by_email' = 'true') then 100.0 else 0.0 end
+					+ ${similarTo ? sql`(select count(*)::float from follows m where m.followee_id = u.id and m.follower_id <> ${viewerId}::bigint
+						and m.follower_id in (select follower_id from follows where followee_id = ${similarTo}::bigint)) * 30.0` : sql`0.0`}
+					+ (select count(*)::float from follows m where m.followee_id = u.id
+						and m.follower_id in (select followee_id from follows where follower_id = ${viewerId}::bigint)) * 40.0
+					+ case when exists (select 1 from posts p where p.user_id = u.id and p.created_at > now() - interval '7 days') then 20.0 else 0.0 end
+					+ case when u.avatar_url is not null and u.avatar_url <> '' then 10.0 else 0.0 end
+					+ case when u.bio is not null and length(u.bio) > 5 then 10.0 else 0.0 end
+					+ case when u.verified_type is not null or exists (select 1 from affiliations af where af.user_id = u.id) then 15.0 else 0.0 end
+					+ ln(1.0 + coalesce((select count(*)::float from follows x where x.followee_id = u.id), 0.0)) * 6.0
+					+ (random() * 20.0)
+				) as score
+			from users u
+			where u.id <> ${viewerId}::bigint and u.status = 'active'
+				and u.id not in (select followee_id from follows where follower_id = ${viewerId}::bigint)
+				and u.id not in ${blockedFor(viewerId)} and u.id not in ${mutedFor(viewerId)} and u.id not in ${outOfView(viewerId)}
+				and u.id not in ${federatedHiddenFor(viewerId)}
+				${exclude.length ? sql`and u.id <> all(${sql.array(exclude, "INT8")})` : sql``}
+				${similarTo ? sql`and u.id <> ${similarTo}::bigint` : sql``}
+			order by score desc
+			limit ${limit}
+		)
+		select ${userCols(viewerId)}
+		from users u
+		join ranked r on r.id = u.id
+		order by r.score desc`;
 	return rows.map(toUser);
 }
 

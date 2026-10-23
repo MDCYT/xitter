@@ -29,7 +29,7 @@ export function noteText(text: string) {
 	return { text, entities };
 }
 
-const DEFAULT_AVATAR = `${PUBLIC_ORIGIN}/abs/sticky/default_profile_images/default_profile_normal.png`;
+const DEFAULT_AVATAR = `${PUBLIC_ORIGIN}/public/default-avatar.png`;
 // an account's picture as a full URL, X's default one when it has none
 export const avatarUrl = (url: string | null | undefined) => absolute(url ?? null) ?? DEFAULT_AVATAR;
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];

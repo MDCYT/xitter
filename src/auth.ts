@@ -44,6 +44,9 @@ export type User = {
 	label?: { text: string; badge_id: string | null; url: string | null } | null;
 	// posts only for approved followers
 	protected?: boolean;
+	decoration?: any;
+	followers_you_follow?: { screen_name: string; name: string; avatar_url: string | null }[];
+	followers_you_follow_count?: number;
 	language?: string;
 	// two-letter code: detected at sign-in, or picked in Settings > Country
 	country?: string | null;
@@ -108,7 +111,7 @@ export async function createUser(screenName: string, name: string, password: str
 	if (password.length < 8) throw new Error("password: at least 8 characters");
 	const id = newId();
 	const hash = await Bun.password.hash(password);
-	await sql`insert into users (id, screen_name, name, password_hash) values (${id}::bigint, ${screenName}, ${name}, ${hash})`;
+	await sql`insert into users (id, screen_name, name, password_hash, avatar_url) values (${id}::bigint, ${screenName}, ${name}, ${hash}, '/public/default-avatar.png')`;
 	return id;
 }
 

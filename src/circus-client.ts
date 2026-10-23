@@ -386,8 +386,10 @@ a:hover, a:focus {
 .circus-badge-check {
   width: 17px;
   height: 17px;
-  display: inline-block;
-  vertical-align: -2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
   margin-left: 4px;
   flex-shrink: 0;
 }
@@ -395,8 +397,8 @@ a:hover, a:focus {
   width: 17px;
   height: 17px;
   border-radius: 3px;
-  display: inline-block;
-  vertical-align: -2px;
+  display: inline-flex;
+  vertical-align: middle;
   margin-left: 4px;
   object-fit: cover;
   flex-shrink: 0;
@@ -405,8 +407,8 @@ a:hover, a:focus {
   width: 17px;
   height: 17px;
   border-radius: 3px;
-  display: inline-block;
-  vertical-align: -2px;
+  display: inline-flex;
+  vertical-align: middle;
   margin-left: 4px;
   object-fit: cover;
   border: 1px solid rgba(0,0,0,0.1);
@@ -415,16 +417,18 @@ a:hover, a:focus {
 .circus-badge-icon {
   width: 16px;
   height: 16px;
-  display: inline-block;
-  vertical-align: -2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
   margin-left: 4px;
   flex-shrink: 0;
 }
 .circus-badge-flag {
   width: 18px;
   height: 13px;
-  display: inline-block;
-  vertical-align: -1px;
+  display: inline-flex;
+  vertical-align: middle;
   margin-left: 4px;
   border-radius: 2px;
   flex-shrink: 0;
@@ -438,8 +442,24 @@ a:hover, a:focus {
   border-radius: 4px;
   padding: 1px 6px;
   margin-left: 6px;
-  display: inline-block;
   vertical-align: middle;
+}
+
+/* Avatar Decorations */
+img.xitter-deco {
+  position: absolute;
+  left: -15%;
+  top: -15%;
+  width: 130%;
+  height: 130%;
+  max-width: none;
+  pointer-events: none;
+  z-index: 3;
+  user-select: none;
+}
+.tweet-avatar-wrap, .profile-avatar-large-wrap, .profile-card-avatar-link, .suggest-avatar-wrap, .search-user-avatar-wrap, .tweet-detail-avatar-wrap, .notif-avatar-wrap {
+  position: relative;
+  display: inline-block;
 }
 
 /* Composer */
@@ -752,7 +772,7 @@ a:hover, a:focus {
 }
 .tweet-header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   flex-wrap: wrap;
   gap: 4px;
   margin-bottom: 2px;
@@ -763,6 +783,8 @@ a:hover, a:focus {
   cursor: pointer;
   display: inline-flex;
   align-items: center;
+  vertical-align: middle;
+  line-height: 1.2;
 }
 .tweet-author-name:hover {
   text-decoration: underline;
@@ -816,22 +838,53 @@ a:hover, a:focus {
 .quote-card {
   border: 1px solid var(--border-color);
   border-radius: 6px;
-  padding: 8px 12px;
+  padding: 10px 12px;
   margin-top: 8px;
   background: #ffffff;
   cursor: pointer;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, background-color 0.15s;
 }
 .quote-card:hover {
-  border-color: var(--circus-red);
+  border-color: #aab8c2;
+  background-color: #fcfdfe;
 }
 .quote-header {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 5px;
   font-size: 13px;
-  margin-bottom: 4px;
+  margin-bottom: 5px;
+  line-height: 1.25;
+}
+.quote-avatar {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+.quote-media-wrap {
+  margin-top: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  max-height: 220px;
+  border: 1px solid #e6ecf0;
+}
+.quote-media-wrap img {
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  display: block;
+}
+.media-fallback-error {
+  min-height: 140px;
+  background-color: #f5f8fa !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='36' height='36' fill='%23aab8c2'%3E%3Cpath d='M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: center center !important;
+  object-fit: scale-down;
 }
 .tweet-poll-box {
   margin-top: 8px;
@@ -1011,6 +1064,89 @@ a:hover, a:focus {
   background: var(--circus-red);
   color: #ffffff;
   border-color: var(--circus-red);
+}
+
+/* Search Filters Card */
+.search-filters-card {
+  padding: 14px 16px;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  margin-bottom: 15px;
+}
+.search-filter-section {
+  padding: 8px 0;
+}
+.search-filter-section:not(:last-child) {
+  border-bottom: 1px solid #e6ecf0;
+}
+.search-filter-title {
+  font-size: 11px;
+  font-weight: bold;
+  color: #657786;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+.search-filter-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  margin-bottom: 6px;
+  font-weight: normal;
+  color: #14171a;
+  user-select: none;
+}
+.search-filter-option input[type="radio"],
+.search-filter-option input[type="checkbox"] {
+  margin: 0;
+  accent-color: var(--circus-red);
+}
+
+/* Flag & Decoration Pickers (Edit Profile Modal) */
+.flag-choice-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  border: 1px solid #ccd6dd;
+  background: #ffffff;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s ease;
+}
+.flag-choice-item:hover {
+  background: #f5f8fa;
+  border-color: #aab8c2;
+}
+.flag-choice-item.selected {
+  border-color: var(--circus-red);
+  background: #fff5f5;
+  color: var(--circus-red);
+  font-weight: bold;
+}
+.flag-choice-item .flag-check-indicator {
+  margin-left: auto;
+  font-size: 11px;
+  display: none;
+}
+.flag-choice-item.selected .flag-check-indicator {
+  display: inline;
+}
+.deco-choice-tile {
+  transition: all 0.15s ease;
+  user-select: none;
+}
+.deco-choice-tile:hover {
+  border-color: #aab8c2 !important;
+}
+.deco-choice-tile.selected {
+  border-color: var(--circus-red) !important;
+  background: #fff5f5 !important;
+  box-shadow: 0 0 0 1px var(--circus-red);
 }
 
 /* Footer Card */
@@ -1764,10 +1900,11 @@ a:hover, a:focus {
       ${
 				user
 					? `
-        <button class="nav-avatar-btn" id="nav-avatar-btn" onclick="circusApp.toggleUserDropdown(event)" title="@${user.screen_name}">
-          <img class="nav-avatar" src="${user.avatar_url || "/public/icon-dark.png"}" onerror="this.onerror=null;this.src='/public/icon-dark.png';" alt="${user.screen_name}">
+        <button class="nav-avatar-btn" id="nav-avatar-btn" onclick="circusApp.toggleUserDropdown(event)" title="@${user.screen_name}" style="position:relative">
+          <img class="nav-avatar" src="${user.avatar_url || "/public/default-avatar.png"}" onerror="this.onerror=null;this.src='/public/default-avatar.png';" alt="${user.screen_name}">
+          ${user.decoration ? `<img class="xitter-deco" src="${user.decoration}" alt="" aria-hidden="true">` : ''}
         </button>
-        <button class="btn-tweet-nav" id="btn-tweet-nav" onclick="circusApp.focusComposer()">Twittear</button>
+        <button class="btn-tweet-nav" id="btn-tweet-nav" onclick="circusApp.focusComposer()">Publicar</button>
       `
 					: `
         <a href="/" class="btn btn-default btn-sm" id="btn-login-nav" style="font-weight:bold;border-radius:100px;padding:5px 14px">Iniciar sesión</a>
@@ -1896,7 +2033,10 @@ a:hover, a:focus {
 
         <!-- Who to Follow -->
         <div class="module-card who-to-follow-card">
-          <h4 class="trends-header" id="txt-suggestions-header" style="margin-bottom:12px">A quién seguir</h4>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <h4 class="trends-header" id="txt-suggestions-header" style="margin:0">A quién seguir</h4>
+            <a href="javascript:void(0)" onclick="circusApp.loadSuggestions(true)" style="font-size:12px;color:var(--circus-red);font-weight:normal" class="btn-refresh-suggestions">· Actualizar</a>
+          </div>
           <div id="suggestions-list">
             <p style="color:#657786;font-size:12px">Buscando personajes...</p>
           </div>
@@ -1952,8 +2092,9 @@ a:hover, a:focus {
   <div class="profile-main-grid">
     <!-- Left Profile Details Column -->
     <div class="profile-sidebar">
-      <div class="profile-avatar-container">
-        <img class="profile-avatar-large" id="profile-large-avatar" src="/public/icon-dark.png" onerror="this.onerror=null;this.src='/public/icon-dark.png';" alt="Avatar">
+      <div class="profile-avatar-container" style="position:relative;display:inline-block">
+        <img class="profile-avatar-large" id="profile-large-avatar" src="/public/default-avatar.png" onerror="this.onerror=null;this.src='/public/default-avatar.png';" alt="Avatar">
+        <img class="xitter-deco" id="profile-large-avatar-deco" src="" style="display:none" alt="" aria-hidden="true">
       </div>
       <div class="profile-details-card">
         <h1 class="profile-details-name" id="profile-display-name"></h1>
@@ -1961,6 +2102,7 @@ a:hover, a:focus {
         <div id="profile-display-label"></div>
         <div class="profile-details-bio" id="profile-display-bio"></div>
         <ul class="profile-meta-list" id="profile-meta-list"></ul>
+        <div id="profile-mutual-followers"></div>
         <div id="profile-action-btn-wrap"></div>
       </div>
     </div>
@@ -1978,7 +2120,10 @@ a:hover, a:focus {
     <!-- Right Sidebar Suggestions -->
     <div class="profile-right-sidebar">
       <div class="module-card who-to-follow-card">
-        <h4 class="trends-header" id="txt-profile-suggestions-header" style="margin-bottom:12px">A quién seguir</h4>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h4 class="trends-header" id="txt-profile-suggestions-header" style="margin:0">A quién seguir</h4>
+          <a href="javascript:void(0)" onclick="circusApp.loadSuggestions(true)" style="font-size:12px;color:var(--circus-red);font-weight:normal" class="btn-refresh-suggestions">· Actualizar</a>
+        </div>
         <div id="profile-suggestions-list"></div>
       </div>
       <div class="module-card footer-info-card">
@@ -2145,10 +2290,11 @@ a:hover, a:focus {
             </button>
           </div>
           <!-- Avatar edit (overlapping) -->
-          <div style="position:relative;margin-top:-76px;margin-bottom:16px;width:76px;height:76px">
-            <img id="edit-avatar-img" src="/public/icon-dark.png" style="width:76px;height:76px;border-radius:50%;border:3px solid #fff;object-fit:cover;background:#fff">
+          <div style="position:relative;margin-top:-76px;margin-bottom:16px;width:76px;height:76px;display:inline-block" id="edit-avatar-wrap">
+            <img id="edit-avatar-img" src="/public/default-avatar.png" style="width:76px;height:76px;border-radius:50%;border:3px solid #fff;object-fit:cover;background:#fff" onerror="this.src='/public/default-avatar.png'">
+            <img class="xitter-deco" id="edit-avatar-deco" src="" style="display:none;position:absolute;left:-15%;top:-15%;width:130%;height:130%;pointer-events:none;z-index:3">
             <input type="file" id="edit-avatar-file" accept="image/*" style="display:none" onchange="circusApp.onAvatarFileSelect(event)">
-            <button type="button" class="btn btn-default btn-xs" style="position:absolute;bottom:0;right:-4px;padding:3px 6px;border-radius:50%" onclick="document.getElementById('edit-avatar-file').click()" title="Cambiar avatar">
+            <button type="button" class="btn btn-default btn-xs" style="position:absolute;bottom:0;right:-4px;padding:3px 6px;border-radius:50%;z-index:4" onclick="document.getElementById('edit-avatar-file').click()" title="Cambiar avatar">
               📷
             </button>
           </div>
@@ -2160,30 +2306,26 @@ a:hover, a:focus {
             <label style="font-size:12px;font-weight:bold" id="lbl-edit-bio">Biografía</label>
             <textarea class="form-control" id="edit-profile-bio" rows="2" maxlength="160"></textarea>
           </div>
-          <div class="row">
-            <div class="col-xs-6 form-group" style="margin-bottom:10px">
-              <label style="font-size:12px;font-weight:bold" id="lbl-edit-pronouns">Pronombres</label>
-              <input type="text" class="form-control" id="edit-profile-pronouns" maxlength="30" placeholder="ella/she, él/he, elle/they">
+          <div class="form-group" style="margin-bottom:10px">
+            <label style="font-size:12px;font-weight:bold" id="lbl-edit-pronouns">Pronombres</label>
+            <input type="text" class="form-control" id="edit-profile-pronouns" maxlength="30" placeholder="ella/she, él/he, elle/they">
+          </div>
+          <div class="form-group" style="margin-bottom:12px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+              <label style="font-size:12px;font-weight:bold;margin:0" id="lbl-edit-flag">Banderas de identidad (máximo 3)</label>
+              <span id="edit-flags-count" style="font-size:11px;color:#657786;font-weight:bold">0 / 3</span>
             </div>
-            <div class="col-xs-6 form-group" style="margin-bottom:10px">
-              <label style="font-size:12px;font-weight:bold" id="lbl-edit-flag">Bandera / Identidad</label>
-              <select class="form-control" id="edit-profile-flag">
-                <option value="">(Ninguna)</option>
-                <option value="pride">Pride 🏳️‍🌈</option>
-                <option value="progress">Progress Pride</option>
-                <option value="trans">Transgender 🏳️‍⚧️</option>
-                <option value="bi">Bisexual</option>
-                <option value="pan">Pansexual</option>
-                <option value="lesbian">Lesbian</option>
-                <option value="gay">Gay</option>
-                <option value="nonbinary">Non-binary</option>
-                <option value="genderfluid">Genderfluid</option>
-                <option value="agender">Agender</option>
-                <option value="asexual">Asexual</option>
-                <option value="aromantic">Aromantic</option>
-                <option value="intersex">Intersex</option>
-              </select>
+            <div class="flag-picker-grid" id="flag-picker-grid" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(130px, 1fr));gap:6px;max-height:150px;overflow-y:auto;padding:6px;border:1px solid #ccd6dd;border-radius:4px;background:#f5f8fa"></div>
+          </div>
+          <div class="form-group" style="margin-bottom:12px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+              <label style="font-size:12px;font-weight:bold;margin:0" id="lbl-edit-deco">Decoración de foto de perfil</label>
+              <button type="button" class="btn btn-default btn-xs" id="btn-remove-deco" onclick="circusApp.selectEditDeco(null)" style="font-size:11px">Quitar decoración</button>
             </div>
+            <div style="margin-bottom:6px">
+              <input type="text" class="form-control input-sm" id="deco-search-input" placeholder="Buscar decoraciones (gato, flores, fuego, anime...)" oninput="circusApp.filterDecos(this.value)">
+            </div>
+            <div id="deco-picker-grid" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(60px, 1fr));gap:6px;max-height:140px;overflow-y:auto;padding:6px;border:1px solid #ccd6dd;border-radius:4px;background:#f5f8fa"></div>
           </div>
           <div class="form-group" style="margin-bottom:10px">
             <label style="font-size:12px;font-weight:bold" id="lbl-edit-location">Ubicación</label>
@@ -2224,16 +2366,16 @@ a:hover, a:focus {
     <div class="modal-content" style="border-radius:8px;overflow:hidden">
       <div class="modal-header" style="padding:10px 14px;border-bottom:1px solid #e1e8ed">
         <button type="button" class="close" data-dismiss="modal">&times;</button>
-        <h4 class="modal-title" style="font-size:14px;font-weight:bold" id="lbl-repost-modal-title">Retwittear</h4>
+        <h4 class="modal-title" style="font-size:14px;font-weight:bold" id="lbl-repost-modal-title">Republicar</h4>
       </div>
       <div class="modal-body" style="padding:14px;display:flex;flex-direction:column;gap:8px">
         <button type="button" class="btn btn-default btn-block" id="btn-action-retweet" style="font-weight:bold;display:flex;align-items:center;justify-content:center;gap:8px;padding:8px">
           <svg style="width:16px;height:16px;fill:#17bf63" viewBox="0 0 24 24"><path d="M23.77 15.67c-.292-.293-.767-.293-1.06 0l-2.22 2.22V7.65c0-2.068-1.683-3.75-3.75-3.75h-5.85c-.414 0-.75.336-.75.75s.336.75.75.75h5.85c1.24 0 2.25 1.01 2.25 2.25v10.24l-2.22-2.22c-.293-.293-.768-.293-1.06 0s-.294.768 0 1.06l3.5 3.5c.145.147.337.22.53.22s.383-.072.53-.22l3.5-3.5c.294-.292.294-.767 0-1.06zm-10.66 3.28H7.26c-1.24 0-2.25-1.01-2.25-2.25V6.46l2.22 2.22c.148.147.34.22.532.22s.384-.073.53-.22c.293-.293.293-.768 0-1.06l-3.5-3.5c-.293-.294-.768-.294-1.06 0l-3.5 3.5c-.294.292-.294.767 0 1.06s.767.293 1.06 0l2.22-2.22V16.7c0 2.068 1.683 3.75 3.75 3.75h5.85c.414 0 .75-.336.75-.75s-.337-.75-.75-.75z"/></svg>
-          <span id="txt-modal-retweet">Retwittear</span>
+          <span id="txt-modal-retweet">Republicar</span>
         </button>
         <button type="button" class="btn btn-default btn-block" id="btn-action-quote" style="font-weight:bold;display:flex;align-items:center;justify-content:center;gap:8px;padding:8px">
           <svg style="width:16px;height:16px;fill:#1da1f2" viewBox="0 0 24 24"><path d="M14.046 2.242l-4.148-.01h-.002c-4.374 0-7.8 3.427-7.8 7.802 0 4.098 3.186 7.206 7.465 7.37v3.828c0 .108.044.286.12.403.142.225.384.347.632.347.138 0 .277-.038.402-.118.264-.168 6.473-4.14 8.088-5.506 1.902-1.61 3.04-3.97 3.04-6.312v-.017c-.002-4.373-3.429-7.79-7.797-7.79zm6.297 7.788c0 1.906-.93 3.82-2.502 5.15-1.38 1.168-6.19 4.498-7.34 5.343v-2.923c0-.414-.336-.75-.75-.75-3.666-.14-6.197-2.73-6.197-6.03 0-3.55 2.77-6.302 6.3-6.302l4.147.01h.002c3.53 0 6.34 2.768 6.34 6.298v.014z"/></svg>
-          <span id="txt-modal-quote">Citar Tweet</span>
+          <span id="txt-modal-quote">Citar publicación</span>
         </button>
       </div>
     </div>
@@ -2386,7 +2528,7 @@ const I18N_DICT = {
     home: "Inicio",
     notifications: "Notificaciones",
     search_placeholder: "Buscar en el Circo...",
-    tweet: "Twittear",
+    tweet: "Publicar",
     sign_in: "Iniciar sesión",
     sign_up: "Registrarse",
     view_profile: "Ver perfil",
@@ -2409,23 +2551,23 @@ const I18N_DICT = {
     terms: "Términos",
     privacy: "Privacidad",
     rules: "Reglas",
-    posts: "Posts",
-    posts_and_replies: "Posts y respuestas",
+    posts: "Publicaciones",
+    posts_and_replies: "Publicaciones y respuestas",
     followers: "Seguidores",
     likes: "Me gusta",
     follow: "Seguir",
     following_btn: "Siguiendo",
     edit_profile: "Editar perfil",
-    tweet_to: "Twittear a",
+    tweet_to: "Publicar a",
     joined_in: "Se unió en",
     reposted: "reposteó",
     reply: "Responder",
-    retweet: "Retwittear",
+    retweet: "Republicar",
     like: "Me gusta",
     translate: "Traducir",
     translated_from: "Traducido de",
     to: "a",
-    load_more: "Cargar más posts",
+    load_more: "Cargar más publicaciones",
     no_posts_yet: "todavía no ha publicado nada en el Circo.",
     no_results_search: "No se encontraron resultados para esta búsqueda.",
     search_results_for: "Resultados para",
@@ -2460,29 +2602,29 @@ const I18N_DICT = {
     poll_needs_two: "La encuesta necesita al menos 2 opciones.",
     write_something: "Escribe algo o adjunta un archivo.",
     publishing: "Publicando...",
-    published: "¡Post publicado!",
-    deleting_confirm: "¿Seguro que deseas eliminar este post del Circo?",
-    deleted: "Post eliminado.",
+    published: "¡Publicación enviada!",
+    deleting_confirm: "¿Seguro que deseas eliminar esta publicación del Circo?",
+    deleted: "Publicación eliminada.",
     translating: "Traduciendo con IA...",
-    translate_error: "No se pudo traducir este post.",
+    translate_error: "No se pudo traducir esta publicación.",
     now_following: "Ahora sigues a @",
     unfollowed: "Dejaste de seguir a @",
     verified_business: "Empresa verificada",
     verified_government: "Cuenta de gobierno verificada",
-    quote_tweet: "Citar tweet",
+    quote_tweet: "Citar publicación",
     pronouns: "Pronombres",
-    pride_flag: "Bandera de identidad",
+    pride_flag: "Banderas de identidad",
     change_avatar: "Cambiar avatar",
     change_banner: "Cambiar encabezado",
     replying_to: "En respuesta a",
-    tweet_your_reply: "Twittear tu respuesta",
+    tweet_your_reply: "Publicar respuesta",
     search_for: "Buscar",
     cancel: "Cancelar",
     save_changes: "Guardar cambios",
     attached_quote: "Cita adjunta",
     mentions: "Menciones",
     no_notifications: "No tienes notificaciones todavía.",
-    view_tweet: "Ver tweet",
+    view_tweet: "Ver publicación",
     search_top: "Destacados",
     search_latest: "Más reciente",
     search_people: "Personas",
@@ -2502,13 +2644,18 @@ const I18N_DICT = {
     filter_anywhere: "Cualquier lugar",
     filter_local: "Instancia local",
     filter_quality: "Calidad",
-    filter_verified: "Solo cuentas verificadas"
+    filter_verified: "Solo cuentas verificadas",
+    refresh: "Actualizar",
+    votes: "votos",
+    final: "Final",
+    avatar_decoration: "Decoración de foto de perfil",
+    remove_decoration: "Quitar decoración"
   },
   en: {
     home: "Home",
     notifications: "Notifications",
     search_placeholder: "Search the Circus...",
-    tweet: "Tweet",
+    tweet: "Post",
     sign_in: "Sign in",
     sign_up: "Sign up",
     view_profile: "View profile",
@@ -2538,11 +2685,11 @@ const I18N_DICT = {
     follow: "Follow",
     following_btn: "Following",
     edit_profile: "Edit profile",
-    tweet_to: "Tweet to",
+    tweet_to: "Post to",
     joined_in: "Joined",
     reposted: "reposted",
     reply: "Reply",
-    retweet: "Retweet",
+    retweet: "Repost",
     like: "Like",
     translate: "Translate",
     translated_from: "Translated from",
@@ -2591,20 +2738,20 @@ const I18N_DICT = {
     unfollowed: "You unfollowed @",
     verified_business: "Verified Business Account",
     verified_government: "Verified Government Account",
-    quote_tweet: "Quote Tweet",
+    quote_tweet: "Quote post",
     pronouns: "Pronouns",
-    pride_flag: "Identity flag",
+    pride_flag: "Identity flags",
     change_avatar: "Change avatar",
     change_banner: "Change header",
     replying_to: "Replying to",
-    tweet_your_reply: "Tweet your reply",
+    tweet_your_reply: "Post your reply",
     search_for: "Search for",
     cancel: "Cancel",
     save_changes: "Save changes",
     attached_quote: "Attached quote",
     mentions: "Mentions",
     no_notifications: "You don't have any notifications yet.",
-    view_tweet: "View tweet",
+    view_tweet: "View post",
     search_top: "Top",
     search_latest: "Latest",
     search_people: "People",
@@ -2624,7 +2771,12 @@ const I18N_DICT = {
     filter_anywhere: "Anywhere",
     filter_local: "Local instance",
     filter_quality: "Quality",
-    filter_verified: "Verified accounts only"
+    filter_verified: "Verified accounts only",
+    refresh: "Refresh",
+    votes: "votes",
+    final: "Final",
+    avatar_decoration: "Avatar decoration",
+    remove_decoration: "Remove decoration"
   }
 };
 
@@ -2772,6 +2924,8 @@ const circusApp = {
     setTxt('lbl-edit-bio', 'bio');
     setTxt('lbl-edit-pronouns', 'pronouns');
     setTxt('lbl-edit-flag', 'pride_flag');
+    setTxt('lbl-edit-deco', 'avatar_decoration');
+    setTxt('btn-remove-deco', 'remove_decoration');
     setTxt('lbl-edit-location', 'location');
     setTxt('lbl-edit-website', 'website');
     setTxt('btn-cancel-edit', 'cancel');
@@ -2800,6 +2954,7 @@ const circusApp = {
     setTxt('txt-search-trends-header', 'trends_for_you');
     setTxt('txt-search-suggestions-header', 'who_to_follow');
 
+    document.querySelectorAll('.btn-refresh-suggestions').forEach(el => el.textContent = '· ' + this.t('refresh'));
     document.querySelectorAll('.txt-footer-terms').forEach(el => el.textContent = this.t('terms'));
     document.querySelectorAll('.txt-footer-privacy').forEach(el => el.textContent = this.t('privacy'));
     document.querySelectorAll('.txt-footer-rules').forEach(el => el.textContent = this.t('rules'));
@@ -2932,7 +3087,7 @@ const circusApp = {
 
     // 2. Organization badge
     if (u.org && u.org.avatar_url) {
-      html += '<a href="javascript:void(0)" onclick="event.stopPropagation();circusApp.viewProfile(\\'' + this.escape(u.org.screen_name) + '\\')" title="' + this.t('affiliated_to') + ' ' + this.escape(u.org.name) + ' (@' + this.escape(u.org.screen_name) + ')"><img class="circus-badge-org" src="' + this.escape(u.org.avatar_url) + '" onerror="this.onerror=null;this.src=\\'/public/icon-dark.png\\';" alt="' + this.escape(u.org.name) + '"></a>';
+      html += '<a href="javascript:void(0)" onclick="event.stopPropagation();circusApp.viewProfile(\\'' + this.escape(u.org.screen_name) + '\\')" title="' + this.t('affiliated_to') + ' ' + this.escape(u.org.name) + ' (@' + this.escape(u.org.screen_name) + ')"><img class="circus-badge-org" src="' + this.escape(u.org.avatar_url) + '" onerror="this.onerror=null;this.src=\\'/public/default-avatar.png\\';" alt="' + this.escape(u.org.name) + '"></a>';
     }
 
     // 3. Custom badges
@@ -2988,7 +3143,8 @@ const circusApp = {
           <div class="profile-card-header" style="\${bannerStyle}"></div>
           <div class="profile-card-content">
             <a class="profile-card-avatar-link" onclick="circusApp.viewProfile('\${this.viewer.screen_name}')">
-              <img class="profile-card-avatar \${this.isSquareAvatar(this.viewer) ? 'avatar-square' : ''}" src="\${this.viewer.avatar_url || '/public/icon-dark.png'}" onerror="this.onerror=null;this.src='/public/icon-dark.png';" alt="\${this.viewer.screen_name}">
+              <img class="profile-card-avatar \${this.isSquareAvatar(this.viewer) ? 'avatar-square' : ''}" src="\${this.viewer.avatar_url || '/public/default-avatar.png'}" onerror="this.onerror=null;this.src='/public/default-avatar.png';" alt="\${this.viewer.screen_name}">
+              \${this.viewer.decoration ? \`<img class="xitter-deco" src="\${this.viewer.decoration}" alt="" aria-hidden="true">\` : ''}
             </a>
             <div class="profile-card-user">
               <a class="profile-card-name" onclick="circusApp.viewProfile('\${this.viewer.screen_name}')">
@@ -3070,7 +3226,10 @@ const circusApp = {
     el.innerHTML = \`
       <div class="composer-box">
         <div class="composer-top">
-          <img class="composer-avatar \${this.isSquareAvatar(this.viewer) ? 'avatar-square' : ''}" src="\${this.viewer.avatar_url || '/public/icon-dark.png'}" onerror="this.onerror=null;this.src='/public/icon-dark.png';" alt="\${this.viewer.screen_name}">
+          <div style="position:relative;display:inline-block;flex-shrink:0">
+            <img class="composer-avatar \${this.isSquareAvatar(this.viewer) ? 'avatar-square' : ''}" src="\${this.viewer.avatar_url || '/public/default-avatar.png'}" onerror="this.onerror=null;this.src='/public/default-avatar.png';" alt="\${this.viewer.screen_name}">
+            \${this.viewer.decoration ? \`<img class="xitter-deco" src="\${this.viewer.decoration}" alt="" aria-hidden="true">\` : ''}
+          </div>
           <div class="composer-input-wrapper">
             <textarea class="composer-textarea" id="tweet-textarea" placeholder="\${this.t('composer_placeholder')}" oninput="circusApp.onComposerInput(this)"></textarea>
             
@@ -3079,15 +3238,15 @@ const circusApp = {
 
             <div class="composer-poll-form" id="composer-poll-form">
               <div class="form-group" style="margin-bottom:6px">
-                <input type="text" class="form-control input-sm poll-choice" placeholder="Choice 1" maxlength="25">
+                <input type="text" class="form-control input-sm poll-choice" placeholder="Opción 1" maxlength="25">
               </div>
               <div class="form-group" style="margin-bottom:6px">
-                <input type="text" class="form-control input-sm poll-choice" placeholder="Choice 2" maxlength="25">
+                <input type="text" class="form-control input-sm poll-choice" placeholder="Opción 2" maxlength="25">
               </div>
               <div id="extra-poll-choices"></div>
               <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
-                <button type="button" class="btn btn-default btn-xs" onclick="circusApp.addPollChoice()">+ Option</button>
-                <button type="button" class="btn btn-link btn-xs" onclick="circusApp.togglePoll(false)" style="color:#d90429">&times; Remove poll</button>
+                <button type="button" class="btn btn-default btn-xs" onclick="circusApp.addPollChoice()">+ Opción</button>
+                <button type="button" class="btn btn-link btn-xs" onclick="circusApp.togglePoll(false)" style="color:#d90429">&times; Quitar encuesta</button>
               </div>
             </div>
           </div>
@@ -3224,7 +3383,7 @@ const circusApp = {
             <video class="composer-thumb" src="/media/\${m.id}.mp4" poster="/media/poster/\${m.id}.jpg" muted autoplay loop playsinline></video>
             <span class="composer-thumb-badge">▶ Video</span>
           \` : \`
-            <img class="composer-thumb" src="/media/\${m.id}.jpg" onerror="if(!this.dataset.retried){this.dataset.retried='1';this.src='/media/poster/\${m.id}.jpg';}else{this.src='/public/icon-dark.png';}">
+            <img class="composer-thumb" src="/media/\${m.id}.jpg" onerror="if(!this.dataset.retried){this.dataset.retried='1';this.src='/media/poster/\${m.id}.jpg';}else{this.src='/public/default-avatar.png';}">
           \`}
           <button class="composer-thumb-del" type="button" onclick="circusApp.removeMedia(\${idx})">&times;</button>
         </div>
@@ -3520,7 +3679,7 @@ const circusApp = {
         const count = Math.min(media.length, 4);
         mediaHtml = \`<div class="tweet-media-grid grid-\${count}">\`;
         media.slice(0, 4).forEach(m => {
-          mediaHtml += \`<img class="media-item" src="\${m.url}" loading="lazy" onerror="this.onerror=null;this.classList.add('media-fallback-error');this.src='/public/icon-dark.png';" onclick="circusApp.openLightbox('\${m.url}')">\`;
+          mediaHtml += \`<img class="media-item" src="\${m.url}" loading="lazy" onerror="this.onerror=null;this.classList.add('media-fallback-error');this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' viewBox=\\'0 0 1 1\\'%3E%3C/svg%3E';" onclick="circusApp.openLightbox('\${m.url}')">\`;
         });
         mediaHtml += \`</div>\`;
       }
@@ -3531,15 +3690,22 @@ const circusApp = {
     if (p.quoted) {
       const q = p.quoted;
       const qAuthor = q.author || {};
+      const qMedia = q.media || [];
       quoteHtml = \`
-        <div class="quote-card" onclick="circusApp.viewProfile('\${qAuthor.screen_name}')">
+        <div class="quote-card" onclick="event.stopPropagation();circusApp.openTweetDetail('\${q.id}')">
           <div class="quote-header">
-            <b>\${this.escape(qAuthor.name)}</b>
+            <img class="quote-avatar" src="\${qAuthor.avatar_url || '/public/default-avatar.png'}" onerror="this.src='/public/default-avatar.png';" alt="\${qAuthor.screen_name}" onclick="event.stopPropagation();circusApp.viewProfile('\${qAuthor.screen_name}')">
+            <b onclick="event.stopPropagation();circusApp.viewProfile('\${qAuthor.screen_name}')">\${this.escape(qAuthor.name)}</b>
             \${this.renderBadges(qAuthor)}
-            <span class="tweet-author-handle">@\${this.escape(qAuthor.screen_name)}</span>
+            <span class="tweet-author-handle" onclick="event.stopPropagation();circusApp.viewProfile('\${qAuthor.screen_name}')">@\${this.escape(qAuthor.screen_name)}</span>
             <span class="tweet-time">· \${this.formatTimeAgo(q.created_at)}</span>
           </div>
           <div style="font-size:13px;line-height:18px">\${this.formatTweetText(q.text, q)}</div>
+          \${qMedia.length > 0 ? \`
+            <div class="quote-media-wrap">
+              <img src="\${qMedia[0].url}" onerror="this.style.display='none'">
+            </div>
+          \` : ''}
         </div>
       \`;
     }
@@ -3572,7 +3738,7 @@ const circusApp = {
           \`;
         }
       });
-      pollHtml += \`<div style="font-size:12px;color:#657786;margin-top:6px">\${this.formatNumber(total)} votes \${poll.closed ? '· Final' : ''}</div></div>\`;
+      pollHtml += \`<div style="font-size:12px;color:#657786;margin-top:6px">\${this.formatNumber(total)} \${this.t('votes')} \${poll.closed ? '· ' + this.t('final') : ''}</div></div>\`;
     }
 
     // Conversation Card
@@ -3605,7 +3771,8 @@ const circusApp = {
         \${repostHtml}
         <div class="tweet-main">
           <div class="tweet-avatar-wrap">
-            <img class="tweet-avatar \${this.isSquareAvatar(author) ? 'avatar-square' : ''}" src="\${author.avatar_url || '/public/icon-dark.png'}" onerror="this.onerror=null;this.src='/public/icon-dark.png';" alt="\${author.screen_name}" onclick="event.stopPropagation();circusApp.viewProfile('\${author.screen_name}')">
+            <img class="tweet-avatar \${this.isSquareAvatar(author) ? 'avatar-square' : ''}" src="\${author.avatar_url || '/public/default-avatar.png'}" onerror="this.onerror=null;this.src='/public/default-avatar.png';" alt="\${author.screen_name}" onclick="event.stopPropagation();circusApp.viewProfile('\${author.screen_name}')">
+            \${author.decoration ? \`<img class="xitter-deco" src="\${author.decoration}" alt="" aria-hidden="true">\` : ''}
           </div>
           <div class="tweet-content">
             <div class="tweet-header">
@@ -3845,7 +4012,10 @@ const circusApp = {
         const isFollowing = u.viewer && u.viewer.following;
         list.insertAdjacentHTML('beforeend', \`
           <div class="suggest-user-item">
-            <img class="suggest-avatar \${this.isSquareAvatar(u) ? 'avatar-square' : ''}" src="\${u.avatar_url || '/public/icon-dark.png'}" onerror="this.onerror=null;this.src='/public/icon-dark.png';" alt="\${u.screen_name}" onclick="circusApp.viewProfile('\${u.screen_name}')">
+            <div class="suggest-avatar-wrap" style="position:relative;display:inline-block;flex-shrink:0">
+              <img class="suggest-avatar \${this.isSquareAvatar(u) ? 'avatar-square' : ''}" src="\${u.avatar_url || '/public/default-avatar.png'}" onerror="this.onerror=null;this.src='/public/default-avatar.png';" alt="\${u.screen_name}" onclick="circusApp.viewProfile('\${u.screen_name}')">
+              \${u.decoration ? \`<img class="xitter-deco" src="\${u.decoration}" alt="" aria-hidden="true">\` : ''}
+            </div>
             <div class="suggest-info">
               <div class="suggest-name-row">
                 <span class="suggest-name" onclick="circusApp.viewProfile('\${u.screen_name}')">\${this.escape(u.name)}</span>
@@ -3997,7 +4167,10 @@ const circusApp = {
         const isFollowing = u.viewer && u.viewer.following;
         stream.insertAdjacentHTML('beforeend', \`
           <div class="search-user-card" onclick="circusApp.viewProfile('\${u.screen_name}')">
-            <img class="search-user-avatar \${this.isSquareAvatar(u) ? 'avatar-square' : ''}" src="\${u.avatar_url || '/public/icon-dark.png'}" onerror="this.onerror=null;this.src='/public/icon-dark.png';" alt="\${this.escape(u.name)}">
+            <div class="search-user-avatar-wrap" style="position:relative;display:inline-block;flex-shrink:0">
+              <img class="search-user-avatar \${this.isSquareAvatar(u) ? 'avatar-square' : ''}" src="\${u.avatar_url || '/public/default-avatar.png'}" onerror="this.onerror=null;this.src='/public/default-avatar.png';" alt="\${this.escape(u.name)}">
+              \${u.decoration ? \`<img class="xitter-deco" src="\${u.decoration}" alt="" aria-hidden="true">\` : ''}
+            </div>
             <div style="flex:1">
               <div style="display:flex;justify-content:space-between;align-items:flex-start">
                 <div>
@@ -4107,7 +4280,11 @@ const circusApp = {
     const canopy = document.getElementById('profile-canopy');
     canopy.style.backgroundImage = '';
     canopy.classList.remove('has-banner');
-    document.getElementById('profile-large-avatar').src = '/public/icon-dark.png';
+    document.getElementById('profile-large-avatar').src = '/public/default-avatar.png';
+    const profileDecoInit = document.getElementById('profile-large-avatar-deco');
+    if (profileDecoInit) profileDecoInit.style.display = 'none';
+    const mutualsInit = document.getElementById('profile-mutual-followers');
+    if (mutualsInit) mutualsInit.innerHTML = '';
     document.getElementById('profile-display-name').textContent = '...';
     document.getElementById('profile-display-handle').textContent = '@' + cleanHandle;
     document.getElementById('profile-display-label').innerHTML = '';
@@ -4143,11 +4320,22 @@ const circusApp = {
       }
 
       const avatarEl = document.getElementById('profile-large-avatar');
-      avatarEl.src = u.avatar_url || '/public/icon-dark.png';
+      avatarEl.src = u.avatar_url || '/public/default-avatar.png';
+      avatarEl.onerror = () => { avatarEl.src = '/public/default-avatar.png'; };
       if (this.isSquareAvatar(u)) {
         avatarEl.classList.add('avatar-square');
       } else {
         avatarEl.classList.remove('avatar-square');
+      }
+
+      const profileLargeDeco = document.getElementById('profile-large-avatar-deco');
+      if (profileLargeDeco) {
+        if (u.decoration) {
+          profileLargeDeco.src = u.decoration;
+          profileLargeDeco.style.display = 'block';
+        } else {
+          profileLargeDeco.style.display = 'none';
+        }
       }
 
       document.getElementById('profile-display-name').innerHTML = this.escape(u.name) + ' ' + this.renderBadges(u);
@@ -4181,7 +4369,7 @@ const circusApp = {
 
       // Organization affiliation
       if (u.org) {
-        metaHtml += '<li><img src="' + this.escape(u.org.avatar_url || '/public/icon-dark.png') + '" onerror="this.onerror=null;this.src=\\'/public/icon-dark.png\\';" style="width:16px;height:16px;border-radius:3px;vertical-align:-3px;margin-right:6px"><span>' + this.t('affiliated_to') + ' <a href="javascript:void(0)" onclick="circusApp.viewProfile(\\'' + this.escape(u.org.screen_name) + '\\')"><b>@' + this.escape(u.org.screen_name) + '</b></a></span></li>';
+        metaHtml += '<li><img src="' + this.escape(u.org.avatar_url || '/public/default-avatar.png') + '" onerror="this.onerror=null;this.src=\\'/public/default-avatar.png\\';" style="width:16px;height:16px;border-radius:3px;vertical-align:-3px;margin-right:6px"><span>' + this.t('affiliated_to') + ' <a href="javascript:void(0)" onclick="circusApp.viewProfile(\\'' + this.escape(u.org.screen_name) + '\\')"><b>@' + this.escape(u.org.screen_name) + '</b></a></span></li>';
       }
 
       // Verification status / date / type
@@ -4210,6 +4398,40 @@ const circusApp = {
       document.getElementById('profile-meta-list').innerHTML = metaHtml;
 
       const isMe = this.viewer && u.id === this.viewer.id;
+      const mutualsEl = document.getElementById('profile-mutual-followers');
+      if (mutualsEl) {
+        if (!isMe && u.followers_you_follow && u.followers_you_follow.length > 0) {
+          const mList = u.followers_you_follow;
+          let mHtml = '<div class="profile-mutuals" style="margin-top:14px;padding-top:10px;border-top:1px solid #e6ecf0;display:flex;align-items:flex-start;gap:8px;font-size:12px;color:var(--text-muted);line-height:16px">';
+          mHtml += '<div style="display:flex;align-items:center;flex-shrink:0">';
+          mList.slice(0, 3).forEach((m, idx) => {
+            mHtml += \`<img src="\${this.escape(m.avatar_url || '/public/default-avatar.png')}" style="width:24px;height:24px;border-radius:50%;border:2px solid #fff;margin-left:\${idx === 0 ? '0' : '-8px'};object-fit:cover;cursor:pointer" onclick="circusApp.viewProfile('\${this.escape(m.screen_name)}')" title="@\${this.escape(m.screen_name)}" onerror="this.src='/public/default-avatar.png'">\`;
+          });
+          mHtml += '</div>';
+          const names = mList.slice(0, 2).map(m => \`<a href="javascript:void(0)" onclick="circusApp.viewProfile('\${this.escape(m.screen_name)}')" style="color:var(--text-main);font-weight:bold">@\${this.escape(m.screen_name)}</a>\`);
+          const totalMutualCount = u.followers_you_follow_count || mList.length;
+          const othersCount = totalMutualCount - names.length;
+          const isEs = (this.viewer?.language || window.__LANG__ || 'es').slice(0, 2).toLowerCase() === 'es';
+          let mText = '';
+          if (othersCount > 0) {
+            mText = isEs
+              ? \`Seguido por \${names.join(', ')} y \${othersCount} más que sigues\`
+              : \`Followed by \${names.join(', ')} and \${othersCount} other\${othersCount > 1 ? 's' : ''} you follow\`;
+          } else if (names.length === 2) {
+            mText = isEs
+              ? \`Seguido por \${names[0]} y \${names[1]}\`
+              : \`Followed by \${names[0]} and \${names[1]}\`;
+          } else {
+            mText = isEs
+              ? \`Seguido por \${names[0]}\`
+              : \`Followed by \${names[0]}\`;
+          }
+          mHtml += \`<div>\${mText}</div></div>\`;
+          mutualsEl.innerHTML = mHtml;
+        } else {
+          mutualsEl.innerHTML = '';
+        }
+      }
       const isFollowing = u.viewer && u.viewer.following;
       const actionsEl = document.getElementById('profile-nav-actions');
 
@@ -4291,7 +4513,10 @@ const circusApp = {
         const isFollowing = u.viewer && u.viewer.following;
         stream.insertAdjacentHTML('beforeend', \`
           <div style="display:flex;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border-color);align-items:flex-start;background:#fff">
-            <img class="\${this.isSquareAvatar(u) ? 'avatar-square' : ''}" src="\${u.avatar_url || '/public/icon-dark.png'}" onerror="this.onerror=null;this.src='/public/icon-dark.png';" style="width:48px;height:48px;border-radius:50%;object-fit:cover;cursor:pointer" onclick="circusApp.viewProfile('\${u.screen_name}')">
+            <div style="position:relative;display:inline-block;flex-shrink:0">
+              <img class="\${this.isSquareAvatar(u) ? 'avatar-square' : ''}" src="\${u.avatar_url || '/public/default-avatar.png'}" onerror="this.onerror=null;this.src='/public/default-avatar.png';" style="width:48px;height:48px;border-radius:50%;object-fit:cover;cursor:pointer" onclick="circusApp.viewProfile('\${u.screen_name}')">
+              \${u.decoration ? \`<img class="xitter-deco" src="\${u.decoration}" alt="" aria-hidden="true">\` : ''}
+            </div>
             <div style="flex:1;min-width:0">
               <div style="display:flex;justify-content:space-between;align-items:center">
                 <div>
@@ -4349,7 +4574,10 @@ const circusApp = {
         const isFollowing = u.viewer && u.viewer.following;
         list.insertAdjacentHTML('beforeend', \`
           <div class="suggest-user-item">
-            <img class="suggest-avatar \${this.isSquareAvatar(u) ? 'avatar-square' : ''}" src="\${u.avatar_url || '/public/icon-dark.png'}" onerror="this.onerror=null;this.src='/public/icon-dark.png';" alt="\${u.screen_name}" onclick="circusApp.viewProfile('\${u.screen_name}')">
+            <div class="suggest-avatar-wrap" style="position:relative;display:inline-block;flex-shrink:0">
+              <img class="suggest-avatar \${this.isSquareAvatar(u) ? 'avatar-square' : ''}" src="\${u.avatar_url || '/public/default-avatar.png'}" onerror="this.onerror=null;this.src='/public/default-avatar.png';" alt="\${u.screen_name}" onclick="circusApp.viewProfile('\${u.screen_name}')">
+              \${u.decoration ? \`<img class="xitter-deco" src="\${u.decoration}" alt="" aria-hidden="true">\` : ''}
+            </div>
             <div class="suggest-info">
               <div class="suggest-name-row">
                 <span class="suggest-name" onclick="circusApp.viewProfile('\${u.screen_name}')">\${this.escape(u.name)}</span>
@@ -4592,11 +4820,14 @@ const circusApp = {
           ancestorsHtml += \`
             <div class="ancestor-card" onclick="circusApp.openTweetDetail('\${anc.id}')" style="cursor:pointer;position:relative;display:flex;gap:12px;padding:12px 14px">
               <div style="display:flex;flex-direction:column;align-items:center;min-width:40px">
-                <img class="tweet-avatar \${this.isSquareAvatar(ancAuthor) ? 'avatar-square' : ''}" src="\${ancAuthor.avatar_url || '/public/icon-dark.png'}" onerror="this.onerror=null;this.src='/public/icon-dark.png';" style="width:40px;height:40px;border-radius:50%;object-fit:cover;z-index:2">
+                <div style="position:relative;display:inline-block;z-index:2">
+                  <img class="tweet-avatar \${this.isSquareAvatar(ancAuthor) ? 'avatar-square' : ''}" src="\${ancAuthor.avatar_url || '/public/default-avatar.png'}" onerror="this.onerror=null;this.src='/public/default-avatar.png';" style="width:40px;height:40px;border-radius:50%;object-fit:cover">
+                  \${ancAuthor.decoration ? \`<img class="xitter-deco" src="\${ancAuthor.decoration}" alt="" aria-hidden="true">\` : ''}
+                </div>
                 <div class="thread-connector-line" style="width:2px;flex:1;background:var(--border-color,#ccd6dd);margin-top:4px;margin-bottom:-14px;min-height:24px"></div>
               </div>
               <div style="flex:1;min-width:0">
-                <div style="display:flex;align-items:baseline;gap:5px;flex-wrap:wrap">
+                <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
                   <b>\${this.escape(ancAuthor.name || '')}</b>
                   \${this.renderBadges(ancAuthor)}
                   <span style="color:var(--text-muted);font-size:13px">@\${this.escape(ancAuthor.screen_name || '')}</span>
@@ -4644,14 +4875,22 @@ const circusApp = {
       if (p.quoted) {
         const q = p.quoted;
         const qAuthor = q.author || {};
+        const qMedia = q.media || [];
         quoteHtml = \`
-          <div class="quote-card" onclick="circusApp.viewProfile('\${qAuthor.screen_name}')" style="margin-top:12px">
+          <div class="quote-card" onclick="event.stopPropagation();$('#tweet-detail-modal').modal('hide');circusApp.openTweetDetail('\${q.id}')" style="margin-top:12px">
             <div class="quote-header">
+              <img class="quote-avatar" src="\${qAuthor.avatar_url || '/public/default-avatar.png'}" onerror="this.src='/public/default-avatar.png';" alt="\${qAuthor.screen_name}">
               <b>\${this.escape(qAuthor.name)}</b>
               \${this.renderBadges(qAuthor)}
               <span class="tweet-author-handle">@\${this.escape(qAuthor.screen_name)}</span>
+              <span class="tweet-time">· \${this.formatTimeAgo(q.created_at)}</span>
             </div>
-            <div style="font-size:13px;line-height:18px">\${this.formatTweetText(q.text)}</div>
+            <div style="font-size:13px;line-height:18px">\${this.formatTweetText(q.text, q)}</div>
+            \${qMedia.length > 0 ? \`
+              <div class="quote-media-wrap">
+                <img src="\${qMedia[0].url}" onerror="this.style.display='none'">
+              </div>
+            \` : ''}
           </div>
         \`;
       }
@@ -4683,7 +4922,7 @@ const circusApp = {
             \`;
           }
         });
-        pollHtml += \`<div style="font-size:12px;color:#657786;margin-top:6px">\${total} votes \${poll.closed ? '· Final' : ''}</div></div>\`;
+        pollHtml += \`<div style="font-size:12px;color:#657786;margin-top:6px">\${total} \${this.t('votes')} \${poll.closed ? '· ' + this.t('final') : ''}</div></div>\`;
       }
 
       let repliesHtml = '';
@@ -4699,7 +4938,10 @@ const circusApp = {
         <div class="tweet-detail-container">
           \${ancestorsHtml}
           <div class="tweet-detail-header">
-            <img class="tweet-detail-avatar \${this.isSquareAvatar(author) ? 'avatar-square' : ''}" src="\${author.avatar_url || '/public/icon-dark.png'}" onerror="this.onerror=null;this.src='/public/icon-dark.png';" onclick="$('#tweet-detail-modal').modal('hide');circusApp.viewProfile('\${author.screen_name}')">
+            <div class="tweet-detail-avatar-wrap" style="position:relative;display:inline-block;flex-shrink:0">
+              <img class="tweet-detail-avatar \${this.isSquareAvatar(author) ? 'avatar-square' : ''}" src="\${author.avatar_url || '/public/default-avatar.png'}" onerror="this.onerror=null;this.src='/public/default-avatar.png';" onclick="$('#tweet-detail-modal').modal('hide');circusApp.viewProfile('\${author.screen_name}')">
+              \${author.decoration ? \`<img class="xitter-deco" src="\${author.decoration}" alt="" aria-hidden="true">\` : ''}
+            </div>
             <div class="tweet-detail-name-wrap" onclick="$('#tweet-detail-modal').modal('hide');circusApp.viewProfile('\${author.screen_name}')" style="cursor:pointer">
               <div class="tweet-detail-name">
                 \${this.escape(author.name)}
@@ -4730,8 +4972,8 @@ const circusApp = {
           </div>
 
           <div class="tweet-detail-stats">
-            <span><b>\${this.formatNumber(p.counts?.reposts || 0)}</b> \${this.t('retweet')}s</span>
-            <span><b>\${this.formatNumber(p.counts?.likes || 0)}</b> \${this.t('like')}s</span>
+            <span><b>\${this.formatNumber(p.counts?.reposts || 0)}</b> \${this.t('retweet')}</span>
+            <span><b>\${this.formatNumber(p.counts?.likes || 0)}</b> \${this.t('like')}</span>
           </div>
 
           <div class="tweet-detail-actions">
@@ -4763,7 +5005,10 @@ const circusApp = {
                 \${this.t('replying_to')} <a href="javascript:void(0)" onclick="$('#tweet-detail-modal').modal('hide');circusApp.viewProfile('\${author.screen_name}')">@\${this.escape(author.screen_name)}</a>
               </div>
               <div class="tweet-detail-reply-inner">
-                <img class="tweet-avatar \${this.isSquareAvatar(this.viewer) ? 'avatar-square' : ''}" src="\${this.viewer.avatar_url || '/public/icon-dark.png'}" onerror="this.onerror=null;this.src='/public/icon-dark.png';" style="width:36px;height:36px">
+                <div style="position:relative;display:inline-block;flex-shrink:0">
+                  <img class="tweet-avatar \${this.isSquareAvatar(this.viewer) ? 'avatar-square' : ''}" src="\${this.viewer.avatar_url || '/public/default-avatar.png'}" onerror="this.onerror=null;this.src='/public/default-avatar.png';" style="width:36px;height:36px">
+                  \${this.viewer.decoration ? \`<img class="xitter-deco" src="\${this.viewer.decoration}" alt="" aria-hidden="true">\` : ''}
+                </div>
                 <div style="flex:1;width:100%">
                   <textarea class="tweet-detail-reply-textarea" id="detail-reply-textarea" rows="3" placeholder="\${this.t('tweet_your_reply')}"></textarea>
                   <div style="display:flex;justify-content:flex-end;margin-top:8px">
@@ -4918,7 +5163,7 @@ const circusApp = {
           users.forEach(u => {
             html += \`
               <div class="search-typeahead-item" onclick="circusApp.viewProfile('\${u.screen_name}');circusApp.hideSearchDropdown()">
-                <img class="search-typeahead-avatar \${this.isSquareAvatar(u) ? 'avatar-square' : ''}" src="\${u.avatar_url || '/public/icon-dark.png'}" onerror="this.onerror=null;this.src='/public/icon-dark.png';">
+                <img class="search-typeahead-avatar \${this.isSquareAvatar(u) ? 'avatar-square' : ''}" src="\${u.avatar_url || '/public/default-avatar.png'}" onerror="this.onerror=null;this.src='/public/default-avatar.png';">
                 <div class="search-typeahead-info">
                   <div class="search-typeahead-name">
                     <b>\${this.escape(u.name)}</b>
@@ -4982,7 +5227,8 @@ const circusApp = {
           <div class="profile-card-header" style="\${bannerStyle}"></div>
           <div class="profile-card-content">
             <a class="profile-card-avatar-link" onclick="circusApp.viewProfile('\${this.viewer.screen_name}')">
-              <img class="profile-card-avatar \${this.isSquareAvatar(this.viewer) ? 'avatar-square' : ''}" src="\${this.viewer.avatar_url || '/public/icon-dark.png'}" onerror="this.onerror=null;this.src='/public/icon-dark.png';" alt="\${this.viewer.screen_name}">
+              <img class="profile-card-avatar \${this.isSquareAvatar(this.viewer) ? 'avatar-square' : ''}" src="\${this.viewer.avatar_url || '/public/default-avatar.png'}" onerror="this.onerror=null;this.src='/public/default-avatar.png';" alt="\${this.viewer.screen_name}">
+              \${this.viewer.decoration ? \`<img class="xitter-deco" src="\${this.viewer.decoration}" alt="" aria-hidden="true">\` : ''}
             </a>
             <div class="profile-card-user">
               <a class="profile-card-name" onclick="circusApp.viewProfile('\${this.viewer.screen_name}')">
@@ -5025,7 +5271,10 @@ const circusApp = {
         const isFollowing = u.viewer && u.viewer.following;
         list.insertAdjacentHTML('beforeend', \`
           <div class="suggest-user-item">
-            <img class="suggest-avatar \${this.isSquareAvatar(u) ? 'avatar-square' : ''}" src="\${u.avatar_url || '/public/icon-dark.png'}" onerror="this.onerror=null;this.src='/public/icon-dark.png';" alt="\${u.screen_name}" onclick="circusApp.viewProfile('\${u.screen_name}')">
+            <div class="suggest-avatar-wrap" style="position:relative;display:inline-block;flex-shrink:0">
+              <img class="suggest-avatar \${this.isSquareAvatar(u) ? 'avatar-square' : ''}" src="\${u.avatar_url || '/public/default-avatar.png'}" onerror="this.onerror=null;this.src='/public/default-avatar.png';" alt="\${u.screen_name}" onclick="circusApp.viewProfile('\${u.screen_name}')">
+              \${u.decoration ? \`<img class="xitter-deco" src="\${u.decoration}" alt="" aria-hidden="true">\` : ''}
+            </div>
             <div class="suggest-info">
               <div class="suggest-name-row">
                 <span class="suggest-name" onclick="circusApp.viewProfile('\${u.screen_name}')">\${this.escape(u.name)}</span>
@@ -5103,7 +5352,12 @@ const circusApp = {
 
           let avatarsHtml = '';
           (n.users || []).slice(0, 7).forEach(u => {
-            avatarsHtml += \`<img class="notif-user-avatar \${this.isSquareAvatar(u) ? 'avatar-square' : ''}" src="\${u.avatar_url || '/public/icon-dark.png'}" onerror="this.onerror=null;this.src='/public/icon-dark.png';" onclick="event.stopPropagation();circusApp.viewProfile('\${u.screen_name}')">\`;
+            avatarsHtml += \`
+              <div class="notif-avatar-wrap" style="position:relative;display:inline-block">
+                <img class="notif-user-avatar \${this.isSquareAvatar(u) ? 'avatar-square' : ''}" src="\${u.avatar_url || '/public/default-avatar.png'}" onerror="this.onerror=null;this.src='/public/default-avatar.png';" onclick="event.stopPropagation();circusApp.viewProfile('\${u.screen_name}')">
+                \${u.decoration ? \`<img class="xitter-deco" src="\${u.decoration}" alt="" aria-hidden="true">\` : ''}
+              </div>
+            \`;
           });
 
           let postSnippet = '';
@@ -5135,28 +5389,49 @@ const circusApp = {
   /* Dedicated Edit Profile Modal */
   pendingAvatarUrl: null,
   pendingBannerUrl: null,
+  pendingDecoration: null,
+  selectedFlags: [],
+  allDecorations: null,
 
   openEditProfileModal() {
     if (!this.viewer) return;
     this.pendingAvatarUrl = null;
     this.pendingBannerUrl = null;
+    let fallbackAsset = '';
+    if (typeof this.viewer.decoration === 'string') {
+      const parts = this.viewer.decoration.split('?')[0].split('/');
+      fallbackAsset = (parts[parts.length - 1] || '').replace('.png', '').replace('.svg', '');
+    }
+    this.pendingDecoration = this.viewer.decoration_raw || (fallbackAsset ? { type: 'discord', asset: fallbackAsset } : null);
+    this.selectedFlags = (this.viewer.flag || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 3);
 
     const nameInput = document.getElementById('edit-profile-name');
     const bioInput = document.getElementById('edit-profile-bio');
     const pronInput = document.getElementById('edit-profile-pronouns');
-    const flagSelect = document.getElementById('edit-profile-flag');
     const locInput = document.getElementById('edit-profile-location');
     const webInput = document.getElementById('edit-profile-website');
     const avatarImg = document.getElementById('edit-avatar-img');
+    const avatarDeco = document.getElementById('edit-avatar-deco');
     const bannerBox = document.getElementById('edit-banner-preview');
 
     if (nameInput) nameInput.value = this.viewer.name || '';
     if (bioInput) bioInput.value = this.viewer.bio || '';
     if (pronInput) pronInput.value = this.viewer.pronouns || '';
-    if (flagSelect) flagSelect.value = (this.viewer.flag || '').split(',')[0].trim();
     if (locInput) locInput.value = this.viewer.location || '';
     if (webInput) webInput.value = this.viewer.website || '';
-    if (avatarImg) avatarImg.src = this.viewer.avatar_url || '/public/icon-dark.png';
+    if (avatarImg) {
+      avatarImg.src = this.viewer.avatar_url || '/public/default-avatar.png';
+      avatarImg.onerror = () => { avatarImg.src = '/public/default-avatar.png'; };
+    }
+    if (avatarDeco) {
+      if (this.viewer.decoration) {
+        avatarDeco.src = this.viewer.decoration;
+        avatarDeco.style.display = 'block';
+      } else {
+        avatarDeco.src = '';
+        avatarDeco.style.display = 'none';
+      }
+    }
     if (bannerBox) {
       if (this.viewer.banner_url) {
         bannerBox.style.backgroundImage = "url('" + this.viewer.banner_url + "')";
@@ -5165,7 +5440,127 @@ const circusApp = {
       }
     }
 
+    this.renderFlagPicker();
+    this.loadDecorationsPicker();
+
     $('#edit-profile-modal').modal('show');
+  },
+
+  renderFlagPicker() {
+    const grid = document.getElementById('flag-picker-grid');
+    const countEl = document.getElementById('edit-flags-count');
+    if (countEl) countEl.textContent = this.selectedFlags.length + ' / 3';
+    if (!grid) return;
+
+    const FLAGS_LIST = [
+      { id: 'pride', name: 'Pride' },
+      { id: 'progress', name: 'Progress Pride' },
+      { id: 'trans', name: 'Transgender' },
+      { id: 'bi', name: 'Bisexual' },
+      { id: 'pan', name: 'Pansexual' },
+      { id: 'lesbian', name: 'Lesbian' },
+      { id: 'gay', name: 'Gay' },
+      { id: 'nonbinary', name: 'Non-binary' },
+      { id: 'genderfluid', name: 'Genderfluid' },
+      { id: 'agender', name: 'Agender' },
+      { id: 'asexual', name: 'Asexual' },
+      { id: 'aromantic', name: 'Aromantic' },
+      { id: 'intersex', name: 'Intersex' }
+    ];
+
+    grid.innerHTML = FLAGS_LIST.map(f => {
+      const isSelected = this.selectedFlags.includes(f.id);
+      return '<div class="flag-choice-item ' + (isSelected ? 'selected' : '') + '" onclick="circusApp.toggleEditFlag(\\'' + f.id + '\\')" title="' + this.escape(f.name) + '">' +
+        '<img src="/public/flag-' + f.id + '.svg" style="width:20px;height:14px;border-radius:2px;vertical-align:middle;object-fit:cover;flex-shrink:0" alt="' + this.escape(f.name) + '">' +
+        '<span style="font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + this.escape(f.name) + '</span>' +
+        '<span class="flag-check-indicator" style="margin-left:auto;font-size:11px;font-weight:bold">' + (isSelected ? '✓' : '') + '</span>' +
+      '</div>';
+    }).join('');
+  },
+
+  toggleEditFlag(id) {
+    const idx = this.selectedFlags.indexOf(id);
+    if (idx >= 0) {
+      this.selectedFlags.splice(idx, 1);
+    } else {
+      if (this.selectedFlags.length >= 3) {
+        this.showNotice(this.t('max_flags') || 'Máximo 3 banderas');
+        return;
+      }
+      this.selectedFlags.push(id);
+    }
+    this.renderFlagPicker();
+  },
+
+  async loadDecorationsPicker() {
+    const grid = document.getElementById('deco-picker-grid');
+    if (!grid) return;
+    if (!this.allDecorations) {
+      grid.innerHTML = '<div style="padding:10px;text-align:center;color:#657786;font-size:12px;grid-column:1/-1">Cargando decoraciones...</div>';
+      try {
+        const res = await fetch('/api/v1/decorations');
+        const json = await res.json();
+        this.allDecorations = json.data || [];
+      } catch {
+        this.allDecorations = [];
+      }
+    }
+    this.renderDecoPicker(this.allDecorations);
+  },
+
+  renderDecoPicker(list) {
+    const grid = document.getElementById('deco-picker-grid');
+    if (!grid) return;
+
+    const isEars = this.pendingDecoration && this.pendingDecoration.type === 'ears';
+    let html = '<div class="deco-choice-tile ' + (isEars ? 'selected' : '') + '" onclick="circusApp.selectEditDeco(\\'ears\\')" title="Cat ears" style="position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4px;border:1px solid #ccd6dd;border-radius:4px;background:#fff;cursor:pointer;aspect-ratio:1">' +
+      '<img src="/i/xitter/decoration/ears.svg?s=pointy&c=3a3a3a&i=ffb3cf" style="width:36px;height:36px;object-fit:contain" alt="Cat ears">' +
+      '<span style="font-size:9px;color:#657786;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%">Orejas</span>' +
+    '</div>';
+
+    (list || []).forEach(d => {
+      const isSelected = this.pendingDecoration && this.pendingDecoration.type === 'discord' && this.pendingDecoration.asset === d.asset;
+      html += '<div class="deco-choice-tile ' + (isSelected ? 'selected' : '') + '" onclick="circusApp.selectEditDeco(\\'' + d.asset + '\\')" title="' + this.escape(d.name) + '" style="position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4px;border:1px solid ' + (isSelected ? 'var(--circus-red)' : '#ccd6dd') + ';border-radius:4px;background:' + (isSelected ? '#fff5f5' : '#fff') + ';cursor:pointer;aspect-ratio:1">' +
+        '<img loading="lazy" src="/i/xitter/decoration/' + d.asset + '.png" style="width:36px;height:36px;object-fit:contain" alt="' + this.escape(d.name) + '">' +
+        '<span style="font-size:9px;color:#657786;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%">' + this.escape(d.name) + '</span>' +
+      '</div>';
+    });
+    grid.innerHTML = html;
+  },
+
+  filterDecos(query) {
+    if (!this.allDecorations) return;
+    const q = (query || '').trim().toLowerCase();
+    if (!q) {
+      this.renderDecoPicker(this.allDecorations);
+      return;
+    }
+    const filtered = this.allDecorations.filter(d => (d.name && d.name.toLowerCase().includes(q)) || (d.category && d.category.toLowerCase().includes(q)) || (d.label && d.label.toLowerCase().includes(q)));
+    this.renderDecoPicker(filtered);
+  },
+
+  selectEditDeco(assetOrType) {
+    const decoImg = document.getElementById('edit-avatar-deco');
+    if (!assetOrType) {
+      this.pendingDecoration = null;
+      if (decoImg) {
+        decoImg.src = '';
+        decoImg.style.display = 'none';
+      }
+    } else if (assetOrType === 'ears') {
+      this.pendingDecoration = { type: 'ears', style: 'pointy', color: '#3a3a3a', inner: '#ffb3cf', bow: null };
+      if (decoImg) {
+        decoImg.src = '/i/xitter/decoration/ears.svg?s=pointy&c=3a3a3a&i=ffb3cf';
+        decoImg.style.display = 'block';
+      }
+    } else {
+      this.pendingDecoration = { type: 'discord', asset: assetOrType };
+      if (decoImg) {
+        decoImg.src = '/i/xitter/decoration/' + assetOrType + '.png?animated=1';
+        decoImg.style.display = 'block';
+      }
+    }
+    this.renderDecoPicker(this.allDecorations || []);
   },
 
   async onAvatarFileSelect(e) {
@@ -5213,11 +5608,15 @@ const circusApp = {
     const name = document.getElementById('edit-profile-name').value.trim();
     const bio = document.getElementById('edit-profile-bio').value;
     const pronouns = document.getElementById('edit-profile-pronouns').value.trim();
-    const flag = document.getElementById('edit-profile-flag').value;
     const location = document.getElementById('edit-profile-location').value;
     const website = document.getElementById('edit-profile-website').value.trim();
 
-    const payload = { name, bio, pronouns, flag, location, website };
+    const payload = {
+      name, bio, pronouns,
+      flag: (this.selectedFlags || []).join(','),
+      location, website,
+      decoration: this.pendingDecoration
+    };
     if (this.pendingAvatarUrl) payload.avatar_url = this.pendingAvatarUrl;
     if (this.pendingBannerUrl) payload.banner_url = this.pendingBannerUrl;
 

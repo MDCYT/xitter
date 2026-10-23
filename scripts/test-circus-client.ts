@@ -28,7 +28,7 @@ describe("Circus 2016 Custom Client", () => {
 		expect(html).toContain("bootstrap.min.css");
 		expect(html).toContain("Digital Circus - Inicio");
 		expect(html).toContain("navbar-instance-logo");
-		expect(html).toContain("Twittear");
+		expect(html).toContain("Publicar");
 		expect(html).toContain("window.__VIEWER__ = {");
 		expect(html).toContain('"screen_name":"pomni"');
 		expect(html).toContain('"name":"Pomni"');
@@ -157,7 +157,10 @@ describe("Circus 2016 Custom Client", () => {
 
 		// Image onerror fallbacks present
 		expect(htmlEn).toContain("onerror=");
-		expect(htmlEn).toContain("this.src='/public/icon-dark.png'");
+		expect(htmlEn).toContain("this.src='/public/default-avatar.png'");
+		expect(htmlEn).toContain('id="flag-picker-grid"');
+		expect(htmlEn).toContain('id="deco-picker-grid"');
+		expect(htmlEn).toContain('id="profile-mutual-followers"');
 	});
 
 	test("formats large numbers and resolves federated mentions accurately", () => {

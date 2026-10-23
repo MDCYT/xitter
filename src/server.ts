@@ -577,7 +577,8 @@ async function route(req: Request): Promise<Response | undefined> {
 		const headers = new Headers({ "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
 		headers.append("set-cookie", "client_mode=beta; Path=/; Max-Age=31536000; SameSite=Lax");
 		if (viewer && cookies.ct0 !== viewer.csrf) headers.append("set-cookie", csrfCookie(viewer.csrf));
-		return new Response(circusClientHtml({ viewer: viewer ?? null, instanceName: settings().instance_name, origin: PUBLIC_ORIGIN, lang: viewer?.language || guestLang || "es" }), { headers });
+		const circusLang = cookies.lang || (viewer?.language && viewer.language !== "en" ? viewer.language : "es");
+		return new Response(circusClientHtml({ viewer: viewer ?? null, instanceName: settings().instance_name, origin: PUBLIC_ORIGIN, lang: circusLang }), { headers });
 	}
 
 	const prefs = readPrefs(flagRows[0]?.preferences);
