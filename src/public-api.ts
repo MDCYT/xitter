@@ -481,7 +481,7 @@ const ROUTES: Route[] = [
 				const offset = rawCursor ? (parseInt(rawCursor, 10) || 0) : 0;
 				const items = await forYouFeed(v.id, limit, offset);
 				return {
-					data: items.map(postJson),
+					data: items.map(itemJson),
 					next_cursor: items.length >= limit ? String(offset + items.length) : null,
 				};
 			}
