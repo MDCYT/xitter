@@ -26,6 +26,7 @@ import { legacyUser } from "./model";
 import { patchText, PATCH_VERSION } from "./patch";
 import { PWA_SCRIPT, pwaHead } from "./pwa";
 import i18nManifest from "./i18n-manifest.json";
+import { MONEY_UI_CSS, MONEY_UI_SCRIPT } from "./money-ui";
 
 // account settings as the client expects them
 export function settingsFor(user: User): Record<string, unknown> {
@@ -127,6 +128,7 @@ const HOST_SWITCHES = ["responsive_web_media_upload_host"];
 const ownSwitches = (): Record<string, { value: unknown }> => ({
 	responsive_web_birdwatch_note_writing_enabled: { value: true },
 	responsive_web_pinned_replies_enabled: { value: true },
+	composer_add_geo_network_conversation_controls: { value: true },
 	responsive_web_sidebar_ttf_enabled: { value: true },
 	// the side bar has one slot for both: History (its Bookmarks tab inside) when
 	// the feature is on, the client's own Bookmarks link when it is off
@@ -283,6 +285,7 @@ ${PRONOUNS_SCRIPT}
 ${FLAG_PICKER_SCRIPT}
 ${signedIn ? STICKER_PICKER_SCRIPT : ""}
 ${signedIn ? CONVERSATION_CARD_SCRIPT : ""}
+${signedIn ? MONEY_UI_SCRIPT : ""}
 ${POST_CONTEXT_SCRIPT}
 ${BADGES_SCRIPT}
 ${signedIn ? THEME_SCRIPT : ""}
@@ -337,6 +340,7 @@ ${FLAG_PICKER_CSS}
 ${PRONOUNS_CSS}
 ${STICKER_PICKER_CSS}${bootAccentCss(accent)}${theme ? bootCss(theme, paint) : ""}
 ${CONVERSATION_CARD_CSS}
+${user ? MONEY_UI_CSS : ""}
 [data-testid="sidebarColumn"] div:has(> [data-testid="emptyState"]),[data-testid="sidebarColumn"] div:has(> div > aside) ~ div:empty{display:none}</style>
 </head><body><div id="react-root" style="height:100%;display:flex;"></div>
 <script>window.__INITIAL_STATE__=${inline(initialState(user, build.featureSwitch, inCommunity, educationFlags, accent, guestLang))};window.__META_DATA__=${inline(meta)};</script>

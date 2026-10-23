@@ -12,6 +12,7 @@ import { articlesByIds } from "./articles";
 import { blockedFor, federatedHiddenFor, hasMutedWord, isBlockedEitherWay, mutedFor, outOfView, protectedFor, replyLimited, suspendedFor } from "./blocks";
 import { staffViewer } from "./staff-access";
 import { fetchPreview, linkCard, linksIn, previewable, previewsFor, statusLinkOf } from "./links";
+import { paymentCards, rewardLike } from "./money";
 import { mediaForPosts } from "./media";
 import { communityObjects } from "./community-model";
 import { webSource } from "./platforms";
@@ -20,6 +21,7 @@ import { toUser, userCols, usersByIds } from "./users";
 import { lookupRemoteUser } from "./federation-sync";
 import { saveMentions } from "./mentions";
 import { cleanText } from "./text-clean";
+import { replyControl, replyRestricted } from "./reply-controls";
 import { noteStatus } from "./note-score";
 
 const NO_LIMIT = "9223372036854775807";
@@ -30,12 +32,9 @@ const SUSPENDED = sql`(select id from users where status = 'suspended' or instan
 // every post query starts from this; callers append where/order/limit
 const select = (viewerId: string) => sql`
 	select p.id, p.text, p.conversation_card, p.conversation_card_post_id::text, p.reply_to_id, p.conversation_id, p.quote_id, p.article_id, p.created_at, p.source, p.sensitive and not u.never_sensitive as sensitive, u.never_sensitive, p.community_id::text as community_id, p.poll_id::text as poll_id, p.place_id, p.edit_count, p.edited_at, p.reply_policy,
-		exists (select 1 from posts r where r.id = p.conversation_id and r.reply_policy is not null and r.user_id <> ${viewerId}::bigint and not (
-			(r.reply_policy = 'Community' and exists (select 1 from follows f where f.follower_id = r.user_id and f.followee_id = ${viewerId}::bigint))
-			or (r.reply_policy = 'ByInvitation' and exists (select 1 from post_mentions m where m.post_id = r.id and m.user_id = ${viewerId}::bigint))
-			or (r.reply_policy = 'Verified' and exists (select 1 from users x where x.id = ${viewerId}::bigint and (x.verified_type is not null or exists (select 1 from affiliations af where af.user_id = x.id))))
-		)) as reply_limited,
+		${replyRestricted(viewerId)} as reply_limited,
 		(select cr.reply_policy from posts cr where cr.id = p.conversation_id) as conversation_policy,
+		(select cr.reply_selections from posts cr where cr.id = p.conversation_id) as conversation_selections,
 		(select cu.screen_name from posts cr join users cu on cu.id = cr.user_id where cr.id = p.conversation_id) as conversation_owner,
 		ru.id as reply_user_id, ru.screen_name as reply_screen_name,
 		${userCols(viewerId)},
@@ -79,6 +78,7 @@ function toRow(r: any): PostRow {
 		reply_policy: r.reply_policy,
 		reply_limited: !!r.reply_limited,
 		conversation_policy: r.conversation_policy,
+		conversation_selections: r.conversation_selections,
 		conversation_owner: r.conversation_owner,
 		edited_at: r.edited_at,
 		created_at: r.created_at,
@@ -155,6 +155,13 @@ async function hydrate(viewerId: string, posts: PostRow[], quotes = true): Promi
 	for (const p of posts) {
 		const preview = previews.get(linkOf(p) ?? "");
 		if (preview) p.linkCard = linkCard(preview);
+	}
+	// a payment's link put in by one of its sides, or a request's by its
+	// requester, becomes its card (money.ts)
+	const payable = posts.filter((p) => !p.linkCard && !p.poll && !p.conversationCard && !p.quote_id && !p.quoted && !p.article_id && !p.media?.length && /\/i\/xmoney\/[pr]\//.test(p.text));
+	if (payable.length) {
+		const cards = await paymentCards(payable.map((p) => ({ authorId: p.author.id, text: p.text })));
+		for (const [i, p] of payable.entries()) if (cards[i]) p.linkCard = cards[i];
 	}
 	const editedIds = posts.filter((p) => p.edit_count).map((p) => p.id);
 	if (editedIds.length) {
@@ -412,6 +419,14 @@ export async function replies(viewerId: string, id: string, limit = 100): Promis
 	return hydrate(viewerId, rows.map(toRow));
 }
 
+// who liked a post, newest first, minus the accounts the viewer can't see
+export async function likerIds(viewerId: string, id: string, limit = 100): Promise<string[]> {
+	const rows = await sql`select l.user_id::text as id from likes l where l.post_id = ${id}::bigint
+		and l.user_id not in ${blockedFor(viewerId)} and l.user_id not in ${protectedFor(viewerId)} and l.user_id not in ${outOfView(viewerId)}
+		order by l.created_at desc limit ${limit}`;
+	return rows.map((r: any) => r.id);
+}
+
 export async function repliesBelow(viewerId: string, id: string, limit = 1000): Promise<PostRow[]> {
 	const rows = await sql`${select(viewerId)} where p.id in (
 			with recursive tree as (
@@ -499,9 +514,10 @@ export async function likedPosts(viewerId: string, userId: string, limit = 100):
 export const seenBy = (userId: string) =>
 	sql`(u.id = ${userId}::bigint or ((not p.hidden or ${staffViewer(userId)}) and u.id not in ${protectedFor(userId)} and u.id not in ${suspendedFor(userId)}))`;
 
-export async function createPost(userId: string, input: string, opts: { replyToId?: string; quoteId?: string; articleId?: string; source?: string; communityId?: string; placeId?: string; replyPolicy?: string; db?: typeof sql; skipPreview?: boolean } = {}): Promise<string> {
+export async function createPost(userId: string, input: string, opts: { replyToId?: string; quoteId?: string; articleId?: string; source?: string; communityId?: string; placeId?: string; replyPolicy?: string; replySelections?: string[]; db?: typeof sql; skipPreview?: boolean } = {}): Promise<string> {
 	const db = opts.db ?? sql;
 	const text = cleanText(input, { blankLines: 2 });
+	const control = replyControl(opts.replyPolicy, opts.replySelections);
 	const [author] = await db`select status, deactivated_at, role from users where id = ${userId}::bigint`;
 	if (!author || author.status === "restricted" || author.status === "suspended" || author.deactivated_at) throw new PostError("Your account can't post right now.", 326);
 	const caps = settings().daily_caps;
@@ -543,8 +559,8 @@ export async function createPost(userId: string, input: string, opts: { replyToI
 		const [m] = await db`select 1 from community_members where community_id = ${opts.communityId}::bigint and user_id = ${userId}::bigint`;
 		if (!m) throw new PostError("Only members can post in this community.", 187);
 	}
-	await db`insert into posts (id, user_id, text, reply_to_id, reply_to_user_id, conversation_id, quote_id, article_id, source, community_id, place_id, reply_policy)
-		values (${id}::bigint, ${userId}::bigint, ${text}, ${opts.replyToId ?? null}::bigint, ${replyToUserId}::bigint, ${conversationId}::bigint, ${opts.quoteId ?? null}::bigint, ${opts.articleId ?? null}::bigint, ${opts.source ?? webSource()}, ${opts.communityId ?? null}::bigint, ${opts.placeId ?? null}, ${opts.replyToId ? null : opts.replyPolicy ?? null})`;
+	await db`insert into posts (id, user_id, text, reply_to_id, reply_to_user_id, conversation_id, quote_id, article_id, source, community_id, place_id, reply_policy, reply_selections, reply_allowed_values)
+		values (${id}::bigint, ${userId}::bigint, ${text}, ${opts.replyToId ?? null}::bigint, ${replyToUserId}::bigint, ${conversationId}::bigint, ${opts.quoteId ?? null}::bigint, ${opts.articleId ?? null}::bigint, ${opts.source ?? webSource()}, ${opts.communityId ?? null}::bigint, ${opts.placeId ?? null}, ${opts.replyToId ? null : control.policy}, ${db.array(opts.replyToId ? [] : control.selections, "TEXT")}, ${db.array(opts.replyToId ? [] : control.values, "TEXT")})`;
 	// Transactional callers resolve unknown remote handles before publication;
 	// only database writes belong inside the transaction and its row locks.
 	await saveMentions(id, text, undefined, opts.db ? undefined : lookupRemoteUser, db);
@@ -597,8 +613,11 @@ export async function setMark(table: Mark, userId: string, postId: string, on: b
 	// hidden): X's "not found", not a database error
 	if (on && !(await getPost(userId, postId))) throw new PostError("No status found with that ID.", 144);
 	if (table === "likes") {
-		if (on) await sql`insert into likes (user_id, post_id) values (${userId}::bigint, ${postId}::bigint) on conflict do nothing`;
-		else await sql`delete from likes where user_id = ${userId}::bigint and post_id = ${postId}::bigint`;
+		if (on) {
+			const added = await sql`insert into likes (user_id, post_id) values (${userId}::bigint, ${postId}::bigint) on conflict do nothing returning 1`;
+			// each like pays the post's author (money.ts)
+			if (added.length) await rewardLike(userId, postId);
+		} else await sql`delete from likes where user_id = ${userId}::bigint and post_id = ${postId}::bigint`;
 	} else {
 		if (on) await sql`insert into bookmarks (user_id, post_id) values (${userId}::bigint, ${postId}::bigint) on conflict do nothing`;
 		else await sql`delete from bookmarks where user_id = ${userId}::bigint and post_id = ${postId}::bigint`;

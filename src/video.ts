@@ -4,7 +4,7 @@
 // the client polls the upload STATUS command meanwhile.
 
 import { settings } from "./settings";
-import { existsSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { setPriority } from "node:os";
 import { join } from "node:path";
 import { sql } from "./db";
@@ -16,7 +16,7 @@ const maxSeconds = () => settings().limits.video_seconds;
 const MAX_SIDE = 1280;
 // Federation limit across Xitter instances is 64 MB. Videos must remain strictly under 64 MB.
 export const FEDERATION_MAX_VIDEO = 60 * 1024 * 1024;
-const FFMPEG = process.env.FFMPEG ?? "ffmpeg";
+export const FFMPEG = process.env.FFMPEG ?? "ffmpeg";
 const FFPROBE = process.env.FFPROBE ?? "ffprobe";
 // ffmpeg shares the machine with the server: a few threads at a lower
 // priority, and killed when a job runs far longer than its file needs
@@ -53,8 +53,8 @@ export async function videoSupported(): Promise<boolean> {
 
 type Probe = { width: number; height: number; seconds: number; vcodec: string; pix: string; acodec?: string; format: string };
 
-function spawnLimited(cmd: string[], ms: number, stderr: "pipe" | "ignore") {
-	const p = Bun.spawn(cmd, { stdout: "pipe", stderr });
+export function spawnLimited(cmd: string[], ms: number, stderr: "pipe" | "ignore", stdin?: Uint8Array) {
+	const p = Bun.spawn(cmd, { stdout: "pipe", stderr, stdin: stdin ?? "ignore" });
 	try {
 		setPriority(p.pid, 10);
 	} catch {}
@@ -98,6 +98,26 @@ async function run(args: string[], id: string, seconds: number): Promise<boolean
 	return code === 0;
 }
 
+// Admin > Settings > Media: compressing, the admin's size and quality, and even
+// a file that already plays is encoded again; otherwise 1280 pixels at CRF 23,
+// and a playable file up to 1920 is kept as it came
+function encoding() {
+	const m = settings().media;
+	return m.compress
+		? { compress: true, side: m.video_max_side, crf: m.video_crf, audio: "96k", keepUpTo: m.video_max_side }
+		: { compress: false, side: MAX_SIDE, crf: 23, audio: "128k", keepUpTo: 1920 };
+}
+
+const encodeArgs = (e: ReturnType<typeof encoding>) => [
+	"-vf",
+	`scale='if(gt(iw,ih),trunc(min(${e.side},iw)/2)*2,-2)':'if(gt(iw,ih),-2,trunc(min(${e.side},ih)/2)*2)'`,
+	"-c:v", "libx264", "-preset", "veryfast", "-crf", String(e.crf), "-pix_fmt", "yuv420p",
+	"-c:a", "aac", "-b:a", e.audio, "-ac", "2",
+];
+
+const toMp4 = (src: string, tmp: string, id: string, seconds: number, video: string[]) =>
+	run([...INPUT, "-i", src, "-map", "0:v:0", "-map", "0:a:0?", ...video, "-movflags", "+faststart", "-f", "mp4", tmp], id, seconds);
+
 async function convert(dir: string, id: string) {
 	const src = sourceFile(dir, id);
 	const tmp = join(dir, `${id}.tmp.mp4`);
@@ -110,28 +130,13 @@ async function convert(dir: string, id: string) {
 		const info = await probe(src);
 		if (!info) return await fail("This file has no video we can read.");
 		if (info.seconds > maxSeconds()) return await fail(`Videos can be up to ${Math.floor(maxSeconds() / 60)} minutes long.`);
-		const srcSize = existsSync(src) ? statSync(src).size : 0;
+		const e = encoding();
 		const playable =
-			srcSize <= FEDERATION_MAX_VIDEO &&
-			info.format.includes("mp4") &&
-			info.vcodec === "h264" &&
-			info.pix === "yuv420p" &&
-			(!info.acodec || info.acodec === "aac") &&
-			Math.max(info.width, info.height) <= 1920;
-		// Constrain bitrate so video is guaranteed to fit within federation 64 MB transfer limit
-		const targetKbits = info.seconds > 0 ? Math.floor((56 * 8 * 1024) / info.seconds) : 4000;
-		const maxVideoKbits = Math.max(300, targetKbits - 128);
-		const video = playable
-			? ["-c", "copy"]
-			: [
-					"-vf",
-					`scale='if(gt(iw,ih),trunc(min(${MAX_SIDE},iw)/2)*2,-2)':'if(gt(iw,ih),-2,trunc(min(${MAX_SIDE},ih)/2)*2)'`,
-					"-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
-					"-maxrate", `${maxVideoKbits}k`, "-bufsize", `${maxVideoKbits * 2}k`,
-					"-pix_fmt", "yuv420p",
-					"-c:a", "aac", "-b:a", "128k", "-ac", "2",
-				];
-		if (!(await run([...INPUT, "-i", src, "-map", "0:v:0", "-map", "0:a:0?", ...video, "-movflags", "+faststart", "-f", "mp4", tmp], id, info.seconds)))
+			info.format.includes("mp4") && info.vcodec === "h264" && info.pix === "yuv420p" && (!info.acodec || info.acodec === "aac") && Math.max(info.width, info.height) <= e.keepUpTo;
+		const copy = playable && !e.compress;
+		if (!(await toMp4(src, tmp, id, info.seconds, copy ? ["-c", "copy"] : encodeArgs(e)))) return await fail("The video could not be converted.");
+		// encoded again only to save space, but it came out larger: the upload as it was
+		if (playable && !copy && Bun.file(tmp).size >= Bun.file(src).size && !(await toMp4(src, tmp, id, info.seconds, ["-c", "copy"])))
 			return await fail("The video could not be converted.");
 		if (existsSync(tmp) && Bun.file(tmp).size > FEDERATION_MAX_VIDEO) {
 			const fallbackTmp = join(dir, `${id}.fallback.mp4`);
@@ -162,7 +167,7 @@ async function convert(dir: string, id: string) {
 		renameSync(tmp, join(dir, id));
 		const size = Bun.file(join(dir, id)).size;
 		await sql`update media set state = 'ready', mime = 'video/mp4', size = ${size}, width = ${out.width}, height = ${out.height},
-			duration_ms = ${Math.round(out.seconds * 1000)} where id = ${id}::bigint`;
+			duration_ms = ${Math.round(out.seconds * 1000)}, compressed = ${e.compress} where id = ${id}::bigint`;
 		if (isS3Enabled()) {
 			try {
 				const vidData = Bun.file(join(dir, id));
@@ -218,8 +223,37 @@ export function queueVideo(dir: string, id: string) {
 	queue = queue.then(() => convert(dir, id));
 }
 
+// Admin > Settings > Media, "Compress stored files": a video already in posts
+// encoded again at the admin's settings, the file replaced only when that made
+// it smaller. The post keeps showing it meanwhile. It waits its turn in the
+// queue, so uploads aren't held up behind a long sweep.
+export function recompressVideo(dir: string, id: string): Promise<{ before: number; after: number } | undefined> {
+	const job = queue.then(async () => {
+		const file = join(dir, id);
+		const tmp = join(dir, `${id}.tmp.mp4`);
+		try {
+			const info = existsSync(file) ? await probe(file) : undefined;
+			if (!info || !(await toMp4(file, tmp, id, info.seconds, encodeArgs(encoding())))) return undefined;
+			const out = await probe(tmp);
+			const before = Bun.file(file).size;
+			const after = Bun.file(tmp).size;
+			if (!out || after >= before) return { before, after: before };
+			renameSync(tmp, file);
+			await sql`update media set size = ${after}, width = ${out.width}, height = ${out.height}, compressed = true where id = ${id}::bigint`;
+			return { before, after };
+		} finally {
+			progress.delete(id);
+			rmSync(tmp, { force: true });
+		}
+	});
+	queue = job.then(() => {}, () => {});
+	return job;
+}
+
 // uploads that were still converting when the server stopped
 export async function resumeVideos(dir: string) {
+	// half-written encodings from a stop mid-way; the originals beside them are intact
+	if (existsSync(dir)) for (const f of readdirSync(dir)) if (/^\d+\.(tmp\.mp4|part\d+)$/.test(f)) rmSync(join(dir, f), { force: true });
 	const rows = await sql`select id from media where state = 'processing'`;
 	for (const r of rows) {
 		const id = String(r.id);

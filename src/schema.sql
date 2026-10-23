@@ -1581,3 +1581,112 @@ alter table migration_objects add column if not exists created_at timestamptz no
 -- where an account went, as handle@instance; set by the new instance when the import finished
 alter table users add column if not exists moved_to text;
 alter table users add column if not exists moved_at timestamptz;
+-- X Money (money.ts): each account's balance in cents, made on first use with
+-- the instance's starting balance, and every transfer between accounts
+create table if not exists money_wallets (
+	user_id bigint primary key references users (id) on delete cascade,
+	balance_cents bigint not null check (balance_cents >= 0),
+	created_at timestamptz not null default now()
+);
+create table if not exists money_transfers (
+	id bigint primary key,
+	sender_id bigint not null references users (id) on delete cascade,
+	recipient_id bigint not null references users (id) on delete cascade,
+	amount_cents bigint not null check (amount_cents > 0),
+	note text not null default '',
+	-- the form's one-time key, so a double-pressed Send moves the money once
+	idem text not null,
+	created_at timestamptz not null default now(),
+	check (sender_id <> recipient_id)
+);
+create unique index if not exists money_transfers_idem_idx on money_transfers (sender_id, idem);
+create index if not exists money_transfers_sender_idx on money_transfers (sender_id, id desc);
+create index if not exists money_transfers_recipient_idx on money_transfers (recipient_id, id desc);
+-- money requests (money.ts): asked of one account, or of anyone (payer_id
+-- null: a "Pay @name" card in a post, paid as often as people like)
+create table if not exists money_requests (
+	id bigint primary key,
+	requester_id bigint not null references users (id) on delete cascade,
+	payer_id bigint references users (id) on delete cascade,
+	amount_cents bigint check (amount_cents > 0),
+	note text not null default '',
+	status text not null default 'open' check (status in ('open', 'paid', 'declined', 'cancelled')),
+	created_at timestamptz not null default now(),
+	resolved_at timestamptz,
+	check (payer_id is null or amount_cents is not null),
+	check (payer_id is distinct from requester_id)
+);
+create index if not exists money_requests_requester_idx on money_requests (requester_id, id desc);
+create index if not exists money_requests_payer_idx on money_requests (payer_id, id desc) where payer_id is not null;
+alter table money_transfers add column if not exists request_id bigint references money_requests (id) on delete set null;
+-- merchant mode (Settings > X Money), for gold organisations: payments to
+-- them read as purchases ("$3.52 at Taco Bell")
+create table if not exists money_merchants (
+	user_id bigint primary key references users (id) on delete cascade,
+	name text not null default '',
+	show_banner boolean not null default true,
+	updated_at timestamptz not null default now()
+);
+-- what each like paid the post's author, once per post and account
+create table if not exists money_like_rewards (
+	post_id bigint not null,
+	liker_id bigint not null references users (id) on delete cascade,
+	author_id bigint not null references users (id) on delete cascade,
+	cents bigint not null,
+	created_at timestamptz not null default now(),
+	primary key (post_id, liker_id)
+);
+create index if not exists money_like_rewards_author_idx on money_like_rewards (author_id, created_at desc);
+-- when the account accepted X Money's disclaimer (money-page.ts), shown the first time Money opens
+alter table money_wallets add column if not exists disclaimer_at timestamptz;
+-- a payment staff reversed (Admin > Money): the money went back to its sender
+alter table money_transfers add column if not exists reversed_at timestamptz;
+alter table money_transfers add column if not exists reversed_by bigint references users (id) on delete set null;
+-- a file media-compress.ts has already made smaller (or tried to): the sweep
+-- over stored files passes it by, so a photo isn't encoded again and again
+alter table media add column if not exists compressed boolean not null default false;
+
+alter table posts add column if not exists reply_selections text[] not null default '{}';
+alter table posts add column if not exists reply_allowed_values text[] not null default '{}';
+
+do $$ begin
+	if to_regclass('reply_country_catalog') is null then
+		create table reply_country_catalog (value text primary key, account_count bigint not null);
+		insert into reply_country_catalog (value, account_count)
+		select value, count(*) from users u cross join lateral
+			(select distinct trim(v) as value from unnest(array[u.country, u.based_in_override]) v where nullif(trim(v), '') is not null) c
+		group by value;
+	end if;
+end $$;
+
+create or replace function update_reply_country_catalog() returns trigger language plpgsql as $$
+declare
+	previous_values text[] := '{}';
+	next_values text[] := '{}';
+	entry text;
+	delta integer;
+begin
+	if TG_OP <> 'INSERT' then
+		select array_agg(distinct trim(v)) into previous_values from unnest(array[OLD.country, OLD.based_in_override]) v where nullif(trim(v), '') is not null;
+	end if;
+	if TG_OP <> 'DELETE' then
+		select array_agg(distinct trim(v)) into next_values from unnest(array[NEW.country, NEW.based_in_override]) v where nullif(trim(v), '') is not null;
+	end if;
+	previous_values := coalesce(previous_values, '{}');
+	next_values := coalesce(next_values, '{}');
+	for entry in select distinct unnest(previous_values || next_values) order by 1 loop
+		delta := (entry = any(next_values))::integer - (entry = any(previous_values))::integer;
+		if delta = 1 then
+			insert into reply_country_catalog (value, account_count) values (entry, 1)
+				on conflict (value) do update set account_count = reply_country_catalog.account_count + 1;
+		elsif delta = -1 then
+			update reply_country_catalog set account_count = account_count - 1 where value = entry;
+			delete from reply_country_catalog where value = entry and account_count = 0;
+		end if;
+	end loop;
+	return null;
+end $$;
+
+drop trigger if exists users_reply_country_catalog on users;
+create trigger users_reply_country_catalog after insert or delete or update of country, based_in_override on users
+	for each row execute function update_reply_country_catalog();
