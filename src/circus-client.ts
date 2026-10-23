@@ -2455,7 +2455,7 @@ img.xitter-deco {
 
           <a href="/account/import" class="settings-card-link">
             <div>
-              <div class="settings-card-title">📥 Importar desde X (Twitter)</div>
+              <div class="settings-card-title">📥 Importar archivo de X</div>
               <div class="settings-card-desc">Restaura publicaciones y fotos subiendo tu archivo ZIP de X.</div>
             </div>
             <span class="glyphicon glyphicon-chevron-right" style="color:#8899a6"></span>
