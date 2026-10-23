@@ -2794,7 +2794,8 @@ window.fetch = function(input, init) {
     const remoteInstance = localStorage.getItem('circus_remote_instance');
     if (remoteToken && remoteInstance) {
       let urlStr = typeof input === 'string' ? input : (input instanceof Request ? input.url : String(input));
-      if (urlStr.startsWith('/api/v1/')) {
+      const localOnly = /^\\/api\\/v1\\/(remote-oauth|account\\/|polls\\/|cards)|^\\/api\\/v1\\/posts\\/[^/]+\\/translate/;
+      if (urlStr.startsWith('/api/v1/') && !localOnly.test(urlStr)) {
         urlStr = 'https://' + remoteInstance + urlStr;
         const options = init ? { ...init } : (input instanceof Request ? input : {});
         const headers = new Headers(options.headers || (input instanceof Request ? input.headers : {}));
@@ -3177,6 +3178,10 @@ const circusApp = {
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') this.closePickers();
     });
+  },
+
+  isRemote() {
+    return !!(localStorage.getItem('circus_remote_token') && localStorage.getItem('circus_remote_instance'));
   },
 
   setupInfiniteScroll() {
@@ -4470,9 +4475,24 @@ const circusApp = {
     const list = document.getElementById('trends-list');
     const searchList = document.getElementById('search-trends-list');
     try {
-      const res = await fetch('/api/v1/trends');
-      const json = await res.json();
-      const trends = json.data || [];
+      let trends = [];
+      if (this.isRemote()) {
+        const r = await fetch('/api/v1/timeline?limit=100');
+        const j = await r.json();
+        const counts = {};
+        (j.data || []).forEach(p => {
+          const seen = new Set();
+          (String(p.text || '').match(/#[\\p{L}\\p{N}_]+/gu) || []).forEach(h => {
+            const k = h.toLowerCase();
+            if (!seen.has(k)) { seen.add(k); counts[k] = (counts[k] || 0) + 1; }
+          });
+        });
+        trends = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 10).map(e => ({ tag: e[0], posts: e[1] }));
+      } else {
+        const res = await fetch('/api/v1/trends');
+        const json = await res.json();
+        trends = json.data || [];
+      }
       if (trends.length > 0) {
         let html = '';
         trends.forEach(t => {
@@ -4503,6 +4523,7 @@ const circusApp = {
     const homeList = document.getElementById('explore-cards-list');
     const searchModule = document.getElementById('search-cards-module');
     const searchList = document.getElementById('search-cards-list');
+    if (this.isRemote()) return;
     try {
       const res = await fetch('/api/v1/cards');
       const json = await res.json();
@@ -4559,9 +4580,23 @@ const circusApp = {
   async loadSuggestions() {
     const list = document.getElementById('suggestions-list');
     try {
-      const res = await fetch('/api/v1/suggestions');
-      const json = await res.json();
-      const users = json.data || [];
+      let users = [];
+      if (this.isRemote()) {
+        const r = await fetch('/api/v1/timeline?limit=100');
+        const j = await r.json();
+        const seen = new Set();
+        (j.data || []).forEach(p => {
+          const a = p.author;
+          if (!a || seen.has(a.id) || (this.viewer && a.id === this.viewer.id) || (a.viewer && a.viewer.following)) return;
+          seen.add(a.id);
+          users.push(a);
+        });
+        users = users.sort(() => Math.random() - 0.5).slice(0, 5);
+      } else {
+        const res = await fetch('/api/v1/suggestions');
+        const json = await res.json();
+        users = json.data || [];
+      }
       if (users.length === 0) {
         list.innerHTML = '<p style="color:#657786;font-size:12px">-</p>';
         return;
