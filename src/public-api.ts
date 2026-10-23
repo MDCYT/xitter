@@ -402,13 +402,13 @@ const ROUTES: Route[] = [
 	{
 		method: "GET", pattern: /^\/trends$/, scope: "read",
 		run: async () => {
-			let trends = await cachedTrends(7, 10);
+			let trends = await cachedTrends(1, 10);
 			if (!trends.length) {
 				try {
 					const fallback = await sql`
 						select lower((regexp_matches(text, '#([a-zA-Z0-9_\u00c0-\u024f]+)', 'g'))[1]) as tag, count(*)::int as posts
 						from posts
-						where created_at > now() - interval '30 days' and not hidden
+						where created_at > now() - interval '24 hours' and not hidden
 						group by 1
 						order by 2 desc
 						limit 10
@@ -421,6 +421,31 @@ const ROUTES: Route[] = [
 	},
 	{ method: "GET", pattern: /^\/cards$/, scope: "read", run: async () => ({ data: await activeCards() }) },
 	{ method: "GET", pattern: /^\/decorations$/, scope: "read", run: async () => ({ data: DISCORD_DECORATIONS }) },
+	{
+		method: "POST", pattern: /^\/remote-oauth\/token$/, scope: "read",
+		run: async (_v, _m, req) => {
+			const b = await body(req);
+			const targetInstance = String(b.instance || "").replace(/^https?:\/\//, "").replace(/\/.*$/, "").trim();
+			if (!targetInstance) throw new ApiError(400, "Missing target instance.");
+			const code = String(b.code || "");
+			const verifier = String(b.code_verifier || "");
+			if (!code || !verifier) throw new ApiError(400, "Missing code or code_verifier.");
+			const tokenRes = await fetch(`https://${targetInstance}/oauth/token`, {
+				method: "POST",
+				headers: { "content-type": "application/x-www-form-urlencoded" },
+				body: new URLSearchParams({
+					grant_type: "authorization_code",
+					client_id: `${PUBLIC_ORIGIN}/oauth/circus-client.json`,
+					code,
+					code_verifier: verifier,
+					redirect_uri: `${PUBLIC_ORIGIN}/?beta=1`,
+				}),
+			});
+			const data = await tokenRes.json();
+			if (!tokenRes.ok) throw new ApiError(tokenRes.status, data.error || "OAuth exchange failed.");
+			return { data };
+		},
+	},
 	{ method: "GET", pattern: /^\/suggestions$/, scope: "read", run: async (v, _m, _req, url) => ({ data: (await suggestedUsers(v.id, limitOf(url, 5))).map(userJson) }) },
 	{ method: "GET", pattern: /^\/users\/([^/]+)$/, scope: "read", run: async (v, m) => ({ data: userJson(await userOr404(v, m[1])) }) },
 	{
@@ -452,7 +477,13 @@ const ROUTES: Route[] = [
 			const limit = limitOf(url);
 			const feedParam = url.searchParams.get("feed") || "for_you";
 			if (feedParam === "for_you") {
-				return page(await forYouFeed(v.id, limit, cursorOf(url)), limit);
+				const rawCursor = url.searchParams.get("cursor");
+				const offset = rawCursor ? (parseInt(rawCursor, 10) || 0) : 0;
+				const items = await forYouFeed(v.id, limit, offset);
+				return {
+					data: items.map(postJson),
+					next_cursor: items.length >= limit ? String(offset + items.length) : null,
+				};
 			}
 			const authors: FeedQuery["authors"] = feedParam === "following" && v.id !== "0" ? { following: true } : {};
 			return page(await feed({ viewerId: v.id, authors, replies: false, kinds: "both", limit, before: cursorOf(url) }), limit);

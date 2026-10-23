@@ -1,0 +1,10 @@
+{
+  "client_id": "https://x.glitchprod.xyz/oauth/circus-client.json",
+  "client_name": "Digital Circus",
+  "redirect_uris": [
+    "https://x.glitchprod.xyz/?beta=1",
+    "https://x.glitchprod.xyz/"
+  ],
+  "logo_uri": "https://x.glitchprod.xyz/public/icon-dark.png",
+  "token_endpoint_auth_method": "none"
+}

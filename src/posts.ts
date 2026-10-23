@@ -338,7 +338,7 @@ export async function feed(q: FeedQuery): Promise<FeedItem[]> {
 // Algorithmic "For You" timeline: quality filtering, local & federated diversity without slop
 // Scores posts based on recency decay, engagement (likes/reposts/replies), in-network follow boost,
 // rich media boost, and federated instance diversity.
-export async function forYouFeed(viewerId: string, limit: number, before?: string): Promise<FeedItem[]> {
+export async function forYouFeed(viewerId: string, limit: number, offset = 0): Promise<FeedItem[]> {
 	const viewerBigInt = isId(viewerId) && viewerId !== "0" ? viewerId : null;
 	const rows = await sql`
 		with candidates as (
@@ -369,8 +369,8 @@ export async function forYouFeed(viewerId: string, limit: number, before?: strin
 				and p.user_id not in ${blockedFor(viewerId)}
 				and p.user_id not in ${outOfView(viewerId)}
 				and p.user_id not in ${federatedHiddenFor(viewerId)}
-				${before && isId(before) ? sql`and p.id < ${before}::bigint` : sql``}
 			order by score desc, p.id desc
+			offset ${offset}
 			limit ${limit}
 		)
 		select id::text as post_id, id::text as item_id, null::text as reposter_id, created_at from candidates

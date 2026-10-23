@@ -408,6 +408,21 @@ async function route(req: Request): Promise<Response | undefined> {
 	const appIcon = /^\/oauth\/apps\/(\d{1,19})\/icon$/.exec(p);
 	if (appIcon && req.method === "GET") return oauthAppIcon(appIcon[1]!);
 	if (p === "/.well-known/oauth-authorization-server") return authorizationServerMetadata();
+	if (p === "/oauth/circus-client.json") {
+		return Response.json({
+			client_id: `${PUBLIC_ORIGIN}/oauth/circus-client.json`,
+			client_name: "Digital Circus",
+			redirect_uris: [`${PUBLIC_ORIGIN}/?beta=1`, `${PUBLIC_ORIGIN}/`],
+			logo_uri: `${PUBLIC_ORIGIN}/public/icon-dark.png`,
+			token_endpoint_auth_method: "none",
+		}, {
+			headers: {
+				"content-type": "application/json; charset=utf-8",
+				"access-control-allow-origin": "*",
+				"cache-control": "public, max-age=300",
+			}
+		});
+	}
 	if (p === "/api" || p === "/api/") return apiDocsPage(req);
 	if (req.method === "OPTIONS") return new Response(null, { status: 204 });
 	if (p === "/login" && req.method === "POST") {

@@ -448,17 +448,88 @@ a:hover, a:focus {
 /* Avatar Decorations */
 img.xitter-deco {
   position: absolute;
-  left: -15%;
-  top: -15%;
-  width: 130%;
-  height: 130%;
-  max-width: none;
+  left: -10%;
+  top: -10%;
+  width: 120%;
+  height: 120%;
+  max-width: none !important;
+  max-height: none !important;
   pointer-events: none;
-  z-index: 3;
+  z-index: 2;
   user-select: none;
+  object-fit: contain;
 }
-.tweet-avatar-wrap, .profile-avatar-large-wrap, .profile-card-avatar-link, .suggest-avatar-wrap, .search-user-avatar-wrap, .tweet-detail-avatar-wrap, .notif-avatar-wrap {
+.tweet-avatar-wrap {
   position: relative;
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  min-height: 48px;
+  flex: 0 0 48px;
+  align-self: flex-start;
+  display: inline-block;
+}
+.tweet-detail-avatar-wrap {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  min-height: 48px;
+  flex: 0 0 48px;
+  align-self: flex-start;
+  display: inline-block;
+}
+.suggest-avatar-wrap, .search-user-avatar-wrap {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  min-height: 48px;
+  flex: 0 0 48px;
+  align-self: flex-start;
+  display: inline-block;
+}
+.profile-avatar-large-wrap {
+  position: relative;
+  width: 200px;
+  height: 200px;
+  min-width: 200px;
+  min-height: 200px;
+  display: inline-block;
+}
+.profile-card-avatar-link {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  min-width: 72px;
+  min-height: 72px;
+  display: inline-block;
+}
+.notif-avatar-wrap {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  flex: 0 0 32px;
+  display: inline-block;
+}
+.composer-avatar-wrap, .reply-avatar-wrap {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  flex: 0 0 36px;
+  display: inline-block;
+}
+.ancestor-avatar-wrap {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  flex: 0 0 40px;
   display: inline-block;
 }
 
@@ -757,7 +828,13 @@ img.xitter-deco {
   gap: 10px;
 }
 .tweet-avatar-wrap {
-  flex-shrink: 0;
+  position: relative;
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  min-height: 48px;
+  flex: 0 0 48px;
+  align-self: flex-start;
 }
 .tweet-avatar {
   width: 48px;
@@ -1632,6 +1709,18 @@ img.xitter-deco {
 .tweet-detail-reply-textarea:focus {
   border-color: var(--circus-red);
 }
+.tweet-detail-replies-list {
+  margin: 0 -24px;
+}
+.tweet-detail-replies-list .tweet-card {
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--border-color);
+  border-radius: 0;
+  background: #ffffff;
+}
+.tweet-detail-replies-list .tweet-card:hover {
+  background-color: #f8fafc;
+}
 
 /* Notifications Card */
 .notif-item {
@@ -1859,6 +1948,150 @@ img.xitter-deco {
   background: var(--circus-red);
   color: #ffffff;
 }
+
+/* Mobile Responsiveness & Floating Action Button */
+.circus-fab-compose {
+  display: none;
+  position: fixed;
+  right: 20px;
+  bottom: 24px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--circus-red), var(--circus-dark-red));
+  color: #ffffff;
+  border: none;
+  box-shadow: 0 4px 14px rgba(230, 57, 70, 0.45);
+  align-items: center;
+  justify-content: center;
+  z-index: 1040;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.circus-fab-compose:active {
+  transform: scale(0.92);
+}
+
+@media (max-width: 991px) {
+  body {
+    padding-top: 50px;
+  }
+  .navbar-circus {
+    min-height: 46px;
+    height: 46px;
+  }
+  .navbar-circus .container {
+    padding: 0 10px;
+  }
+  .nav-link {
+    padding: 0 8px;
+    font-size: 12px;
+  }
+  .nav-link span {
+    display: none;
+  }
+  .search-input {
+    width: 120px;
+    font-size: 11px;
+    height: 30px;
+  }
+  .search-input:focus {
+    width: 155px;
+  }
+  .btn-tweet-nav {
+    display: none;
+  }
+  .home-sidebar-left {
+    display: none;
+  }
+  .col-md-3 {
+    display: none !important;
+  }
+  .col-md-6 {
+    width: 100% !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    float: none !important;
+  }
+  .circus-main-container, .main-container {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    width: 100% !important;
+  }
+  .stream-header-tabs {
+    border-left: none;
+    border-right: none;
+  }
+  .tweet-card {
+    padding: 12px 14px;
+    border-left: none;
+    border-right: none;
+  }
+  .profile-canopy-banner {
+    height: 125px !important;
+  }
+  .profile-canopy-bar {
+    height: auto !important;
+    min-height: 48px;
+  }
+  .profile-canopy-bar .container {
+    padding: 0 10px !important;
+    flex-wrap: wrap;
+    height: auto !important;
+  }
+  .profile-nav-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+    padding-left: 0 !important;
+    height: auto !important;
+  }
+  .profile-nav-tab {
+    padding: 6px 12px !important;
+    min-width: auto;
+  }
+  .profile-sidebar {
+    width: 100% !important;
+    margin-top: -30px !important;
+    padding: 0 14px 15px !important;
+  }
+  .profile-avatar-large-wrap {
+    width: 80px !important;
+    height: 80px !important;
+    min-width: 80px !important;
+    min-height: 80px !important;
+    flex: 0 0 80px !important;
+  }
+  .profile-avatar-large {
+    width: 80px !important;
+    height: 80px !important;
+    border-width: 3px !important;
+  }
+  .profile-avatar-container {
+    margin-top: 0 !important;
+  }
+  .modal-dialog {
+    margin: 10px !important;
+    width: auto !important;
+    max-width: 100% !important;
+  }
+  .tweet-detail-modal-body {
+    padding: 14px !important;
+  }
+  .tweet-detail-reply-wrap {
+    margin: 0 -14px !important;
+    padding: 12px 14px !important;
+  }
+  .tweet-detail-replies-list {
+    margin: 0 -14px !important;
+  }
+  .tweet-detail-replies-list .tweet-card {
+    padding: 10px 14px !important;
+  }
+  .circus-fab-compose {
+    display: flex !important;
+  }
+}
 </style>
 </head>
 <body>
@@ -2006,7 +2239,7 @@ img.xitter-deco {
         <!-- Feed Switcher Tabs (3 Tabs: Para ti, Siguiendo, Todo) -->
         <div class="stream-header-tabs">
           <div class="stream-tab active" id="tab-feed-for_you" onclick="circusApp.switchFeed('for_you')">Para ti</div>
-          <div class="stream-tab" id="tab-feed-following" onclick="circusApp.switchFeed('following')">Siguiendo</div>
+          ${user ? '<div class="stream-tab" id="tab-feed-following" onclick="circusApp.switchFeed(\'following\')">Siguiendo</div>' : ''}
           <div class="stream-tab" id="tab-feed-all" onclick="circusApp.switchFeed('all')">Todo</div>
         </div>
 
@@ -2219,7 +2452,7 @@ img.xitter-deco {
             </label>
           </div>
 
-          <div class="search-filter-section" style="margin-bottom:12px;border-top:1px solid var(--border-color);padding-top:10px">
+          <div class="search-filter-section" style="margin-bottom:12px;padding-top:6px">
             <div style="font-size:11px;font-weight:bold;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px" id="lbl-filter-location">Ubicación</div>
             <label class="search-filter-option" style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:6px;font-weight:normal">
               <input type="radio" name="search-filter-location" value="anywhere" checked onchange="circusApp.applySearchFilter('location', 'anywhere')">
@@ -2231,7 +2464,7 @@ img.xitter-deco {
             </label>
           </div>
 
-          <div class="search-filter-section" style="border-top:1px solid var(--border-color);padding-top:10px">
+          <div class="search-filter-section" style="padding-top:6px">
             <div style="font-size:11px;font-weight:bold;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px" id="lbl-filter-quality">Calidad</div>
             <label class="search-filter-option" style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:0;font-weight:normal">
               <input type="checkbox" id="search-filter-verified" onchange="circusApp.applySearchFilter('verified', this.checked)">
@@ -2504,6 +2737,40 @@ img.xitter-deco {
   </div>
 </div>
 
+<!-- Floating Action Button for Mobile -->
+<button class="circus-fab-compose" id="circus-fab-compose" onclick="circusApp.focusComposer()" title="Publicar" aria-label="Publicar">
+  <svg viewBox="0 0 24 24" style="width:24px;height:24px;fill:currentColor">
+    <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+  </svg>
+</button>
+
+<!-- Remote Login Modal (OAuth Client ID Metadata Document) -->
+<div class="modal fade" id="remote-login-modal" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document" style="max-width:440px">
+    <div class="modal-content" style="border-radius:12px;overflow:hidden">
+      <div class="modal-header" style="border-bottom:1px solid #e1e8ed;padding:14px 18px">
+        <button type="button" class="close" data-dismiss="modal">&times;</button>
+        <h4 class="modal-title" style="font-weight:bold" id="lbl-remote-login-title">Iniciar sesión con otra instancia</h4>
+      </div>
+      <form onsubmit="circusApp.handleRemoteLoginSubmit(event)">
+        <div class="modal-body" style="padding:20px">
+          <p style="font-size:13px;color:#657786;line-height:18px;margin-bottom:16px" id="lbl-remote-login-desc">
+            Conecta tu cuenta desde cualquier servidor de Xitter compatible con OAuth Client ID Metadata Document (ej. <code>xitter.space</code>).
+          </p>
+          <div class="form-group" style="margin-bottom:16px">
+            <label style="font-size:12px;font-weight:bold;margin-bottom:6px;display:block" id="lbl-remote-domain">Dominio o instancia</label>
+            <input type="text" class="form-control" id="remote-instance-domain" placeholder="xitter.space o https://xitter.space" required style="border-radius:6px;height:38px;font-size:14px">
+          </div>
+          <div id="remote-login-error" style="color:#d90429;font-size:13px;display:none;margin-bottom:12px"></div>
+          <button type="submit" class="btn btn-primary btn-block" id="btn-remote-login-submit" style="background:var(--circus-red);border:none;font-weight:bold;border-radius:100px;padding:10px 0;font-size:14px">
+            Continuar con OAuth
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <!-- Lightbox Modal -->
 <div class="lightbox-modal" id="lightbox-modal" onclick="this.style.display='none'">
   <img class="lightbox-img" id="lightbox-img" src="" alt="Vista previa">
@@ -2520,6 +2787,28 @@ img.xitter-deco {
 /* ==========================================================================
    CIRCUS 2016 CLIENT APPLICATION LOGIC & I18N
    ========================================================================== */
+window._circusOrigFetch = window.fetch;
+window.fetch = function(input, init) {
+  try {
+    const remoteToken = localStorage.getItem('circus_remote_token');
+    const remoteInstance = localStorage.getItem('circus_remote_instance');
+    if (remoteToken && remoteInstance) {
+      let urlStr = typeof input === 'string' ? input : (input instanceof Request ? input.url : String(input));
+      if (urlStr.startsWith('/api/v1/')) {
+        urlStr = 'https://' + remoteInstance + urlStr;
+        const options = init ? { ...init } : (input instanceof Request ? input : {});
+        const headers = new Headers(options.headers || (input instanceof Request ? input.headers : {}));
+        if (!headers.has('Authorization') && !headers.has('authorization')) {
+          headers.set('Authorization', 'Bearer ' + remoteToken);
+        }
+        return window._circusOrigFetch(urlStr, { ...options, headers });
+      }
+    }
+  } catch (e) {
+    console.warn('Fetch interceptor error:', e);
+  }
+  return window._circusOrigFetch.apply(this, arguments);
+};
 window.__VIEWER__ = ${JSON.stringify(user)};
 window.__LANG__ = "${activeLang}";
 
@@ -2649,7 +2938,9 @@ const I18N_DICT = {
     votes: "votos",
     final: "Final",
     avatar_decoration: "Decoración de foto de perfil",
-    remove_decoration: "Quitar decoración"
+    remove_decoration: "Quitar decoración",
+    login_remote: "Iniciar sesión con otra instancia",
+    continue_oauth: "Continuar con OAuth"
   },
   en: {
     home: "Home",
@@ -2776,7 +3067,9 @@ const I18N_DICT = {
     votes: "votes",
     final: "Final",
     avatar_decoration: "Avatar decoration",
-    remove_decoration: "Remove decoration"
+    remove_decoration: "Remove decoration",
+    login_remote: "Log in from another instance",
+    continue_oauth: "Continue with OAuth"
   }
 };
 
@@ -2784,6 +3077,7 @@ const circusApp = {
   viewer: window.__VIEWER__,
   feedType: 'for_you',
   nextCursor: null,
+  renderedPostIds: new Set(),
   isLoading: false,
   composerMedia: [],
   composerPollActive: false,
@@ -2807,7 +3101,16 @@ const circusApp = {
     return dict[key] || I18N_DICT.es[key] || key;
   },
 
-  init() {
+  async init() {
+    // 1. Check for remote OAuth callback in URL
+    await this.checkRemoteOAuthCallback();
+
+    // 2. If remote auth is saved and viewer is not set, load remote viewer
+    await this.initRemoteViewer();
+
+    // 3. Setup infinite scroll listener
+    this.setupInfiniteScroll();
+
     this.applyI18nLabels();
     this.renderLeftColumn();
     this.renderComposer();
@@ -2874,6 +3177,253 @@ const circusApp = {
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') this.closePickers();
     });
+  },
+
+  setupInfiniteScroll() {
+    window.addEventListener('scroll', () => {
+      const homeView = document.getElementById('home-view');
+      if (homeView && homeView.style.display !== 'none' && circusApp.nextCursor && !circusApp.isLoading) {
+        if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 600) {
+          circusApp.loadMore();
+        }
+      }
+      const profileView = document.getElementById('profile-view');
+      if (profileView && profileView.style.display !== 'none' && circusApp.profileNextCursor && !circusApp.profileLoading) {
+        if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 600) {
+          circusApp.loadMoreProfilePosts();
+        }
+      }
+      const searchView = document.getElementById('search-view');
+      if (searchView && searchView.style.display !== 'none' && circusApp.searchNextCursor && !circusApp.searchLoading) {
+        if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 600) {
+          circusApp.loadMoreSearch();
+        }
+      }
+    }, { passive: true });
+  },
+
+  openRemoteLoginModal() {
+    $('#remote-login-modal').modal('show');
+  },
+
+  async handleRemoteLoginSubmit(e) {
+    e.preventDefault();
+    const input = document.getElementById('remote-instance-domain');
+    const errBox = document.getElementById('remote-login-error');
+    const submitBtn = document.getElementById('btn-remote-login-submit');
+    if (!input) return;
+
+    let domain = input.value.trim().toLowerCase();
+    domain = domain.replace(/^https?:\\/\\//, '').replace(/\\/.*$/, '');
+    if (domain.includes('@')) {
+      domain = domain.split('@').pop().trim();
+    }
+    if (!domain) {
+      if (errBox) {
+        errBox.textContent = 'Ingresa un dominio de instancia válido.';
+        errBox.style.display = 'block';
+      }
+      return;
+    }
+
+    if (errBox) errBox.style.display = 'none';
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Conectando con ' + domain + '...';
+    }
+
+    try {
+      let authEndpoint = 'https://' + domain + '/oauth/authorize';
+      try {
+        const metaRes = await fetch('https://' + domain + '/.well-known/oauth-authorization-server', { mode: 'cors' });
+        if (metaRes.ok) {
+          const meta = await metaRes.json();
+          if (meta.authorization_endpoint) authEndpoint = meta.authorization_endpoint;
+        }
+      } catch (e) {
+        console.warn('Metadata discovery failed, falling back to /oauth/authorize', e);
+      }
+
+      const verifierArray = new Uint8Array(32);
+      window.crypto.getRandomValues(verifierArray);
+      let verifierBinary = '';
+      for (let i = 0; i < verifierArray.length; i++) verifierBinary += String.fromCharCode(verifierArray[i]);
+      const codeVerifier = btoa(verifierBinary).replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');
+
+      const encoder = new TextEncoder();
+      const digestBuffer = await window.crypto.subtle.digest('SHA-256', encoder.encode(codeVerifier));
+      const digestArray = new Uint8Array(digestBuffer);
+      let digestBinary = '';
+      for (let i = 0; i < digestArray.length; i++) digestBinary += String.fromCharCode(digestArray[i]);
+      const codeChallenge = btoa(digestBinary).replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');
+
+      const stateArray = new Uint8Array(16);
+      window.crypto.getRandomValues(stateArray);
+      let stateBinary = '';
+      for (let i = 0; i < stateArray.length; i++) stateBinary += String.fromCharCode(stateArray[i]);
+      const state = btoa(stateBinary).replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');
+
+      localStorage.setItem('circus_remote_oauth_state', state);
+      localStorage.setItem('circus_remote_oauth_verifier', codeVerifier);
+      localStorage.setItem('circus_remote_oauth_instance', domain);
+
+      const clientId = window.location.origin + '/oauth/circus-client.json';
+      const redirectUri = window.location.origin + '/?beta=1';
+
+      const authUrl = new URL(authEndpoint);
+      authUrl.searchParams.set('response_type', 'code');
+      authUrl.searchParams.set('client_id', clientId);
+      authUrl.searchParams.set('redirect_uri', redirectUri);
+      authUrl.searchParams.set('scope', 'write');
+      authUrl.searchParams.set('code_challenge', codeChallenge);
+      authUrl.searchParams.set('code_challenge_method', 'S256');
+      authUrl.searchParams.set('state', state);
+
+      window.location.href = authUrl.toString();
+    } catch (err) {
+      if (errBox) {
+        errBox.textContent = 'Error al conectar con ' + domain + ': ' + (err.message || err);
+        errBox.style.display = 'block';
+      }
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = this.t('continue_oauth');
+      }
+    }
+  },
+
+  async checkRemoteOAuthCallback() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    const state = urlParams.get('state');
+    if (!code || !state) return;
+
+    const savedState = localStorage.getItem('circus_remote_oauth_state');
+    const codeVerifier = localStorage.getItem('circus_remote_oauth_verifier');
+    const instance = localStorage.getItem('circus_remote_oauth_instance');
+
+    if (!savedState || state !== savedState || !codeVerifier || !instance) {
+      return;
+    }
+
+    localStorage.removeItem('circus_remote_oauth_state');
+    localStorage.removeItem('circus_remote_oauth_verifier');
+    localStorage.removeItem('circus_remote_oauth_instance');
+
+    const cleanUrl = new URL(window.location.href);
+    cleanUrl.searchParams.delete('code');
+    cleanUrl.searchParams.delete('state');
+    window.history.replaceState({}, '', cleanUrl.toString());
+
+    this.showNotice('Autenticando con ' + instance + '...', 'info');
+
+    try {
+      const res = await (window._circusOrigFetch || fetch)('/api/v1/remote-oauth/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          instance,
+          code,
+          code_verifier: codeVerifier
+        })
+      });
+      const json = await res.json();
+      if (!res.ok || !json.data || !json.data.access_token) {
+        throw new Error(json.error || 'No se pudo obtener el token de acceso.');
+      }
+
+      const token = json.data.access_token;
+      localStorage.setItem('circus_remote_token', token);
+      localStorage.setItem('circus_remote_instance', instance);
+
+      const meRes = await (window._circusOrigFetch || fetch)('https://' + instance + '/api/v1/me', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      const meJson = await meRes.json();
+      if (meJson && meJson.data) {
+        this.viewer = meJson.data;
+        this.showNotice('¡Bienvenido @' + this.viewer.screen_name + ' desde ' + instance + '!', 'success');
+        this.renderNavRight();
+        this.renderLeftColumn();
+        this.renderComposer();
+        this.loadTimeline();
+      } else {
+        window.location.reload();
+      }
+    } catch (err) {
+      console.error('Remote OAuth error:', err);
+      alert('Error al iniciar sesión con ' + instance + ': ' + (err.message || err));
+    }
+  },
+
+  async initRemoteViewer() {
+    const remoteToken = localStorage.getItem('circus_remote_token');
+    const remoteInstance = localStorage.getItem('circus_remote_instance');
+    if (remoteToken && remoteInstance && !this.viewer) {
+      try {
+        const meRes = await (window._circusOrigFetch || fetch)('https://' + remoteInstance + '/api/v1/me', {
+          headers: { 'Authorization': 'Bearer ' + remoteToken }
+        });
+        if (meRes.ok) {
+          const meJson = await meRes.json();
+          if (meJson && meJson.data) {
+            this.viewer = meJson.data;
+            this.renderNavRight();
+            this.renderLeftColumn();
+            this.renderComposer();
+          }
+        } else {
+          localStorage.removeItem('circus_remote_token');
+          localStorage.removeItem('circus_remote_instance');
+        }
+      } catch (e) {
+        console.warn('Error fetching remote viewer:', e);
+      }
+    }
+  },
+
+  renderNavRight() {
+    const container = document.querySelector('.nav-right');
+    if (!container || !this.viewer) return;
+    const formHtml = container.querySelector('.search-form')?.outerHTML || '';
+    container.innerHTML = formHtml + \`
+      <button class="nav-avatar-btn" id="nav-avatar-btn" onclick="circusApp.toggleUserDropdown(event)" title="@\${this.viewer.screen_name}" style="position:relative">
+        <img class="nav-avatar \${this.isSquareAvatar(this.viewer) ? 'avatar-square' : ''}" src="\${this.viewer.avatar_url || '/public/default-avatar.png'}" onerror="this.onerror=null;this.src='/public/default-avatar.png';" alt="\${this.viewer.screen_name}">
+        \${this.viewer.decoration ? \`<img class="xitter-deco" src="\${this.viewer.decoration}" alt="" aria-hidden="true">\` : ''}
+      </button>
+      <button class="btn-tweet-nav" id="btn-tweet-nav" onclick="circusApp.focusComposer()">\${this.t('tweet')}</button>
+      <div class="nav-user-dropdown" id="user-nav-dropdown">
+        <div class="dropdown-user-header">
+          <b>\${this.escape(this.viewer.name)}</b>
+          <small>@\${this.escape(this.viewer.screen_name)}</small>
+        </div>
+        <a class="nav-dropdown-item" href="javascript:void(0)" onclick="circusApp.viewProfile('\${this.viewer.screen_name}')">
+          <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+          <span id="txt-menu-profile">\${this.t('view_profile')}</span>
+        </a>
+        <div class="dropdown-divider"></div>
+        <a class="nav-dropdown-item" href="javascript:void(0)" onclick="circusApp.openSettingsModal('profile')">
+          <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+          <span id="txt-menu-settings">\${this.t('settings_privacy')}</span>
+        </a>
+        <a class="nav-dropdown-item" href="javascript:void(0)" onclick="circusApp.openSettingsModal('language')">
+          <svg viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zm6.93 6h-2.95c-.32-1.25-.78-2.45-1.38-3.56 1.84.63 3.37 1.91 4.33 3.56zM12 4.04c.83 1.2 1.48 2.53 1.91 3.96h-3.82c.43-1.43 1.08-2.76 1.91-3.96zM4.26 14C4.1 13.36 4 12.69 4 12s.1-1.36.26-2h3.38c-.08.66-.14 1.32-.14 2 0 .68.06 1.34.14 2H4.26zm.82 2h2.95c.32 1.25.78 2.45 1.38 3.56-1.84-.63-3.37-1.9-4.33-3.56zm2.95-8H5.08c.96-1.66 2.49-2.93 4.33-3.56C8.81 5.55 8.35 6.75 8.03 8zM12 19.96c-.83-1.2-1.48-2.53-1.91-3.96h3.82c-.43 1.43-1.08 2.76-1.91 3.96zM14.34 14H9.66c-.09-.66-.16-1.32-.16-2 0-.68.07-1.35.16-2h4.68c.09.65.16 1.32.16 2 0 .68-.07 1.34-.16 2zm.25 5.56c.6-1.11 1.06-2.31 1.38-3.56h2.95c-.96 1.65-2.49 2.93-4.33 3.56zM16.36 14c.08-.66.14-1.32.14-2 0-.68-.06-1.34-.14-2h3.38c.16.64.26 1.31.26 2s-.1 1.36-.26 2h-3.38z"/></svg>
+          <span id="txt-menu-lang">\${this.t('app_language')}</span>
+        </a>
+        <div class="dropdown-divider"></div>
+        <a class="nav-dropdown-item" href="javascript:void(0)" onclick="circusApp.logout()">
+          <svg viewBox="0 0 24 24"><path d="M10.09 15.59L11.5 17l5-5-5-5-1.41 1.41L12.67 11H3v2h9.67l-2.58 2.59zM19 3H5c-1.11 0-2 .9-2 2v4h2V5h14v14H5v-4H3v4c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>
+          <span id="txt-menu-logout">\${this.t('logout')}</span>
+        </a>
+      </div>
+    \`;
+    const tabsContainer = document.querySelector('.stream-header-tabs');
+    if (tabsContainer && !document.getElementById('tab-feed-following')) {
+      const allTab = document.getElementById('tab-feed-all');
+      if (allTab) {
+        allTab.insertAdjacentHTML('beforebegin', '<div class="stream-tab" id="tab-feed-following" onclick="circusApp.switchFeed(\\'following\\')">' + this.t('following') + '</div>');
+      }
+    }
   },
 
   applyI18nLabels() {
@@ -3186,6 +3736,7 @@ const circusApp = {
           <p style="margin-top:12px;margin-bottom:0;font-size:12px;color:#657786;text-align:center">
             \${this.t('new_to_circus')} <a href="/?staff=1">\${this.t('register_here')}</a>
           </p>
+          <button type="button" class="btn btn-default btn-sm btn-block" style="margin-top:10px;font-weight:bold;border-radius:100px" onclick="circusApp.openRemoteLoginModal()">\${this.t('login_remote')}</button>
         </div>
       \`;
     }
@@ -3196,7 +3747,11 @@ const circusApp = {
       const res = await fetch('/api/v1/users/' + encodeURIComponent(handle));
       const json = await res.json();
       if (json.data) {
+        if (json.data.counts && this.viewer) this.viewer.counts = json.data.counts;
         if (json.data.counts) {
+          document.querySelectorAll('.stat-posts-val').forEach(e => e.textContent = this.formatNumber(json.data.counts.posts ?? 0));
+          document.querySelectorAll('.stat-following-val').forEach(e => e.textContent = this.formatNumber(json.data.counts.following ?? 0));
+          document.querySelectorAll('.stat-followers-val').forEach(e => e.textContent = this.formatNumber(json.data.counts.followers ?? 0));
           const sp = document.getElementById('stat-posts');
           const sfg = document.getElementById('stat-following');
           const sfr = document.getElementById('stat-followers');
@@ -3633,7 +4188,11 @@ const circusApp = {
         stream.innerHTML = '<div style="padding:40px;text-align:center;color:#657786">' + this.t('no_posts_yet') + '</div>';
         loadBtn.style.display = 'none';
       } else {
+        if (!cursor) this.renderedPostIds = new Set();
         posts.forEach(post => {
+          const key = String(post.id) + ':' + String(post.reposted_by ? post.reposted_by.id : '');
+          if (this.renderedPostIds.has(key)) return;
+          this.renderedPostIds.add(key);
           stream.insertAdjacentHTML('beforeend', this.renderTweetCard(post));
         });
         this.nextCursor = json.next_cursor;
@@ -4817,6 +5376,21 @@ const circusApp = {
         ancestorsHtml = '<div class="tweet-detail-ancestors" style="border-bottom:1px solid var(--border-color,#e1e8ed);margin-bottom:12px">';
         ancestors.forEach((anc) => {
           const ancAuthor = anc.author || {};
+          let ancMediaHtml = '';
+          const ancMedia = anc.media || [];
+          if (ancMedia.length > 0) {
+            const ancVideo = ancMedia.find(m => m.type === 'video');
+            if (ancVideo) {
+              ancMediaHtml = \`<video class="tweet-video-player" src="\${ancVideo.url}" poster="\${ancVideo.poster_url || ''}" controls playsinline preload="metadata" style="margin-top:8px" onclick="event.stopPropagation()"></video>\`;
+            } else {
+              const ancCount = Math.min(ancMedia.length, 4);
+              ancMediaHtml = \`<div class="tweet-media-grid grid-\${ancCount}" style="margin-top:8px">\`;
+              ancMedia.slice(0, 4).forEach(m => {
+                ancMediaHtml += \`<img class="media-item" src="\${m.url}" loading="lazy" onclick="event.stopPropagation();circusApp.openLightbox('\${m.url}')">\`;
+              });
+              ancMediaHtml += '</div>';
+            }
+          }
           ancestorsHtml += \`
             <div class="ancestor-card" onclick="circusApp.openTweetDetail('\${anc.id}')" style="cursor:pointer;position:relative;display:flex;gap:12px;padding:12px 14px">
               <div style="display:flex;flex-direction:column;align-items:center;min-width:40px">
@@ -4835,6 +5409,7 @@ const circusApp = {
                 </div>
                 \${anc.reply_to && anc.reply_to_screen_name ? \`<div style="font-size:12px;color:var(--text-muted);margin-top:2px">\${this.t('replying_to')} <span style="color:var(--circus-primary)">@\${this.escape(anc.reply_to_screen_name)}</span></div>\` : ''}
                 <div style="margin-top:4px;font-size:14px;line-height:19px">\${this.formatTweetText(anc.text, anc)}</div>
+                \${ancMediaHtml}
               </div>
             </div>
           \`;
@@ -5239,15 +5814,15 @@ const circusApp = {
             <div class="profile-stats-table">
               <a class="profile-stat-box" onclick="circusApp.viewProfile('\${this.viewer.screen_name}')">
                 <span class="profile-stat-label">\${this.t('posts')}</span>
-                <span class="profile-stat-value">\${this.viewer.counts?.posts !== undefined ? this.formatNumber(this.viewer.counts.posts) : '-'}</span>
+                <span class="profile-stat-value stat-posts-val">\${this.viewer.counts?.posts !== undefined ? this.formatNumber(this.viewer.counts.posts) : '-'}</span>
               </a>
               <a class="profile-stat-box" onclick="circusApp.viewProfile('\${this.viewer.screen_name}')">
                 <span class="profile-stat-label">\${this.t('following')}</span>
-                <span class="profile-stat-value">\${this.viewer.counts?.following !== undefined ? this.formatNumber(this.viewer.counts.following) : '-'}</span>
+                <span class="profile-stat-value stat-following-val">\${this.viewer.counts?.following !== undefined ? this.formatNumber(this.viewer.counts.following) : '-'}</span>
               </a>
               <a class="profile-stat-box" onclick="circusApp.viewProfile('\${this.viewer.screen_name}')">
                 <span class="profile-stat-label">\${this.t('followers')}</span>
-                <span class="profile-stat-value">\${this.viewer.counts?.followers !== undefined ? this.formatNumber(this.viewer.counts.followers) : '-'}</span>
+                <span class="profile-stat-value stat-followers-val">\${this.viewer.counts?.followers !== undefined ? this.formatNumber(this.viewer.counts.followers) : '-'}</span>
               </a>
             </div>
           </div>
@@ -5255,6 +5830,7 @@ const circusApp = {
       \`;
     }
 
+    this.fetchUserStats(this.viewer.screen_name);
     this.loadNotifSuggestions();
     this.switchNotifFilter(this.currentNotifFilter || 'all');
   },
