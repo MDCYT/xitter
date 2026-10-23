@@ -414,6 +414,12 @@ async function route(req: Request): Promise<Response | undefined> {
 	const mediaProxy = /^\/media-proxy\/([a-z0-9.-]{3,253})\/(\d{1,19})(\/poster)?$/i.exec(p);
 	if (mediaProxy && req.method === "GET") {
 		const notFound = () => new Response("not found", { status: 404, headers: { "cache-control": "public, max-age=60" } });
+		// this instance already holds a copy of what its users have seen, under its own id
+		const [copy] = await sql`select id::text from media where remote_instance = ${mediaProxy[1]!.toLowerCase()} and remote_id = ${mediaProxy[2]!}::bigint limit 1`.catch(() => []);
+		if (copy) {
+			const served = await serveMedia(req, mediaProxy[3] ? `/media/poster/${copy.id}.jpg` : `/media/${copy.id}`, GUEST_VIEWER);
+			if (served.status !== 404) return served;
+		}
 		try {
 			const r = await federationSignedFetch(mediaProxy[1]!.toLowerCase(), "GET", `/federation/v1/media/${mediaProxy[2]}${mediaProxy[3] ? "/poster" : ""}`, undefined, 64 * 1024 * 1024, { anyListed: true });
 			if (r.status !== 200) return notFound();
