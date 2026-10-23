@@ -3189,12 +3189,24 @@ const circusApp = {
       if (!el || !el.tagName || !this.isRemote()) return;
       const tag = el.tagName.toLowerCase();
       if (tag !== 'img' && tag !== 'video') return;
-      if (!el.classList.contains('media-item') && !el.classList.contains('tweet-video-player')) return;
       const src = el.currentSrc || el.src;
+      const inst = localStorage.getItem('circus_remote_instance') || '';
+      if (src && !el.dataset.proxied && src.indexOf('https://' + inst + '/media/') === 0) {
+        const mm = src.match(new RegExp('/media/(?:(banner|poster)/)?([0-9]+)'));
+        if (mm) {
+          el.dataset.proxied = '1';
+          el.dataset.origSrc = src;
+          e.stopPropagation();
+          el.src = '/media-proxy/' + inst + '/' + mm[2] + (mm[1] === 'poster' ? '/poster' : '');
+          if (tag === 'video') el.load();
+          return;
+        }
+      }
+      if (!el.classList.contains('media-item') && !el.classList.contains('tweet-video-player')) return;
       if (!src || el.dataset.mediaFailed) return;
       el.dataset.mediaFailed = '1';
       const link = document.createElement('a');
-      link.href = src;
+      link.href = el.dataset.origSrc || src;
       link.target = '_blank';
       link.rel = 'noopener';
       link.className = 'media-unavailable';

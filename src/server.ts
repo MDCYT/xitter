@@ -50,6 +50,7 @@ import { stickerImage, stickerPacks } from "./stickers";
 import { apiTokensRoute, publicApi } from "./public-api";
 import { connectedAppsRoute, developerAppsRoute, oauthAppIcon, oauthAuthorize, oauthToken } from "./oauth";
 import { authorizationServerMetadata } from "./oauth-metadata";
+import { signedFetch as federationSignedFetch } from "./federation";
 import { apiDocsPage } from "./api-docs";
 import { hashflagAsset } from "./hashflags";
 import { startMailDigests } from "./mail-digest";
@@ -408,6 +409,24 @@ async function route(req: Request): Promise<Response | undefined> {
 	const appIcon = /^\/oauth\/apps\/(\d{1,19})\/icon$/.exec(p);
 	if (appIcon && req.method === "GET") return oauthAppIcon(appIcon[1]!);
 	if (p === "/.well-known/oauth-authorization-server") return authorizationServerMetadata();
+	// Circus client, signed in on another instance: that instance's media only loads for
+	// browsers with a session there, so public files are pulled through the federation channel
+	const mediaProxy = /^\/media-proxy\/([a-z0-9.-]{3,253})\/(\d{1,19})(\/poster)?$/i.exec(p);
+	if (mediaProxy && req.method === "GET") {
+		const notFound = () => new Response("not found", { status: 404, headers: { "cache-control": "public, max-age=60" } });
+		try {
+			const r = await federationSignedFetch(mediaProxy[1]!.toLowerCase(), "GET", `/federation/v1/media/${mediaProxy[2]}${mediaProxy[3] ? "/poster" : ""}`, undefined, 64 * 1024 * 1024, { anyListed: true });
+			if (r.status !== 200) return notFound();
+			const b = r.body;
+			const at = (i: number, ...v: number[]) => v.every((x, k) => b[i + k] === x);
+			const type = at(0, 0xff, 0xd8) ? "image/jpeg" : at(0, 0x89, 0x50, 0x4e, 0x47) ? "image/png" : at(0, 0x47, 0x49, 0x46, 0x38) ? "image/gif"
+				: at(0, 0x52, 0x49, 0x46, 0x46) && at(8, 0x57, 0x45, 0x42, 0x50) ? "image/webp" : at(4, 0x66, 0x74, 0x79, 0x70) ? "video/mp4"
+				: at(0, 0x1a, 0x45, 0xdf, 0xa3) ? "video/webm" : "application/octet-stream";
+			return new Response(b, { headers: { "content-type": type, "cache-control": "public, max-age=86400", "x-content-type-options": "nosniff", "content-length": String(b.length) } });
+		} catch {
+			return notFound();
+		}
+	}
 	if (p === "/oauth/circus-client.json") {
 		return Response.json({
 			client_id: `${PUBLIC_ORIGIN}/oauth/circus-client.json`,
