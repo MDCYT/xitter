@@ -3111,6 +3111,7 @@ const circusApp = {
 
     // 3. Setup infinite scroll listener
     this.setupInfiniteScroll();
+    this.setupRemoteMediaFallback();
 
     this.applyI18nLabels();
     this.renderLeftColumn();
@@ -3178,6 +3179,30 @@ const circusApp = {
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') this.closePickers();
     });
+  },
+
+  setupRemoteMediaFallback() {
+    // Remote instances only serve some media to browsers signed in on that instance;
+    // when it can't load here, link to the file instead of leaving a broken tile.
+    document.addEventListener('error', (e) => {
+      const el = e.target;
+      if (!el || !el.tagName || !this.isRemote()) return;
+      const tag = el.tagName.toLowerCase();
+      if (tag !== 'img' && tag !== 'video') return;
+      if (!el.classList.contains('media-item') && !el.classList.contains('tweet-video-player')) return;
+      const src = el.currentSrc || el.src;
+      if (!src || el.dataset.mediaFailed) return;
+      el.dataset.mediaFailed = '1';
+      const link = document.createElement('a');
+      link.href = src;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      link.className = 'media-unavailable';
+      link.style.cssText = 'display:flex;align-items:center;justify-content:center;min-height:80px;padding:12px;background:#f5f8fa;border:1px solid #e1e8ed;border-radius:8px;color:#657786;font-size:13px;text-decoration:none;text-align:center';
+      link.textContent = 'Multimedia no disponible aquí. Abrir en ' + (localStorage.getItem('circus_remote_instance') || 'la instancia');
+      link.onclick = (ev) => ev.stopPropagation();
+      el.replaceWith(link);
+    }, true);
   },
 
   isRemote() {
