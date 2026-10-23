@@ -20,12 +20,12 @@ export async function extraBadges(viewerId: string, url: URL): Promise<Response>
 		const at = n.indexOf("@");
 		return at < 0 ? STAFF_HANDLE.test(n) : STAFF_HANDLE.test(n.slice(0, at)) && /^[a-z0-9.-]{1,253}(?::\d{1,5})?$/.test(n.slice(at + 1));
 	}))].slice(0, 50);
-	const out: Record<string, { badges: { url: string; description: string }[]; gold: boolean; labels: { text: string; url?: string; icon?: string }[] }> = {};
+	const out: Record<string, { badges: { url: string; description: string; org?: string }[]; gold: boolean; labels: { text: string; url?: string; icon?: string }[] }> = {};
 	if (names.length) {
 		const rows = await sql`select ${userCols(viewerId)} from users u where lower(u.screen_name) = any(${sql.array(names, "TEXT")})`;
 		for (const r of rows) {
 			const u = toUser(r);
-			const badges = badgeList(u).slice(labelTakesSlot(u) ? 0 : 1).map(({ url, description }) => ({ url, description }));
+			const badges = badgeList(u).slice(labelTakesSlot(u) ? 0 : 1).map(({ url, description, org }) => ({ url, description, ...(org ? { org } : {}) }));
 			const gold = u.translator === "moderator";
 			const labels = hiddenLabels(u);
 			if (badges.length || gold || labels.length) out[u.screen_name.toLowerCase()] = { badges, gold, labels };
@@ -109,7 +109,17 @@ export const BADGES_SCRIPT = String.raw`(function(){
 		el.style.textOverflow="ellipsis";
 		el.style.whiteSpace="nowrap";
 	}
-	function drawLabels(box,labels){
+	// React keeps a name's elements when the page moves on to another account
+	// (one profile to the next), with what was drawn for the last one still in
+	// them: that goes. Labels only on the profile's own line; a post's line is
+	// shared with the post it quotes.
+	function forget(box,name){
+		[].forEach.call(box.querySelectorAll("[data-xitter-badges]"),function(r){if(r.closest(SEL)===box&&r.getAttribute("data-xitter-badges")!==name)r.remove()});
+		var line=profileLine(box),row=line&&line.parentElement;
+		if(row)[].forEach.call(row.querySelectorAll("[data-xitter-labels]"),function(l){if(l.getAttribute("data-xitter-labels")!==name)l.remove()});
+		if(!(known[name]&&known[name].gold))[].forEach.call(box.querySelectorAll("svg[data-xitter-gold]"),function(g){g.style.removeProperty("color");g.removeAttribute("data-xitter-gold")});
+	}
+	function drawLabels(box,name,labels){
 		var line=findLine(around(box))||profileLine(box);
 		if(!line)return;
 		var row=line.parentElement;
@@ -123,7 +133,7 @@ export const BADGES_SCRIPT = String.raw`(function(){
 		var h=size&&size.height||"1.25em",w=size&&size.width||"1.25em";
 		labels.forEach(function(l){
 			var wrap=document.createElement("div");
-			wrap.setAttribute("data-xitter-labels","");
+			wrap.setAttribute("data-xitter-labels",name);
 			wrap.style.cssText="display:flex;align-items:center;min-width:0;margin-left:12px";
 			if(l.icon){
 				var iw=document.createElement("div");
@@ -253,8 +263,8 @@ export const BADGES_SCRIPT = String.raw`(function(){
 	function draw(box,name){
 		var k=known[name];
 		// the translator globe X draws (its label is the client's "Translator account")
-		if(k.gold)box.querySelectorAll('svg[aria-label="Translator account"]').forEach(function(g){g.style.setProperty("color","#d4a72c","important")});
-		if(k.labels&&k.labels.length)drawLabels(box,k.labels);
+		if(k.gold)box.querySelectorAll('svg[aria-label="Translator account"]').forEach(function(g){g.style.setProperty("color","#d4a72c","important");g.setAttribute("data-xitter-gold","")});
+		if(k.labels&&k.labels.length)drawLabels(box,name,k.labels);
 		if(!k.badges.length)return;
 		// this name's rows, not those of a name inside it (a hover card's)
 		var mine=[].filter.call(box.querySelectorAll("[data-xitter-badges]"),function(r){return r.closest(SEL)===box});
@@ -264,13 +274,23 @@ export const BADGES_SCRIPT = String.raw`(function(){
 		if(row)mine.forEach(function(r){if(r!==row)r.remove()});
 		else{
 			row=document.createElement("span");
-			row.setAttribute("data-xitter-badges","");
+			row.setAttribute("data-xitter-badges",name);
 			row.style.cssText="display:inline-flex;align-items:center;vertical-align:text-bottom";
 			k.badges.forEach(function(b){
 				var img=document.createElement("img");
 				img.src=b.url;img.alt=b.description;img.title=b.description;img.draggable=false;
 				img.style.cssText="height:1.0625em;width:1.0625em;object-fit:contain;margin-left:2px;border-radius:2px";
-				row.appendChild(img);
+				if(!b.org){row.appendChild(img);return}
+				// an organisation's badge opens it, like the one in the client's own slot
+				var a=document.createElement("a");
+				a.href="/"+b.org;a.setAttribute("aria-label",b.description);
+				a.style.cssText="display:inline-flex;cursor:pointer";
+				a.addEventListener("click",function(e){
+					e.preventDefault();e.stopPropagation();
+					if(window.__xitterGo)window.__xitterGo(a.getAttribute("href"));else location.assign(a.href);
+				});
+				a.appendChild(img);
+				row.appendChild(a);
 			});
 		}
 		if(after.nextElementSibling!==row)after.after(row);
@@ -281,6 +301,7 @@ export const BADGES_SCRIPT = String.raw`(function(){
 			// with a list): each of those is an account of its own, this one isn't
 			if(box.querySelector(SEL))return;
 			var name=handle(box);
+			forget(box,name||"");
 			if(!name)return;
 			if(known[name]){draw(box,name);return}
 			if(known[name]===undefined&&!waiting[name]){waiting[name]=true;queue.push(name)}

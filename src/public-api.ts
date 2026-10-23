@@ -15,13 +15,13 @@ import { isId, newId } from "./ids";
 import { activeCards } from "./explore-cards";
 import { postLimitFor } from "./textlen";
 import { absolute, mediaUpload, mediaUrl, posterUrl } from "./media";
-import type { PostRow } from "./model";
+import { type PostRow, badgeList, isOrganization, isVerified, verifiedSince } from "./model";
 import { PostError, feed, forYouFeed, getPost, likedPosts, postsByIds, replies, type FeedItem } from "./posts";
 import { listNotifications } from "./notifications";
 import { type Bucket, limitHeaders, limitedResponse, noteRefusal, take } from "./ratelimit";
 import { cachedTrends, searchPosts, searchUsers } from "./search";
 import { settings } from "./settings";
-import { followList, setFollow, suggestedUsers, toUser, userByName, userCols, usersByIds } from "./users";
+import { badgeUrl, followList, setFollow, suggestedUsers, toUser, userByName, userCols, usersByIds } from "./users";
 import { translateText } from "./translate";
 import { votePoll } from "./polls";
 import { decorationUrl, parseDecoration } from "./decorations";
@@ -79,6 +79,7 @@ async function tokenViewer(req: Request): Promise<{ viewer: Viewer; scope: strin
 const iso = (d: Date | string | null | undefined) => (d ? new Date(d).toISOString() : null);
 
 function userJson(u: User) {
+	const shown = badgeList(u);
 	return {
 		id: u.id,
 		screen_name: u.screen_name,
@@ -93,6 +94,13 @@ function userJson(u: User) {
 		country: u.country ?? null,
 		region: u.region ?? u.country ?? null,
 		pronouns: u.pronouns ?? null,
+		verified: isVerified(u),
+		verified_since: iso(isVerified(u) ? verifiedSince(u) : null),
+		parody_label: u.parody_label && u.parody_label !== "None" ? u.parody_label : null,
+		automated_by: u.automated_by ?? null,
+		organization: isOrganization(u),
+		...(isOrganization(u) ? { affiliates_count: u.affiliates ?? 0 } : {}),
+		affiliations: shown.flatMap((b) => (b.org ? [{ screen_name: b.org, name: b.description, badge_url: b.url }] : [])),
 		protected: !!u.protected,
 		created_at: iso(u.created_at),
 		url: `${PUBLIC_ORIGIN}/${u.screen_name}`,
@@ -483,10 +491,16 @@ const ROUTES: Route[] = [
 			const q = (url.searchParams.get("q") ?? "").trim().slice(0, 500);
 			if (!q) throw new ApiError(400, "Give a query in q.");
 			const limit = limitOf(url);
-			const ids = await searchPosts(q, { viewerId: v.id, top: url.searchParams.get("sort") === "top", limit, before: cursorOf(url) });
+			const top = url.searchParams.get("sort") === "top";
+			// Top is ranked, so its cursor is an offset ("o<n>"), as the client's
+			// search is; an id cursor works for the newest-first listing.
+			const cursor = url.searchParams.get("cursor") ?? "";
+			const offset = top && /^o(\d{1,6})$/.test(cursor) ? Number(cursor.slice(1)) : 0;
+			const ids = await searchPosts(q, { viewerId: v.id, top, limit, before: top ? undefined : cursorOf(url), offset });
 			const byId = await postsByIds(v.id, ids);
 			const data = (ids as string[]).map((id) => byId.get(id)).filter((p): p is PostRow => !!p).map((p) => postJson(p));
-			return { data, next_cursor: ids.length >= limit ? ids[ids.length - 1] : null };
+			const next = ids.length >= limit ? (top ? `o${offset + limit}` : ids[ids.length - 1]) : null;
+			return { data, next_cursor: next };
 		},
 	},
 	{
