@@ -190,34 +190,59 @@ export async function trendingHashtags(days: number, limit: number, scope: Trend
 	return rankTrends(await scoreTrends(await queryTrends(days, scope.country ?? null), scope.followedBy), limit);
 }
 
-export async function cachedTrends(days: number, limit: number, scope: TrendScope = {}): Promise<{ tag: string; posts: number }[]> {
-	const { trend_min_people: people, trend_min_account_days: age } = settings().operations;
-	const key = JSON.stringify([days, scope.country ?? null, people, age]);
+async function getOrLoad(days: number, country: string | null, people: number, age: number): Promise<TagPeople[]> {
+	const key = JSON.stringify([days, country, people, age]);
 	let cached = trendRows.get(key);
 	if (!cached || Date.now() - cached.at > 60_000) {
 		if (trendRows.size >= 500) trendRows.clear();
-		const loading = queryTrends(days, scope.country ?? null).catch((e) => {
+		const loading = queryTrends(days, country, people, age).catch((e) => {
 			trendRows.delete(key);
 			throw e;
 		});
 		cached = { at: Date.now(), rows: loading };
 		trendRows.set(key, cached);
 	}
-	return rankTrends(await scoreTrends(await cached.rows, scope.followedBy), limit);
+	return cached.rows;
 }
 
-async function queryTrends(days: number, country: string | null): Promise<TagPeople[]> {
+export async function cachedTrends(days: number, limit: number, scope: TrendScope = {}): Promise<{ tag: string; posts: number }[]> {
+	const { trend_min_people: people, trend_min_account_days: age } = settings().operations;
+	// 1. Try with requested country and configured thresholds
+	let rows = await getOrLoad(days, scope.country ?? null, people, age);
+	let results = rankTrends(await scoreTrends(rows, scope.followedBy), limit);
+
+	// 2. If country has no trends, fall back to worldwide trends
+	if (results.length === 0 && scope.country) {
+		rows = await getOrLoad(days, null, people, age);
+		results = rankTrends(await scoreTrends(rows, scope.followedBy), limit);
+	}
+
+	// 3. If still no trends meet the threshold, fall back to any recent hashtags (min 1 person, 0 days)
+	if (results.length === 0 && (people > 1 || age > 0)) {
+		rows = await getOrLoad(days, null, 1, 0);
+		results = rankTrends(await scoreTrends(rows, scope.followedBy), limit);
+	}
+
+	return results;
+}
+
+async function queryTrends(
+	days: number,
+	country: string | null,
+	minPeople = settings().operations.trend_min_people,
+	minAge = settings().operations.trend_min_account_days,
+): Promise<TagPeople[]> {
 	const rows = await sql`with t as (
 			select p.id, p.user_id, lower((regexp_matches(p.text, ${HASHTAG_RE}, 'g'))[1]) as tag,
 				coalesce((select e.ip from login_events e where e.user_id = p.user_id and e.ip is not null and not (e.ip = '127.0.0.1' or e.ip = '::1' or e.ip like '172.%' or e.ip like '::ffff:172.%' or e.ip like '10.%' or e.ip like '192.168.%') order by e.created_at desc limit 1), p.user_id::text) as who
 			from posts p join users u on u.id = p.user_id
 			where p.created_at > now() - make_interval(days => ${days}) and not p.hidden and p.circle_owner_id is null and p.user_id not in ${outOfView("0")}
-				and u.status = 'active' and not u.protected and u.created_at <= now() - make_interval(days => ${settings().operations.trend_min_account_days})
+				and u.status = 'active' and not u.protected and u.created_at <= now() - make_interval(days => ${minAge})
 				${country ? sql`and u.country = ${country}` : sql``}
 		), people as (
 			select tag, who, count(distinct id)::int as posts, array_agg(distinct user_id::text) as authors from t group by tag, who
 		), tags as (
-			select tag from people group by tag having count(*) >= ${settings().operations.trend_min_people}
+			select tag from people group by tag having count(*) >= ${minPeople}
 			order by count(*) desc, sum(posts) desc, tag limit ${TREND_POOL}
 		)
 		select p.tag, p.posts, p.authors from people p join tags using (tag)`;

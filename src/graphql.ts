@@ -1090,13 +1090,15 @@ async function search(viewer: Viewer, vars: Vars) {
 	return searchTimeline([{ type: "TimelineAddEntries", entries }]);
 }
 
-const trendItem = (t: { tag: string; posts: number }, i: number, label = "Trending") => ({
+const trendLabel = (l?: string) => (l && l !== "Trending" ? l : "Trending now");
+
+const trendItem = (t: { tag: string; posts: number }, i: number, label = "Trending now") => ({
 	__typename: "TimelineTrend",
 	itemType: "TimelineTrend",
 	name: t.tag,
 	rank: String(i + 1),
 	trend_url: { url: `twitter://search/?query=${encodeURIComponent(t.tag)}&src=trend_click&vertical=trends`, urlType: "DeepLink" },
-	trend_metadata: { domain_context: label, meta_description: `${t.posts} post${t.posts === 1 ? "" : "s"}` },
+	trend_metadata: { domain_context: trendLabel(label), meta_description: `${t.posts} post${t.posts === 1 ? "" : "s"}` },
 });
 
 // Explore: hashtags used most in the last week, as trends, from where the
