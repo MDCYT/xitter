@@ -182,8 +182,16 @@ const ACTIONS: Record<string, Action> = {
 		const id = instanceOf(b.instance);
 		if (!isFederationBlocked(id)) throw new AdminError("Defederate the instance before deleting what came from it.");
 		await dropRemoteMedia(id);
-		const gone = await sql`delete from users where instance = ${id} returning id`;
 		await sql`delete from federated_objects where instance = ${id}`;
+		await sql`delete from media where remote_instance = ${id}`;
+		// Delete posts in chunks to avoid lock contention and timeouts
+		while (true) {
+			const batch = await sql`delete from posts where id in (
+				select p.id from posts p join users u on u.id = p.user_id where u.instance = ${id} limit 2500
+			) returning id`;
+			if (batch.length === 0) break;
+		}
+		const gone = await sql`delete from users where instance = ${id} returning id`;
 		await sql`update federation_peers set cursor = 0 where instance = ${id}`;
 		await audit(a, "federation_purge", id, { accounts: gone.length });
 		return { accounts: gone.length };

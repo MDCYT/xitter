@@ -1835,3 +1835,13 @@ create table if not exists circle_members (
 create index if not exists circle_members_member_idx on circle_members (member_id);
 alter table posts add column if not exists circle_owner_id bigint references users (id) on delete cascade;
 create index if not exists posts_circle_owner_idx on posts (circle_owner_id) where circle_owner_id is not null;
+
+-- Foreign key indexes for fast cascade deletes
+create index if not exists posts_conversation_card_post_idx on posts (conversation_card_post_id) where conversation_card_post_id is not null;
+create index if not exists posts_pinned_reply_idx on posts (pinned_reply_id) where pinned_reply_id is not null;
+create index if not exists post_views_user_idx on post_views (user_id);
+create index if not exists bookmark_folder_posts_post_idx on bookmark_folder_posts (post_id);
+create index if not exists post_boosts_post_idx on post_boosts (post_id);
+create index if not exists reports_post_idx on reports (post_id) where post_id is not null;
+create index if not exists reports_user_idx on reports (user_id) where user_id is not null;
+create index if not exists mutes_muted_idx on mutes (muted_id);
