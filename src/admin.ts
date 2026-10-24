@@ -54,8 +54,10 @@ type Body = Record<string, any>;
 export type Action = { role: Role; run: (actor: Viewer, b: Body, req?: Request) => Promise<unknown> };
 
 export async function audit(actor: Viewer, action: string, target: string | null, detail: unknown = null) {
+	const [user] = actor.id && isId(actor.id) ? await sql`select 1 from users where id = ${actor.id}::bigint` : [null];
+	const actorId = user ? actor.id : null;
 	await sql`insert into audit_log (id, actor_id, action, target, detail)
-		values (${newId()}::bigint, ${actor.id}::bigint, ${action}, ${target}, ${detail === null ? null : JSON.stringify(detail)}::text::jsonb)`;
+		values (${newId()}::bigint, ${actorId}::bigint, ${action}, ${target}, ${detail === null ? null : JSON.stringify(detail)}::text::jsonb)`;
 }
 
 export const idOf = (v: unknown, what = "id") => {
