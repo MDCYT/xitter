@@ -169,9 +169,14 @@ export function parsePreview(url: string, html: string): Preview | undefined {
 }
 
 const MAX_HTML = 1024 * 1024;
+const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36";
 
 async function fetchPage(url: string): Promise<string | undefined> {
-	const res = await fetch(proxied(url), { signal: AbortSignal.timeout(8000), headers: { accept: "text/html,application/xhtml+xml" }, redirect: "follow" }).catch(() => undefined);
+	let res = await fetch(proxied(url), { signal: AbortSignal.timeout(8000), headers: { accept: "text/html,application/xhtml+xml" }, redirect: "follow" }).catch(() => undefined);
+	if (!res?.ok || !/html|xml/i.test(res.headers.get("content-type") ?? "")) {
+		await res?.body?.cancel().catch(() => {});
+		res = await fetch(url, { signal: AbortSignal.timeout(8000), headers: { accept: "text/html,application/xhtml+xml", "user-agent": UA }, redirect: "follow" }).catch(() => undefined);
+	}
 	if (!res?.ok || !/html|xml/i.test(res.headers.get("content-type") ?? "")) {
 		await res?.body?.cancel().catch(() => {});
 		return undefined;
