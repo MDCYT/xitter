@@ -180,7 +180,8 @@ const ACTIONS: Record<string, Action> = {
 	} },
 	federationPurge: { role: "admin", run: async (a, b) => {
 		const id = instanceOf(b.instance);
-		if (!isFederationBlocked(id)) throw new AdminError("Defederate the instance before deleting what came from it.");
+		const [isBlockedInDb] = await sql`select 1 from federation_blocks where instance = ${id}`;
+		if (!isBlockedInDb && !isFederationBlocked(id)) throw new AdminError("Defederate the instance before deleting what came from it.");
 		await dropRemoteMedia(id);
 		await sql`delete from federated_objects where instance = ${id}`;
 		await sql`delete from media where remote_instance = ${id}`;
