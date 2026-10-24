@@ -97,7 +97,7 @@ export async function publicPost(id: string): Promise<Post | undefined> {
 		coalesce((p.count_overrides->>'likes')::int, greatest((p.remote_counts->>'likes')::int, (select count(*)::int from likes x where x.post_id = p.id and x.user_id not in ${SUSPENDED_USERS}))) as like_count,
 		coalesce((p.count_overrides->>'reposts')::int, greatest((p.remote_counts->>'reposts')::int, (select count(*)::int from reposts x where x.post_id = p.id and x.user_id not in ${SUSPENDED_USERS}))) as repost_count,
 		coalesce((p.count_overrides->>'replies')::int, greatest((p.remote_counts->>'replies')::int, (select count(*)::int from posts x where x.reply_to_id = p.id and x.user_id not in ${SUSPENDED_USERS}))) as reply_count
-		from posts p join users u on u.id = p.user_id where p.id = ${id}::bigint and not p.hidden`;
+		from posts p join users u on u.id = p.user_id where p.id = ${id}::bigint and not p.hidden and p.circle_owner_id is null`;
 	if (!p) return undefined;
 	const author = await publicAuthor(sql`u.id = ${p.user_id}::bigint`);
 	if (!author) return undefined;

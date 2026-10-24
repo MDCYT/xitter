@@ -15,7 +15,7 @@ import { isId, newId } from "./ids";
 import { activeCards } from "./explore-cards";
 import { postLimitFor } from "./textlen";
 import { absolute, mediaUpload, mediaUrl, posterUrl } from "./media";
-import { type PostRow, badgeList, isOrganization, isVerified, verifiedSince } from "./model";
+import { type PostRow, badgeList, isOrganization, isVerified, shownVerifiedType, verifiedSince } from "./model";
 import { PostError, feed, forYouFeed, getPost, likedPosts, likerIds, postsByIds, replies, type FeedItem } from "./posts";
 import { setProfileImage, updateProfileText } from "./rest";
 import { ReplyControlError } from "./reply-controls";
@@ -110,7 +110,7 @@ function userJson(u: User) {
 		website: u.website || null,
 		avatar_url: absolute(u.avatar_url) || `${PUBLIC_ORIGIN}/public/default-avatar.png`,
 		banner_url: absolute(u.banner_url),
-		verified_type: u.verified_type,
+		verified_type: shownVerifiedType(u),
 		verified_at: iso(u.verified_at),
 		country: u.country ?? null,
 		region: u.region ?? u.country ?? null,
