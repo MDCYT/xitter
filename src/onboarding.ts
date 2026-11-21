@@ -27,6 +27,9 @@ import { checkSignupCode, sendSignupCode } from "./email-address";
 import { settings } from "./settings";
 import { hit } from "./ratelimit";
 import { requestCountry, requestIp } from "./login-history";
+import { capPassed } from "./cap";
+
+const CAP_NEEDED = "Check \"Verify you're human\" before signing up.";
 
 async function appendSignIn(headers: Headers, req: Request, session: { token: string; csrf: string; userId: string }) {
 	for (const c of await signInCookies(req, session)) headers.append("set-cookie", c);
@@ -97,7 +100,7 @@ function withEmailField(messages: Message[]): Message[] {
 	const block = parentOf.get(input);
 	const holder = block === undefined ? undefined : parentOf.get(block);
 	if (input < 0 || block === undefined || holder === undefined) throw new Error("setup screen: no name field to copy");
-	const swap: Record<string, string> = { "Name *": "Email *", name: "email", "Full name": "Email" };
+	const swap: Record<string, string> = { "Name *": "Email *", name: "email", "Display name": "Email" };
 	const copies = new Map<number, number>();
 	const copy = (i: number): number => {
 		if (copies.has(i)) return copies.get(i)!;
@@ -134,6 +137,42 @@ function withEmailField(messages: Message[]): Message[] {
 	return messages;
 }
 
+function withLegalNote(messages: Message[], source: Message[]): Message[] {
+	const [, root] = messages[0];
+	const [, from] = source[0];
+	const text = (r: any, p: number): string | undefined => (r.props[p]?.[0] === 0 ? r.props[p][1] : undefined);
+	const parents = (r: any) => {
+		const m = new Map<number, number>();
+		r.els.forEach((e: any, i: number) => e.children.forEach((c: number) => m.set(c, i)));
+		return m;
+	};
+	const fromParent = parents(from);
+	const lead = from.els.findIndex((e: any) => [...e.props.values()].some((p: number) => text(from, p) === "By continuing, you agree to our "));
+	const line = fromParent.get(lead);
+	const note = line === undefined ? undefined : fromParent.get(line);
+	const rootParent = parents(root);
+	const input = root.els.findIndex((e: any) => e.props.has(17392) && text(root, e.props.get(17392)) === "name");
+	const block = rootParent.get(input);
+	const holder = block === undefined ? undefined : rootParent.get(block);
+	if (note === undefined || holder === undefined) throw new Error("setup screen: no place for the terms note");
+	const copy = (i: number): number => {
+		const old = from.els[i];
+		const props = new Map<number, number>();
+		for (const [k, p] of old.props) {
+			const value = from.props[p];
+			root.props.push(value[0] === 0 && value[1] === "By continuing, you agree to our " ? [0, "By signing up, you agree to our "] : value);
+			props.set(k, root.props.length - 1);
+		}
+		const fresh = { ...old, props, children: [] as number[] };
+		root.els.push(fresh);
+		const at = root.els.length - 1;
+		fresh.children = old.children.map(copy);
+		return at;
+	};
+	root.els[holder].children.push(copy(note));
+	return messages;
+}
+
 // The setup screen checks the username as it's typed: its
 // Input2.RemoteAsYouType posts the form to suggest_username and draws the
 // reply. "Username is available" shows, and Continue enables, while the
@@ -162,21 +201,18 @@ const templates = {
 	code: codeLength(without(await load("code"), ["Send again"], 7140), INVITE_LENGTH),
 	// the authenticator code at sign-in: six digits
 	twoFactor: codeLength(without(await load("code"), ["Send again"], 7140), 6),
-	setup: withEmailField(await load("setup")),
+	setup: withLegalNote(withEmailField(await load("setup")), await load("password")),
 	success: await load("success"),
 	passkey: await load("passkey"),
 };
 
-// x.com's legal links become the instance's rules page
+// x.com's legal links become the instance's own pages
 const LINKS: Record<string, string> = {
-	"https://x.com/tos": "/rules",
-	"https://x.com/privacy": "/rules",
-	"https://help.x.com/rules-and-policies/twitter-cookies": "/rules",
+	"https://x.com/tos": "/tos",
+	"https://x.com/privacy": "/privacy",
+	"https://help.x.com/rules-and-policies/twitter-cookies": "/privacy",
 };
 const TEXTS: Record<string, () => string> = {
-	"Terms of Service": () => "Rules",
-	"Privacy Policy": () => "privacy",
-	"Cookie Use": () => "cookies",
 	Login: () => `Sign in to ${settings().instance_name}`,
 	"See what's happening": () => `Sign in to ${settings().instance_name}`,
 	"Select an option below:": () => "Enter your username to continue.",
@@ -284,7 +320,7 @@ export async function onboarding(req: Request, path: string): Promise<Response |
 	if (path === "/onboarding/web/actions/begin_login") {
 		const f = await form(req);
 		const name = String(f.username_or_email ?? "").trim().replace(/^@/, "");
-		const [user] = name ? await sql`select screen_name from users where lower(screen_name) = lower(${name}) and instance is null and status <> 'suspended'` : [];
+		const [user] = name ? await sql`select screen_name from users where lower(screen_name) = lower(${name}) and instance is null and (status <> 'suspended' or deactivated_at is null)` : [];
 		if (user) return respond(signInScreen(user.screen_name));
 		// the password screen keeps the address: its field may not hold the handle
 		if ((await byEmail(name)) !== undefined) return respond(signInScreen(name));
@@ -345,7 +381,11 @@ export async function onboarding(req: Request, path: string): Promise<Response |
 		const token = String(f.session_token ?? "");
 		const s = await pending(token);
 		if (!s) return respond(fieldError("username", STALE));
-		const fieldOf = (e: Error) => (/email/i.test(e.message) ? "email" : /password/i.test(e.message) ? "password" : /name/i.test(e.message) && !/user/i.test(e.message) ? "name" : "username");
+		if (!capPassed(req, false)) return respond(fieldError("message", CAP_NEEDED));
+		// the setup screen (jf/setup.json) shows errors under name, username and
+		// password, and anything else in its message line; one sent to a field it
+		// doesn't have (email) was never seen
+		const fieldOf = (e: Error) => (/email/i.test(e.message) ? "message" : /password/i.test(e.message) ? "password" : /name/i.test(e.message) && !/user/i.test(e.message) ? "name" : /username/i.test(e.message) ? "username" : "message");
 		// with mail set up, the address is proven first: the checked form waits for the code
 		if (mailEnabled()) {
 			const given = { code: s.code, screenName: String(f.username ?? s.username), name: String(f.name ?? ""), password: String(f.password ?? ""), email: String(f.email ?? ""), ip: requestIp(req) };
@@ -356,13 +396,15 @@ export async function onboarding(req: Request, path: string): Promise<Response |
 				if (!(e instanceof SignupError)) throw e;
 				return respond(fieldError(fieldOf(e), e.message));
 			}
+			capPassed(req, true);
 			const held = { ...checked, ip: given.ip, passwordHash: await Bun.password.hash(given.password), source: await platformSource(req), country: requestCountry(req) ?? null };
-			await sql`update signup_sessions set pending = ${JSON.stringify(held)}::text::jsonb where token = ${token}::uuid`;
-			if (!hit("mail", requestIp(req) ?? "unknown").ok) return respond(fieldError("email", "Too many codes sent from here. Wait an hour."));
+			// a code sent for an earlier address mustn't confirm this one
+			await sql`update signup_sessions set pending = ${JSON.stringify(held)}::text::jsonb, email_code_hash = null where token = ${token}::uuid`;
+			if (!hit("mail", requestIp(req) ?? "unknown").ok) return respond(fieldError("message", "Too many codes sent from here. Wait an hour."));
 			try {
 				await sendSignupCode(token, checked.email);
 			} catch (e: any) {
-				return respond(fieldError("email", `We couldn't send a code to that address: ${e.message}`));
+				return respond(fieldError("message", `We couldn't send a code to that address: ${e.message}`));
 			}
 			return respond(fill(templates.twoFactor, { session_token: token }, emailCodeTexts(checked.email)));
 		}
@@ -379,9 +421,9 @@ export async function onboarding(req: Request, path: string): Promise<Response |
 			});
 		} catch (e) {
 			if (!(e instanceof SignupError)) throw e;
-			const field = /email/i.test(e.message) ? "email" : /password/i.test(e.message) ? "password" : /name/i.test(e.message) && !/user/i.test(e.message) ? "name" : "username";
-			return respond(fieldError(field, e.message));
+			return respond(fieldError(fieldOf(e), e.message));
 		}
+		capPassed(req, true);
 		await sql`delete from signup_sessions where token = ${token}::uuid`;
 		const session = await login(String(f.username ?? s.username), String(f.password ?? ""));
 		const headers = new Headers();

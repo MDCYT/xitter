@@ -1,5 +1,5 @@
 import type { User } from "./auth";
-import { blockedFor, federatedHiddenFor, isBlockedEitherWay, mutedFor, outOfView } from "./blocks";
+import { blockedFor, federatedHiddenFor, GUEST_ID, hiddenFromGuests, isBlockedEitherWay, mutedFor, outOfView } from "./blocks";
 import { staffViewer } from "./staff-access";
 import { sql } from "./db";
 import { PUBLIC_ORIGIN } from "./config";
@@ -25,7 +25,9 @@ const stat = (name: string) => sql`coalesce((select s.${sql(name)} from user_sta
 export const userCols = (viewerId: string) => sql`
 	u.id as a_id, u.screen_name as a_screen_name, u.name as a_name, u.bio as a_bio, u.location as a_location, u.country as a_country,
 	u.based_in_override as a_based_in_override, u.signup_country as a_signup_country, u.pronouns as a_pronouns,
-	u.website as a_website, u.avatar_url as a_avatar_url, u.banner_url as a_banner_url, u.pinned_post_id as a_pinned_post_id, u.protected as a_protected, u.verified_type as a_verified_type, u.verified_at as a_verified_at, u.translator as a_translator, u.flag as a_flag, u.status as a_status, u.instance as a_instance, u.created_at as a_created_at,
+	u.website as a_website, u.avatar_url as a_avatar_url, u.banner_url as a_banner_url, u.pinned_post_id as a_pinned_post_id,
+	${viewerId === GUEST_ID ? sql`(u.protected or ${hiddenFromGuests(sql`u`)})` : sql`u.protected`} as a_protected,
+	u.verified_type as a_verified_type, u.verified_at as a_verified_at, u.translator as a_translator, u.flag as a_flag, u.status as a_status, u.instance as a_instance, u.created_at as a_created_at,
 	${badgesOf(sql`u.id`)} as a_badges, u.remote_badges as a_remote_badges,
 	greatest((u.remote_counts->>'posts')::int, ${stat("posts")}) as a_posts,
 	(select count(*)::int from posts p where p.user_id = u.id and p.reply_to_id is null) as a_root_posts,
@@ -50,6 +52,10 @@ export const userCols = (viewerId: string) => sql`
 	exists (select 1 from mutes x where x.muter_id = ${viewerId}::bigint and x.muted_id = u.id) as a_muting,
 	exists (select 1 from post_notifications x where x.user_id = ${viewerId}::bigint and x.target_id = u.id) as a_notifying,
 	exists (select 1 from repost_mutes x where x.user_id = ${viewerId}::bigint and x.target_id = u.id) as a_reposts_muted,
+	(u.id = ${viewerId}::bigint or case coalesce(u.preferences->>'allow_media_tagging', 'all')
+		when 'none' then false
+		when 'following' then exists (select 1 from follows x where x.follower_id = u.id and x.followee_id = ${viewerId}::bigint)
+		else true end) as a_media_taggable,
 	u.decoration as a_decoration,
 	case when ${viewerId}::bigint <> 0 and ${viewerId}::bigint <> u.id then
 		coalesce((select json_agg(json_build_object('screen_name', fu.screen_name, 'name', fu.name, 'avatar_url', fu.avatar_url))
@@ -121,6 +127,7 @@ export function toUser(r: any): User {
 			muting: r.a_muting,
 			notifying: !!r.a_notifying,
 			repostsMuted: !!r.a_reposts_muted,
+			mediaTaggable: r.a_media_taggable !== false,
 		},
 	};
 }
@@ -254,7 +261,7 @@ export async function suggestedUsers(viewerId: string, limit = 20, exclude: stri
 			where u.id <> ${viewerId}::bigint and u.status = 'active'
 				and u.id not in (select followee_id from follows where follower_id = ${viewerId}::bigint)
 				and u.id not in ${blockedFor(viewerId)} and u.id not in ${mutedFor(viewerId)} and u.id not in ${outOfView(viewerId)}
-				and u.id not in ${federatedHiddenFor(viewerId)}
+				and not u.shadow_banned and u.id not in ${federatedHiddenFor(viewerId)}
 				${exclude.length ? sql`and u.id <> all(${sql.array(exclude, "INT8")})` : sql``}
 				${similarTo ? sql`and u.id <> ${similarTo}::bigint` : sql``}
 			order by score desc

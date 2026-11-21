@@ -1,24 +1,28 @@
 // The few REST endpoints the client still uses next to GraphQL.
 
+import { recordError } from "./errors";
+import { dougVideo } from "./doug";
+import { addResponse } from "./grok";
 import { blockedNameIn, blockedWordIn, forbiddenText, suspendForName } from "./names";
 import { hateIn, hateInName } from "./hate";
 import { automodStrike } from "./moderation";
-import { hasBlockedPhrase } from "./settings";
+import { NAME_MAX, hasBlockedPhrase } from "./settings";
 import { hashflagsJson } from "./hashflags";
 import { accountsRoute } from "./accounts";
 import type { Viewer } from "./auth";
 import { addKeyword, mutedKeywords, removeKeywords, setBlock, setMute, updateKeyword } from "./blocks";
 import { getPost } from "./posts";
 import { sql } from "./db";
+import { queueReview } from "./claude-mod";
 import { flagValue, unknownFlag } from "./flags";
 import { pronounsProblem } from "./pronouns";
 import { isId } from "./ids";
 import { isVerified, legacyTweet, legacyUser, tweetResult } from "./model";
 import { extractEntities } from "./links";
-import { translateText } from "./translate";
+import { translateRoute, translateText } from "./translate";
 import { getLanguageDisplayName, normalizeLangCode } from "./lang";
 import { markSeen } from "./notifications";
-import { PollError, createCard, vote } from "./polls";
+import { PollError, createCard, pollCardById, vote } from "./polls";
 import { placeById, searchPlaces } from "./places";
 import { reportFlow } from "./reports";
 import { settingsFor } from "./shell";
@@ -33,7 +37,7 @@ import { loginHistory } from "./login-history";
 import { emailInfo, resendConfirmation } from "./email-address";
 import { pushSettingsRoute } from "./push";
 import { answerRequest, followList, knownFollowerCount, pendingRequests, setFollow, setProtected, suggestedUsers, updateFriendship, userById, userByName, usersByIds } from "./users";
-import { cleanText, oneLine } from "./text-clean";
+import { cleanText, looksBlank, oneLine } from "./text-clean";
 import { translateRoute } from "./translate";
 
 // friendships/show's shape, from the viewer's side (source) and the other account's (target)
@@ -64,6 +68,25 @@ async function relationship(viewer: Viewer, targetId: string) {
 
 const profileError = (message: string) => Response.json({ errors: [{ code: 120, message }] }, { status: 403 });
 
+// the problem with the new pronouns, or undefined once they are saved
+export async function updatePronouns(viewer: Viewer, raw: string): Promise<string | undefined> {
+	const value = oneLine(raw).trim();
+	const problem = pronounsProblem(value);
+	if (problem) return problem;
+	const hate = hateIn(value);
+	if (hate) {
+		await automodStrike(viewer.id, hate, "profile", value);
+		return "Your pronouns contain a slur or hate speech this instance doesn't allow.";
+	}
+	if (blockedWordIn(value)) {
+		if (!viewer.role) await suspendForName(viewer.id, value);
+		return "Your pronouns contain a word this instance doesn't allow.";
+	}
+	if (hasBlockedPhrase(value)) return "Your pronouns contain a phrase this instance doesn't allow.";
+	await sql`update users set pronouns = ${value || null} where id = ${viewer.id}::bigint`;
+	return undefined;
+}
+
 async function form(req: Request): Promise<Record<string, string>> {
 	const f = await req.formData().catch(() => undefined);
 	const out: Record<string, string> = {};
@@ -91,20 +114,8 @@ async function profileRoute(path: string, viewer: Viewer, req: Request): Promise
 		return changedUser(viewer);
 	}
 	if (m[1] === "update_pronouns") {
-		const value = oneLine(f.pronouns ?? "").trim();
-		const problem = pronounsProblem(value);
+		const problem = await updatePronouns(viewer, f.pronouns ?? "");
 		if (problem) return profileError(problem);
-		const hate = hateIn(value);
-		if (hate) {
-			await automodStrike(viewer.id, hate, "profile", value);
-			return profileError("Your pronouns contain a slur or hate speech this instance doesn't allow.");
-		}
-		if (blockedWordIn(value)) {
-			if (!viewer.role) await suspendForName(viewer.id, value);
-			return profileError("Your pronouns contain a word this instance doesn't allow.");
-		}
-		if (hasBlockedPhrase(value)) return profileError("Your pronouns contain a phrase this instance doesn't allow.");
-		await sql`update users set pronouns = ${value || null} where id = ${viewer.id}::bigint`;
 		return changedUser(viewer);
 	}
 	if (m[1] === "remove_profile_banner") {
@@ -119,13 +130,13 @@ async function profileRoute(path: string, viewer: Viewer, req: Request): Promise
 // /me). Keys are the web form's: name, description, location, url. Every
 // field is checked before any is saved; the message is for the person.
 export async function updateProfileText(viewer: Viewer, f: Record<string, string>): Promise<string | null> {
-	const limits: Record<string, [string, number]> = { name: ["name", 50], description: ["bio", 160], location: ["location", 30], url: ["website", 100] };
+	const limits: Record<string, [string, number]> = { name: ["name", NAME_MAX], description: ["bio", 160], location: ["location", 30], url: ["website", 100] };
 	const changes: Record<string, string> = {};
 	for (const [field, [column, max]] of Object.entries(limits)) {
 		if (!(field in f)) continue;
 		const value = field === "description" ? cleanText(f[field], { lines: 6 }) : oneLine(f[field]);
-		if ([...value].length > max) return `${field} is limited to ${max} characters.`;
-		if (field === "name" && !value) return "Name can't be blank.";
+		if ((field === "name" ? value.length : [...value].length) > max) return `${field} is limited to ${max} characters.`;
+		if (field === "name" && looksBlank(value)) return "Name can't be blank.";
 		if (field === "url" && value && !/^https?:\/\/\S+$/.test(value)) return "Website must be an http or https address.";
 		const hate = field === "name" ? hateInName(value) : hateIn(value);
 		if (hate) {
@@ -142,6 +153,7 @@ export async function updateProfileText(viewer: Viewer, f: Record<string, string
 		changes[column] = value;
 	}
 	if (Object.keys(changes).length) await sql`update users set ${sql(changes)} where id = ${viewer.id}::bigint`;
+	if ("name" in changes || "bio" in changes) queueReview("profile", viewer.id);
 	return null;
 }
 
@@ -163,11 +175,18 @@ const EMPTY_LIST = { users: [], next_cursor: 0, next_cursor_str: "0", previous_c
 
 // `path` has no /i/api prefix
 export async function restRoute(method: string, path: string, viewer: Viewer, req: Request): Promise<Response | undefined> {
+	if (path === "/2/grok/add_response.json") return addResponse(viewer, req);
+	if (path === "/2/grok/doug.json") return dougVideo();
 	if ((method === "GET" && path.endsWith("/capi/passthrough/1")) || (method === "POST" && path === "/v2/cards/preview.json")) {
 		const params = { ...Object.fromEntries(new URL(req.url).searchParams), ...(method === "POST" ? await form(req) : {}) };
 		const id = /^card:\/\/(\d{1,19})$/.exec(params["twitter:string:card_uri"] ?? params.status ?? "")?.[1];
 		const post = id && isId(id) ? await getPost(viewer.id, id) : undefined;
 		const card = post?.conversationCard ? (tweetResult(post, false).card as any)?.legacy : undefined;
+		if (!card && id && isId(id) && method === "GET") {
+			// a poll's own card id: the 2020 client refreshes poll results this way
+			const poll = await pollCardById(viewer.id, id);
+			if (poll) return Response.json(poll);
+		}
 		if (!card) return Response.json({ errors: [{ code: 144, message: "That conversation card is unavailable." }] }, { status: 404 });
 		return Response.json({ card: { ...card, binding_values: Object.fromEntries(card.binding_values.map((entry: any) => [entry.key, entry.value])) } });
 	}
@@ -241,7 +260,8 @@ export async function restRoute(method: string, path: string, viewer: Viewer, re
 	const friendship = /^\/1\.1\/friendships\/(create|destroy)\.json$/.exec(path);
 	if (friendship && method === "POST") {
 		const form = await req.formData().catch(() => undefined);
-		const target = form?.get("user_id");
+		// the 2020 client (client/old/) sends `id` from Who to follow, user_id elsewhere
+		const target = form?.get("user_id") ?? form?.get("id") ?? new URL(req.url).searchParams.get("user_id");
 		if (!isId(target)) return Response.json({ errors: [{ code: 50, message: "User not found." }] }, { status: 404 });
 		await setFollow(viewer.id, target, friendship[1] === "create");
 		const user = await userById(viewer.id, target);
@@ -349,9 +369,12 @@ export async function restRoute(method: string, path: string, viewer: Viewer, re
 		const findable = form?.get("discoverable_by_email");
 		if (findable === "true" || findable === "false")
 			await sql`update users set preferences = preferences || ${JSON.stringify({ discoverable_by_email: findable })}::text::jsonb where id = ${viewer.id}::bigint`;
+		const tagging = form?.get("allow_media_tagging");
+		if (tagging === "all" || tagging === "following" || tagging === "none")
+			await sql`update users set preferences = preferences || ${JSON.stringify({ allow_media_tagging: tagging })}::text::jsonb where id = ${viewer.id}::bigint`;
 		const lang = form?.get("lang") ?? form?.get("language");
 		if (typeof lang === "string" && /^[a-z]{2,3}(-[A-Za-z]{2,4})?$/.test(lang)) await sql`update users set language = ${lang} where id = ${viewer.id}::bigint`;
-		const [fresh] = await sql`select screen_name, language, protected, preferences->>'discoverable_by_email' = 'true' as discoverable_by_email from users where id = ${viewer.id}::bigint`;
+		const [fresh] = await sql`select screen_name, language, protected, preferences->>'discoverable_by_email' = 'true' as discoverable_by_email, preferences->>'allow_media_tagging' as allow_media_tagging from users where id = ${viewer.id}::bigint`;
 		const res = Response.json(settingsFor({ ...viewer, ...fresh }) ?? {});
 		if (fresh?.language) res.headers.append("set-cookie", `lang=${fresh.language}; Path=/; Max-Age=31536000; SameSite=Lax`);
 		return res;
@@ -452,71 +475,8 @@ export async function restRoute(method: string, path: string, viewer: Viewer, re
 	if (path === "/1.1/onboarding/sso_init.json") return Response.json({ status: "success", state: "guest" });
 	if (path.endsWith("/p2"))
 		return Response.json({ totalEvents: 0, eventsFailed: 0, shouldRetry: false, retryAfterMs: null, eventsFailedSequenceNumbers: null, message: null });
-	// Tweet Translation (Strato endpoint)
-	const tweetTransMatch = /(?:^|\/)strato\/column\/None\/tweetId=(\d{1,19}),destinationLanguage=(?:Some\(([a-zA-Z_-]+)\)|None),.*\/translation\/service\/translateTweet/.exec(path);
-	if (tweetTransMatch && method === "GET") {
-		const tweetId = tweetTransMatch[1];
-		const destParam = tweetTransMatch[2];
-		const targetLang = destParam ? normalizeLangCode(destParam) : normalizeLangCode(viewer?.language || "es");
-		const post = await getPost(viewer.id, tweetId);
-		if (!post) return Response.json({ errors: [{ code: 34, message: "Sorry, that page does not exist." }] }, { status: 404 });
-		try {
-			const res = await translateText(post.text, targetLang);
-			const translatedText = res.translated_text;
-			const textLength = [...translatedText].length;
-			const base = legacyTweet(post);
-			const media = (base.extended_entities as any)?.media ?? (base.entities as any)?.media ?? [];
-			const adjustedMedia = media.map((m: any) => ({ ...m, indices: [textLength, textLength] }));
-			const entities = extractEntities(translatedText, adjustedMedia);
-
-			return Response.json({
-				...base,
-				id: post.id,
-				id_str: post.id,
-				text: translatedText,
-				full_text: translatedText,
-				translation: translatedText,
-				display_text_range: [0, textLength],
-				entities,
-				...(adjustedMedia.length ? { extended_entities: { media: adjustedMedia } } : {}),
-				sourceLanguage: res.source_lang,
-				destinationLanguage: res.target_lang,
-				translationSource: "X",
-				localizedSourceLanguage: getLanguageDisplayName(res.source_lang, res.target_lang),
-			});
-		} catch (err: unknown) {
-			console.error("translateTweet error:", (err as Error)?.message || err);
-			return Response.json({ errors: [{ code: 131, message: "Unable to fetch translation." }] }, { status: 500 });
-		}
-	}
-
-	// Profile Translation (Strato endpoint)
-	const profileTransMatch = /(?:^|\/)strato\/column\/None\/profileUserId=(\d{1,19}),destinationLanguage=(?:Some\(([a-zA-Z_-]+)\)|None),.*\/translation\/service\/translateProfile/.exec(path);
-	if (profileTransMatch && method === "GET") {
-		const userId = profileTransMatch[1];
-		const destParam = profileTransMatch[2];
-		const targetLang = destParam ? normalizeLangCode(destParam) : normalizeLangCode(viewer?.language || "es");
-		const targetUser = await userById(viewer.id, userId);
-		if (!targetUser) return Response.json({ errors: [{ code: 50, message: "User not found." }] }, { status: 404 });
-		const bio = targetUser.bio || "";
-		try {
-			const res = await translateText(bio, targetLang);
-			return Response.json({
-				profileUserId: targetUser.id,
-				profileTranslation: {
-					translation: res.translated_text,
-					sourceLanguage: res.source_lang,
-					destinationLanguage: res.target_lang,
-					localizedSourceLanguage: getLanguageDisplayName(res.source_lang, res.target_lang),
-					translationSource: "X",
-					entities: { urls: extractEntities(res.translated_text).urls },
-				},
-			});
-		} catch (err: unknown) {
-			console.error("translateProfile error:", (err as Error)?.message || err);
-			return Response.json({ errors: [{ code: 131, message: "Unable to fetch translation." }] }, { status: 500 });
-		}
-	}
+	const translation = await translateRoute(path, viewer);
+	if (translation) return translation;
 
 	// Streamed Grok Translation endpoint (Posts and User Bios)
 	if (path === "/2/grok/translation.json" && method === "POST") {
@@ -589,9 +549,40 @@ export async function restRoute(method: string, path: string, viewer: Viewer, re
 			},
 		});
 	}
+
+	if (method === "POST" && path.endsWith("/jot/error_log.json")) void keepClientErrors(req, viewer);
 	if (TELEMETRY.test(path)) return Response.json({});
 
 	return undefined;
+}
+
+const jotSeen = new Map<string, number>();
+
+async function keepClientErrors(req: Request, viewer: Viewer) {
+	const raw = await req.clone().text().catch(() => "");
+	let body = raw;
+	try {
+		body = decodeURIComponent(raw.replace(/\+/g, " "));
+	} catch {}
+	const entries: string[] = [];
+	try {
+		const logs = JSON.parse(new URLSearchParams(raw).get("log") ?? "[]");
+		for (const l of Array.isArray(logs) ? logs : [logs]) entries.push(typeof l === "string" ? l : JSON.stringify(l));
+	} catch {
+		entries.push(body);
+	}
+	const now = Date.now();
+	if (jotSeen.size > 500) jotSeen.clear();
+	for (const entry of entries.slice(0, 5)) {
+		const text = entry.slice(0, 4000);
+		const key = text.slice(0, 300);
+		if (now - (jotSeen.get(key) ?? 0) < 60_000) continue;
+		jotSeen.set(key, now);
+		const message = /"(?:message|error|description)"\s*:\s*"([^"]{1,400})/.exec(text)?.[1] ?? text.slice(0, 300);
+		const e = new Error(`jot: ${message}`);
+		e.stack = text;
+		await recordError("client", e, { path: new URL(req.url).pathname, userId: viewer.id });
+	}
 }
 
 // Server-sent events channel for live updates. Nothing is pushed yet; the

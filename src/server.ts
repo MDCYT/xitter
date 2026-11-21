@@ -1,18 +1,22 @@
-import { type Viewer, GUEST_VIEWER, expireSessions, getViewer, parseCookies, csrfCookie, clearedCookies, logout } from "./auth";
-import { clientPathAllowed, getClientFile, getClientFilePath, hasClientFile } from "./client-cache";
+import { MULTI_COOKIE, SESSION_COOKIE, type Viewer, GUEST_VIEWER, clearedCookies, expireSessions, getViewer, parseCookies, csrfCookie, suspendedViewer, logout } from "./auth";
+import { multiViewer } from "./accounts";
+import { gbeePage } from "./gbee-page";
+import { CLIENT_DIR, clientDir, clientPathAllowed, getClientFile, getClientFilePath, hasClientFile, withClientDir } from "./client-cache";
+import { CLIENT_COOKIE, chosenClient, clientCookie, clientRoute, requestClient, switchByQuery } from "./client-choice";
 import { PORT, PUBLIC_ORIGIN } from "./config";
 import { migrate, sql } from "./db";
 import { GUEST_ALLOWED_GQL, knownOperation, runOperation } from "./graphql";
 import { brandingFile } from "./branding";
-import { handleLogin, maintenancePage, rulesPage } from "./login";
+import { handleLogin, handleOldCode, handleOldSessions, maintenancePage, rulesPage } from "./login";
+import { privacyPage, termsPage } from "./legal";
 import { adminApi, audit } from "./admin";
-import { loadSettings, settings } from "./settings";
+import { feature, loadSettings, settings } from "./settings";
 import { flagPickerData } from "./flag-picker";
 import { flagSvg } from "./flags";
 import { onboarding } from "./onboarding";
 import { cachedPatch, patchFile, patchText } from "./patch";
 import { clientError, recordError } from "./errors";
-import { asRequest, markStaff, setRequestLanguage, staffGate } from "./staff-access";
+import { asRequest, markStaff, setHidden, setRequestLanguage, staffGate } from "./staff-access";
 import { backupPath, startBackups } from "./backups";
 import { startUpdateChecks } from "./update-check";
 import { memberInvitesRoute } from "./member-invites";
@@ -20,15 +24,19 @@ import { orgRoute } from "./org-manage";
 import { menuLinks } from "./tidy";
 import { isPlayerPage, playerPage } from "./player-card";
 import { chatMediaRoute, chatSocket, juiceboxProxy, socketUser } from "./chat";
-import { loadBuild } from "./build";
-import { MEDIA_DIR, mediaUpload, serveMedia } from "./media";
+import { sweepChatUploads } from "./chat-media";
+import { clientBuilds, loadBuild } from "./build";
+import { MEDIA_DIR, mediaUpload, serveAvatar, serveMedia } from "./media";
+import { serveScanCopy, startMediaScan } from "./media-scan";
 import { resumeVideos } from "./video";
 import { livePipeline, restRoute, TELEMETRY } from "./rest";
+import { adaptiveRoute, legacyOperation } from "./adaptive";
 import { bootScript, shell } from "./shell";
 import { circusClientHtml } from "./circus-client";
 import { platformSource } from "./platforms";
 import { badgeImage, expireSanctions } from "./moderation";
-import { appealRoute, noticesApi, noticesPage } from "./staff-notices";
+import { appealRoute, noticesApi, noticesPage, suspendedPage } from "./staff-notices";
+import { impersonateRoute, impersonationRefuses } from "./impersonate";
 import { forgotRoute, resetRoute } from "./password-reset";
 import { twoFactorRoute } from "./two-factor";
 import { passkeySignInRoute, passkeysRoute } from "./passkeys";
@@ -43,6 +51,13 @@ import { gifProxy } from "./gifs";
 import { accountIndexRoute } from "./account-page";
 import { gifSettingsRoute } from "./gif-settings";
 import { classicDetailRoute, postCounts } from "./classic-detail";
+import { capRoute } from "./cap";
+import { parodyLabelsRoute } from "./parody-labels";
+import { guestVisibilityRoute } from "./guest-visibility";
+import { GUEST_ID } from "./blocks";
+import { adsRoute } from "./ads-page";
+import { endExpiredAds } from "./ads";
+import { legacyAnalyticsPage } from "./legacy-analytics";
 import { circleRoute } from "./circles";
 import { cardImage } from "./explore-cards";
 import { rememberIp, requestIp } from "./login-history";
@@ -57,7 +72,7 @@ import { connectedAppsRoute, developerAppsRoute, oauthAppIcon, oauthAuthorize, o
 import { authorizationServerMetadata } from "./oauth-metadata";
 import { signedFetch as federationSignedFetch } from "./federation";
 import { apiDocsPage } from "./api-docs";
-import { hashflagAsset } from "./hashflags";
+import { hashflagAsset, hashflagsJson } from "./hashflags";
 import { startMailDigests } from "./mail-digest";
 import { SERVICE_WORKER, startPush } from "./push";
 import { manifest } from "./pwa";
@@ -97,7 +112,7 @@ const MIME: Record<string, string> = {
 // The client also calls outside services on its own (grok.com checkout, ads
 // measurement). Requests from the page may only reach this instance.
 const SETTINGS_PAGES = new Set(
-	["apps", "invites", "organisation", "decor", "theme", "decoration", "automation", "notices", "instances", "passkeys", "import", "migrate", "api", "notes/appeals", "email", "2fa", "merchant", "gifs", "post-details"].map((s) => `/account/${s}`),
+	["apps", "invites", "organisation", "decor", "theme", "decoration", "automation", "notices", "instances", "passkeys", "import", "migrate", "api", "notes/appeals", "email", "2fa", "merchant", "gifs", "post-details", "labels", "guests", "client"].map((s) => `/account/${s}`),
 );
 
 const PAGE_CSP = "connect-src 'self' blob: data:; font-src 'self'";
@@ -122,7 +137,7 @@ async function servePublic(p: string): Promise<Response> {
 			? new Response(svg, { headers: { "content-type": "image/svg+xml", "cache-control": "public, max-age=86400", "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'", "x-content-type-options": "nosniff" } })
 			: new Response("not found", { status: 404 });
 	}
-	if (!/^[\w.-]+\.(png|svg|ico|webp)$/.test(name)) return new Response("not found", { status: 404 });
+	if (!/^[\w.-]+\.(png|svg|ico|webp|webm|mp4)$/.test(name)) return new Response("not found", { status: 404 });
 	// a logo uploaded in the admin panel replaces the shipped one
 	const uploaded = brandingFile(name);
 	if (uploaded && (await uploaded.file.exists())) return new Response(uploaded.file, { headers: { "content-type": uploaded.type, "cache-control": "public, max-age=86400, stale-while-revalidate=604800" } });
@@ -159,8 +174,13 @@ function staffBlockedPage(reason: string) {
 	);
 }
 
+// Files come from the request's build, else from another build that has them:
+// a page asks for its own build's files, but a cookie can change between the
+// page and its later chunks
 async function serveClient(req: Request, pathname: string): Promise<Response> {
 	const cdnPath = pathname.slice("/abs".length);
+	const holder = hasClientFile(cdnPath) ? undefined : clientBuilds().find((b) => b.dir !== clientDir() && withClientDir(b.dir, () => hasClientFile(cdnPath)));
+	if (holder) return withClientDir(holder.dir, () => serveClient(req, pathname));
 	// a file not in the archive yet is fetched from the CDN and kept: only from
 	// where the client's files live, and not faster than one address loads pages
 	if (!hasClientFile(cdnPath)) {
@@ -178,11 +198,11 @@ async function serveClient(req: Request, pathname: string): Promise<Response> {
 
 	// The file name stays the same when our patches change, so patched files are
 	// revalidated against a hash of what we actually serve.
-	let body = cachedPatch(cdnPath);
+	let body = cachedPatch(cdnPath, clientDir());
 	if (!body) {
 		const raw = await getClientFile(cdnPath);
 		if (!raw) return new Response("not found", { status: 404 });
-		body = patchFile(cdnPath, raw);
+		body = patchFile(cdnPath, raw, clientDir());
 	}
 	let hash = etags.get(body);
 	if (!hash) {
@@ -221,6 +241,7 @@ function parseJson(text: string | null): any {
 	}
 }
 
+<<<<<<< HEAD
 const GUEST_ALLOWED_REST = new Set([
 	"/1.1/search/typeahead.json",
 	"/1.1/hashflags.json",
@@ -237,13 +258,51 @@ const GUEST_ALLOWED_REST = new Set([
 	"/xitter/stickers",
 ]);
 
+=======
+const GUEST_OPERATIONS = new Set([
+	"UserByScreenName", "UserByRestId", "UsersByRestIds", "UserResultByScreenNameQuery",
+	"UserTweets", "UserTweetsAndReplies", "UserMedia", "UserHighlightsTweets",
+	"TweetDetail", "TweetResultByRestId", "TweetResultsByRestIds", "ProfileSpotlightsQuery",
+	"UserOriginalsTimeline", "UserSportsProfile", "HomeTimeline", "HomeLatestTimeline", "useStoryTopicQuery", "ExploreSidebar", "NflScoresSidebarFollow", "SportsLeagueFollow", "TopicToFollowSidebar",
+]);
+
+export const guestViewer = (): Viewer => ({ id: GUEST_ID, screen_name: "", name: "", bio: "", location: "", avatar_url: null, banner_url: null, verified_type: null, status: "active", role: null, created_at: new Date(0), csrf: "", token: "" });
+
+const guestPage = (p: string) => p === "/home" || !RESERVED_PATHS.has(p.split("/")[1]?.toLowerCase() ?? "") && /^\/[A-Za-z0-9_]{1,15}(?:\/(?:status\/\d{1,19}(?:\/(?:photo|video)\/\d)?|with_replies|media|highlights))?\/?$/.test(p);
+const RESERVED_PATHS = new Set(["home", "explore", "notifications", "messages", "settings", "i", "compose", "search", "login", "logout", "signup", "account", "admin", "abs", "api", "media", "public", "jobs", "tos", "privacy"]);
+
+async function guestApi(url: URL): Promise<Response> {
+	if (url.pathname.endsWith("/1.1/hashflags.json")) return Response.json(await hashflagsJson());
+	const parts = url.pathname.split("/").filter(Boolean);
+	const name = parts.includes("graphql") ? parts[parts.length - 1] : undefined;
+	if (!name || !GUEST_OPERATIONS.has(name) || !knownOperation(name)) {
+		if (process.env.LOG_REQUESTS) console.log(`api guest refused ${name ?? url.pathname}`);
+		return apiError(401, 32, "Could not authenticate you.");
+	}
+	const vars = parseJson(url.searchParams.get("variables"));
+	if (!shapeFits(vars)) return apiError(413, 324, "That request is too large.");
+	if (process.env.LOG_REQUESTS) console.log(`api guest graphql:${name}`);
+	return runOperation(name, guestViewer(), vars ?? {});
+}
+
+>>>>>>> upstream/main
 async function serveApi(req: Request, url: URL, viewer: Viewer | undefined): Promise<Response> {
 	if (!viewer && url.pathname.endsWith("/1.1/guest/activate.json")) return Response.json({ guest_token: "1" });
+<<<<<<< HEAD
+=======
+	if (!viewer && settings().operations.guest_reading && req.method === "POST" && url.pathname.endsWith("/1.1/graphql/app_context.json")) return new Response(null, { status: 204 });
+	if (!viewer && settings().operations.guest_reading && req.method === "GET") return guestApi(url);
+	if (!viewer) return apiError(401, 32, "Could not authenticate you.");
+	const source = await platformSource(req);
+	if (source === null) return apiError(401, 32, "Invalid or revoked client token.");
+	viewer = { ...viewer, postSource: source };
+>>>>>>> upstream/main
 	const path = url.pathname.replace(/^\/i\/(jf)?api/, "");
 	const parts = path.split("/").filter(Boolean);
 	const gql = parts.indexOf("graphql");
 	const operation = gql >= 0 ? parts[parts.length - 1] : undefined;
 	if (req.method === "POST" && path === "/1.1/graphql/app_context.json") return new Response(null, { status: 204 });
+<<<<<<< HEAD
 
 	if (!viewer) {
 		const isGuestGql = !!operation && GUEST_ALLOWED_GQL.has(operation);
@@ -259,6 +318,12 @@ async function serveApi(req: Request, url: URL, viewer: Viewer | undefined): Pro
 	if (source === null && viewer.id !== "0") return apiError(401, 32, "Invalid or revoked client token.");
 	viewer = { ...viewer, postSource: source ?? undefined };
 	if (viewer.id !== "0" && (req.method !== "GET" || operation) && req.headers.get("x-csrf-token") !== viewer.csrf)
+=======
+	// The 2020 client's uploader (client/old/) sends cookies and no csrf header, as
+	// upload.twitter.com wanted; the browser's own same-origin mark stands in for it
+	const oldUpload = !!loadBuild()?.build.stateBase && /^\/(i|1\.1)\/media\/upload2?\.json$/.test(path) && req.headers.get("sec-fetch-site") === "same-origin";
+	if ((req.method !== "GET" || operation) && req.headers.get("x-csrf-token") !== viewer.csrf && !oldUpload)
+>>>>>>> upstream/main
 		return apiError(403, 353, "This request requires a matching csrf cookie and header.");
 	if (req.method === "GET" && operation && isMutation(operation)) return apiError(405, 144, "Use POST for this operation.");
 	// a delegate switched into another account (delegation.ts); the client sends
@@ -269,6 +334,12 @@ async function serveApi(req: Request, url: URL, viewer: Viewer | undefined): Pro
 		if (!acting) return apiError(403, 200, "You can't act as this account.");
 		if (!delegateMay(acting.actor!.role, req.method, path, operation)) return apiError(403, 200, "Delegates can't do this for the account.");
 		viewer = acting;
+	}
+	const multiUser = req.headers.get("x-web-auth-multi-user-id");
+	if (multiUser && multiUser !== viewer.id && operation === "ViewerBadgeCounts") {
+		const other = await multiViewer(req, viewer, multiUser);
+		if (!other) return apiError(403, 200, "That account isn't signed in here.");
+		viewer = other;
 	}
 	if (viewer.status === "restricted" && restrictedRefuses(req.method, path, operation, url))
 		return apiError(403, 326, "Your account can't interact right now.");
@@ -317,12 +388,15 @@ async function serveApi(req: Request, url: URL, viewer: Viewer | undefined): Pro
 			// the chat app sends its variables as a JSON string
 			if (typeof vars === "string") vars = parseJson(vars);
 			if (!shapeFits(vars)) return apiError(413, 324, "That request is too large.");
-			return runOperation(name, viewer, vars ?? {});
+			const res = await runOperation(name, viewer, vars ?? {});
+			if (!loadBuild()?.build.stateBase) return res;
+			return Response.json(legacyOperation(name, await res.json()), { status: res.status, headers: res.headers });
 		}
 	} else if (path === "/live_pipeline/events") {
 		return livePipeline();
 	}
-	const rest = await restRoute(req.method, path, viewer, req);
+	// an old build (client/old/) gets its own REST shapes first; the current client never asks for them
+	const rest = (loadBuild()?.build.stateBase ? await adaptiveRoute(req.method, path, viewer, req) : undefined) ?? (await restRoute(req.method, path, viewer, req));
 	if (rest) return rest;
 
 	const key = `${req.method} ${gql >= 0 ? `graphql:${parts[parts.length - 1]}` : path}`;
@@ -335,6 +409,14 @@ async function serveApi(req: Request, url: URL, viewer: Viewer | undefined): Pro
 
 await migrate();
 await expireSanctions();
+setInterval(
+	() =>
+		endExpiredAds().catch((e) => {
+			console.error("ad expiry failed", e.message);
+			recordError("job", e, { path: "ad expiry" });
+		}),
+	60_000,
+).unref();
 // temporary sanctions end on their own
 setInterval(
 	() =>
@@ -353,6 +435,15 @@ setInterval(
 		}),
 	10 * 60_000,
 ).unref();
+// abandoned and expired chat attachments give their disk back
+setInterval(
+	() =>
+		sweepChatUploads().catch((e) => {
+			console.error("chat upload sweep failed", e.message);
+			recordError("job", e, { path: "chat upload sweep" });
+		}),
+	60 * 60_000,
+).unref();
 // sessions nobody used in months end, whatever their cookie says
 setInterval(
 	() =>
@@ -364,6 +455,7 @@ setInterval(
 ).unref();
 await loadSettings();
 await resumeVideos(MEDIA_DIR);
+startMediaScan();
 await resumeImports();
 await failInterrupted();
 
@@ -371,7 +463,10 @@ await failInterrupted();
 // the request; caught here it is logged with its path and account
 async function handle(req: Request): Promise<Response | undefined> {
 	try {
-		const res = await asRequest(() => route(req));
+		// the build this request is answered with (client-choice.ts); a page load
+		// may still change it to the account's own pick
+		const dir = requestClient(req)?.dir ?? CLIENT_DIR;
+		const res = await asRequest(() => withClientDir(dir, () => route(req)));
 		return res && (await compressResponse(req, res, new URL(req.url).pathname));
 	} catch (e) {
 		const viewer = await getViewer(req).catch(() => undefined);
@@ -400,6 +495,10 @@ async function route(req: Request): Promise<Response | undefined> {
 	// A new route under /i/xitter/ must go ABOVE the catch-all, or it is never
 	// reached. JSON endpoints belong under /i/api/xitter/ instead (serveApi).
 	if (p.startsWith("/i/xitter/decoration/")) return (await decorationFile(url)) ?? new Response("not found", { status: 404 });
+	if (p.startsWith("/i/xitter/cap/")) {
+		const cap = await capRoute(req, p);
+		if (cap) return cap;
+	}
 	if (p.startsWith("/i/xitter/fonts/")) return serveFont(url, url.searchParams.has("family") && !!(await getViewer(req)));
 	if (p.startsWith("/i/xitter/boot-")) {
 		const body = bootScript(p);
@@ -423,9 +522,11 @@ async function route(req: Request): Promise<Response | undefined> {
 	// chat: the live socket (its token from GenerateXChatTokenMutation) and
 	// the way to the key backup realm
 	if (p === "/xchat/ws") {
-		const userId = socketUser(url.searchParams.get("token") ?? "");
-		if (!userId) return new Response("bad token", { status: 401 });
-		const [account] = await sql`select 1 from users where id = ${userId}::bigint and status <> 'suspended'`;
+		const claims = socketUser(url.searchParams.get("token") ?? "");
+		if (!claims) return new Response("bad token", { status: 401 });
+		const { userId, sid } = claims;
+		const [account] = await sql`select 1 from users u where u.id = ${userId}::bigint and u.status <> 'suspended'
+			and (${sid ?? null}::text is null or exists (select 1 from sessions s where s.user_id = u.id and (encode(sha256(convert_to(s.token, 'UTF8')), 'hex') = ${sid ?? null} or s.token = ${sid ?? null})))`;
 		if (!account) return new Response("suspended", { status: 403 });
 		return server.upgrade(req, { data: { userId } }) ? undefined : new Response("expected a websocket", { status: 400 });
 	}
@@ -512,7 +613,19 @@ async function route(req: Request): Promise<Response | undefined> {
 		for (const c of clearedCookies()) res.headers.append("set-cookie", c);
 		return res;
 	}
-	if (p === "/rules" || p === "/tos" || p === "/privacy") return rulesPage();
+	if (p === "/sessions" && req.method === "POST" && loadBuild()?.build.stateBase) {
+		const h = hit("auth", requestIp(req) ?? "unknown");
+		if (!h.ok) return limitedResponse(h);
+		return handleOldSessions(req);
+	}
+	if (p === "/sessions/code" && (req.method === "GET" || req.method === "POST") && loadBuild()?.build.stateBase) {
+		const h = req.method === "POST" ? hit("auth", requestIp(req) ?? "unknown") : undefined;
+		if (h && !h.ok) return limitedResponse(h);
+		return handleOldCode(req);
+	}
+	if (p === "/rules") return rulesPage();
+	if (p === "/tos") return termsPage();
+	if (p === "/privacy") return privacyPage();
 	// X's sign-in screens (jf.x.com), answered here
 	// inside the signed-in client the same screens come through /i/jfapi
 	if (p.startsWith("/onboarding/web") || p.startsWith("/i/jfapi/onboarding/web")) {
@@ -539,8 +652,8 @@ async function route(req: Request): Promise<Response | undefined> {
 	if (p === "/i/flow/uls_content_and_app_language_selector") return Response.redirect("/settings/language", 302);
 	// the built-in "All" list (lists.ts)
 	if (p === "/all") return Response.redirect("/i/lists/1", 302);
-	if (p === "/login" || p === "/signup" || p.startsWith("/i/flow/")) {
-		const headers = new Headers({ location: "/" });
+	if ((p === "/login" && !loadBuild()?.build.stateBase) || p === "/signup" || p.startsWith("/i/flow/")) {
+		const headers = new Headers({ location: "/?signin=1" });
 		const code = url.searchParams.get("code");
 		if (code) headers.append("set-cookie", `xitter_invite=${encodeURIComponent(code)}; Path=/; Max-Age=86400; SameSite=Lax; HttpOnly`);
 		return new Response(null, { status: 302, headers });
@@ -551,12 +664,29 @@ async function route(req: Request): Promise<Response | undefined> {
 	if (p === "/manifest.json") return manifest();
 
 	const viewer = await getViewer(req);
+	if (p.startsWith("/account/impersonate/")) {
+		const done = await impersonateRoute(req, p, viewer);
+		if (done) return done;
+	}
+	if (impersonationRefuses(viewer, p)) return API_PREFIX.test(p) || req.method !== "GET" ? apiError(403, 64, "Not while you're signed in as someone else.") : new Response("Not while you're signed in as someone else.", { status: 403 });
+	const suspended = viewer ? undefined : await suspendedViewer(req);
+	if (suspended) {
+		if (p === "/account/suspended") return suspendedPage(req, suspended);
+		if (API_PREFIX.test(p) || req.method !== "GET") return apiError(403, 64, "Your account is suspended.");
+		return Response.redirect("/account/suspended", 302);
+	}
+	if (p === "/account/suspended" && req.method === "GET") return Response.redirect("/home", 302);
 	setRequestLanguage(viewer?.language ?? undefined);
+	if (!p.startsWith("/api/")) setHidden({ parody: !!viewer?.hide_parody_labels, checks: !!viewer?.hide_checkmarks });
+	if (req.method === "GET" && url.searchParams.has("client") && !API_PREFIX.test(p)) {
+		const switched = await switchByQuery(url, viewer ?? undefined);
+		if (switched) return switched;
+	}
 	const steam = /^\/public\/steam\/(\d+)\/([^/]+)$/.exec(p);
 	if (steam) return steamFile(req, steam[1]!, steam[2]!, url.searchParams.has("thumb"), !!viewer);
 	if (viewer?.role && !(await staffGate(req, viewer))) markStaff();
 	// a suspended account can't sign in, so it appeals here with its password
-	if (p === "/appeal") return appealRoute(req, server.requestIP(req)?.address ?? "");
+	if (p === "/appeal") return appealRoute(req, requestIp(req) ?? "");
 	if (p === "/account/access" && viewer?.status === "restricted") return restrictedPage(req, viewer);
 	// maintenance: staff carry on, everyone else signed in waits
 	if (viewer && !viewer.role && settings().operations.maintenance) {
@@ -565,17 +695,26 @@ async function route(req: Request): Promise<Response | undefined> {
 	}
 	// opened on their own (a link, a bookmark), the settings pages come up inside
 	// the client's Settings, which frames them (tidy.ts)
-	if (viewer && req.method === "GET" && req.headers.get("sec-fetch-dest") === "document" && SETTINGS_PAGES.has(p))
+	const oldBuild = !!loadBuild()?.build.stateBase;
+	// the 2020 client has no screens of ours to frame them in: they open whole
+	if (viewer && oldBuild && p === "/i/grok" && req.method === "GET" && feature("grok")) return gbeePage(req, viewer);
+	if (viewer && oldBuild && (p === "/settings/xitter" || p.startsWith("/settings/xitter/"))) return Response.redirect(`/account/${p.slice("/settings/xitter/".length)}${url.search}`, 302);
+	if (viewer && !oldBuild && req.method === "GET" && req.headers.get("sec-fetch-dest") === "document" && SETTINGS_PAGES.has(p))
 		return Response.redirect(`/settings/xitter/${p.slice("/account/".length)}${url.search}`, 302);
 	// and the side bar's pages fill the main column instead (tidy.ts FULL)
-	if (viewer && req.method === "GET" && req.headers.get("sec-fetch-dest") === "document" && (p === "/account/money" || p.startsWith("/account/money/"))) return Response.redirect(`/i/xmoney${p.slice("/account/money".length)}${url.search}`, 302);
+	if (viewer && !oldBuild && req.method === "GET" && req.headers.get("sec-fetch-dest") === "document" && (p === "/account/money" || p.startsWith("/account/money/"))) return Response.redirect(`/i/xmoney${p.slice("/account/money".length)}${url.search}`, 302);
+	if (viewer && !oldBuild && req.method === "GET" && req.headers.get("sec-fetch-dest") === "document" && /^\/account\/ads(\/new|\/\d{1,19})?$/.test(p)) return Response.redirect(`/i${p.slice(8)}${url.search}`, 302);
 	if (p === "/oauth/authorize") return oauthAuthorize(req, url, viewer);
 	if (p === "/account/apps" && viewer) return connectedAppsRoute(req, viewer);
 	// opened on its own, the index comes up as Settings > Xitter settings, like the pages it lists
-	if ((p === "/account" || p === "/account/") && viewer && req.method === "GET" && req.headers.get("sec-fetch-dest") === "document") return Response.redirect("/settings/xitter", 302);
+	if ((p === "/account" || p === "/account/") && viewer && !oldBuild && req.method === "GET" && req.headers.get("sec-fetch-dest") === "document") return Response.redirect("/settings/xitter", 302);
 	if ((p === "/account" || p === "/account/") && viewer) return accountIndexRoute(req, viewer);
 	if (p === "/account/gifs" && viewer) return gifSettingsRoute(req, viewer);
+	if (p === "/account/client" && viewer) return clientRoute(req, viewer, clientBuilds().find((b) => b.dir === clientDir()));
 	if (p === "/account/post-details" && viewer) return classicDetailRoute(req, viewer);
+	if (p === "/account/labels" && viewer) return parodyLabelsRoute(req, viewer);
+	if (p === "/account/guests" && viewer) return guestVisibilityRoute(req, viewer);
+	if (/^\/account\/ads(\/new|\/\d{1,19})?$/.test(p) && viewer) return adsRoute(req, viewer, p);
 	if (p === "/account/circle" && viewer) return circleRoute(req, viewer);
 	if (p === "/account/apps/developer" && viewer) return developerAppsRoute(req, viewer);
 	if (p === "/federation/superadmin" || p.startsWith("/federation/superadmin/")) return superadminHomeRoute(req, url, viewer);
@@ -609,15 +748,21 @@ async function route(req: Request): Promise<Response | undefined> {
 	if ((p === "/account/money" || p.startsWith("/account/money/")) && viewer) return moneyRoute(req, viewer);
 	if (p === "/account/merchant" && viewer) return merchantRoute(req, viewer);
 	if (p.startsWith("/i/ton/data/xchat_media/")) return chatMediaRoute(req, viewer, url);
+	const activity = /^\/i\/tfb\/v1\/quick_promote\/lite\/(\d{1,19})$/.exec(p);
+	if (activity && req.method === "GET") return legacyAnalyticsPage(req, activity[1]!, viewer ?? undefined);
 	// pictures and oEmbed for previews of public posts in other apps (embeds.ts)
 	if (p.startsWith("/embed/")) return embedMedia(req, p);
 	if (p === "/oembed") return oembed(url);
 	// the frame X's client opens for a player card (YouTube links)
 	if (isPlayerPage(p)) return viewer ? playerPage(p, viewer.id) : new Response("not found", { status: 404 });
+	if (p.startsWith("/media-scan/")) return serveScanCopy(p, url);
 	// uploads stay inside the instance: protected media is restricted to followers, public media is open
-	if (p.startsWith("/media/")) return serveMedia(req, p, viewer ?? GUEST_VIEWER);
+	const reader = viewer ?? (settings().operations.guest_reading ? guestViewer() : undefined);
+	if (p.startsWith("/media/")) return serveMedia(req, p, reader ?? GUEST_VIEWER);
+	if (p.startsWith("/profile_images/")) return serveAvatar(req, p, reader ?? GUEST_VIEWER);
 	// the admin panel: staff only; everyone else gets the client's not-found page
-	if (p.startsWith("/admin/api/")) return adminApi(req, p.slice("/admin/api/".length), viewer);
+	// the panel speaks of the instance's default build (Admin > Client), whatever its staff use
+	if (p.startsWith("/admin/api/")) return withClientDir(CLIENT_DIR, () => adminApi(req, p.slice("/admin/api/".length), viewer));
 	if (p === "/admin/flags.json" && viewer?.role) return Response.json(flagPickerData(null).flags);
 	// a backup, for an admin's browser to save
 	if (p.startsWith("/admin/backups/") && viewer?.role === "admin" && !(await staffGate(req, viewer))) {
@@ -641,34 +786,20 @@ async function route(req: Request): Promise<Response | undefined> {
 
 	// signed out: a public post or profile gives other apps' link fetchers its preview
 	if (!viewer && req.method === "GET") {
-		const isBot =
-			/bot|facebookexternalhit|whatsapp|telegram|slack|discord|twitterbot|meta-externalagent|crawler|preview|mastodon|misskey|pleroma|activitypub|applebot|bingbot|googlebot|linkedin|embedly|quora|duckduckbot|vkshare|w3c_validator|redditbot|curl|wget/i.test(
-				req.headers.get("user-agent") ?? "",
-			) || url.searchParams.has("embed");
 		const isFx = /^\/(?:fx|vx)\//i.test(p);
-		if (isBot || isFx) {
-			const preview = await linkPreview(p);
-			if (preview) return preview;
-		}
+		const browsing = !isFx && settings().operations.guest_reading && guestPage(p) && req.headers.get("sec-fetch-mode") === "navigate";
+		const preview = browsing ? undefined : await linkPreview(p);
+		if (preview) return preview;
 	}
+	// signed out: X's own home page with its sign-in form, and the dialog
+	// (an old build has its own sign-in page at /login, and /login/error after a wrong password)
+	const oldLogin = !!loadBuild()?.build.stateBase && (p === "/login" || p.startsWith("/login/"));
+	const guestReading = !viewer && settings().operations.guest_reading && guestPage(p);
+	if (!viewer && p !== "/" && !p.startsWith("/i/jf/onboarding") && !oldLogin && !guestReading) return Response.redirect("/", 302);
 	// maintenance: guests see the notice; ?staff=1 is the sign-in page, for staff
-	if (!viewer && settings().operations.maintenance && !url.searchParams.has("staff")) return maintenancePage(true);
-	// signed out: authenticated-only pages redirect to home
-	const isAuthOnly = (path: string) =>
-		path === "/notifications" ||
-		path.startsWith("/notifications/") ||
-		path === "/messages" ||
-		path.startsWith("/messages/") ||
-		path === "/bookmarks" ||
-		path.startsWith("/bookmarks/") ||
-		path === "/admin" ||
-		path.startsWith("/admin/") ||
-		path.startsWith("/settings") ||
-		path.startsWith("/account") ||
-		path.startsWith("/i/xchat") ||
-		path.startsWith("/xchat") ||
-		path.startsWith("/i/bookmarks");
-	if (!viewer && isAuthOnly(p)) return Response.redirect("/", 302);
+	if (!viewer && p === "/" && settings().operations.maintenance && !url.searchParams.has("staff")) return maintenancePage(true);
+	if (!viewer && p === "/" && !url.search && settings().operations.guest_reading && !loadBuild()?.build.stateBase && req.headers.get("sec-fetch-mode") === "navigate") return Response.redirect("/home", 302);
+
 	const cookies = parseCookies(req);
 	const exitBeta = url.searchParams.get("beta") === "0" || url.searchParams.get("beta") === "false" || url.searchParams.has("exit_beta") || url.searchParams.has("modern");
 	const enterBeta = url.searchParams.has("beta") || url.searchParams.has("circus") || url.searchParams.has("classic");
@@ -694,8 +825,14 @@ async function route(req: Request): Promise<Response | undefined> {
 	const look = prefs.look;
 	const painted = look?.kind === "painted" ? look.theme : null;
 	const paint = viewer && painted ? await resolveBackground(viewer.id, painted) : undefined;
-	const page = shell(viewer ?? null, !!cookies.auth_multi, communityRows.length > 0, flagRows[0]?.education_flags ?? {}, links, look, prefs.accent, paint, viewer?.csrf, guestLang);
+	const flash = !viewer && p === "/login/error" ? "The username and password you entered did not match our records. Please double-check and try again." : undefined;
+	// signed in, the account's own pick wins over the cookie, which then follows it
+	const cookieClient = parseCookies(req)[CLIENT_COOKIE];
+	const pick: string | undefined = flagRows[0]?.preferences?.web_client;
+	const client = viewer ? chosenClient(pick ?? cookieClient) : requestClient(req);
+	const page = withClientDir(client?.dir ?? CLIENT_DIR, () => shell(viewer ?? null, !!parseCookies(req)[MULTI_COOKIE], communityRows.length > 0, flagRows[0]?.education_flags ?? {}, links, look, prefs.accent, paint, viewer?.csrf, flash, guestLang));
 	const headers = new Headers({ "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": PAGE_CSP });
+	if (client && pick === client.id && cookieClient !== pick) headers.append("set-cookie", clientCookie(pick));
 	if (exitBeta) headers.append("set-cookie", "client_mode=; Path=/; Max-Age=0; SameSite=Lax");
 	const activeLang = viewer?.language || guestLang || "en";
 	headers.append("set-cookie", `lang=${activeLang}; Path=/; Max-Age=31536000; SameSite=Lax`);
@@ -703,7 +840,9 @@ async function route(req: Request): Promise<Response | undefined> {
 	// as a guest (no csrf header, every write refused)
 	if (viewer && /(?:^|;\s*)gt=/.test(req.headers.get("cookie") ?? "")) headers.append("set-cookie", "gt=; Path=/; Max-Age=0");
 	if (viewer && parseCookies(req).ct0 !== viewer.csrf) headers.append("set-cookie", csrfCookie(viewer.csrf));
-	for (const c of nightModeCookies(look)) headers.append("set-cookie", c);
+	if (!viewer && (parseCookies(req)[SESSION_COOKIE] || parseCookies(req).twid)) for (const c of clearedCookies()) headers.append("set-cookie", c);
+	// (the 2020 client keeps its own night_mode, set from its Display settings)
+	if (!client?.old) for (const c of nightModeCookies(look)) headers.append("set-cookie", c);
 	if (!page) return new Response("no pinned client build: run scripts/fetch-client.ts --token or --har", { status: 500, headers });
 	return new Response(page, { headers });
 }

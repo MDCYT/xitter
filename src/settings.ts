@@ -9,6 +9,8 @@ import { foldGlyphs } from "./fold";
 export type SignupMode = "invite" | "open" | "closed";
 
 // parts of the client this instance can switch off; true shows the feature
+export const NAME_MAX = 100;
+
 export const FEATURES = {
 	communities: "Communities",
 	lists: "Lists",
@@ -29,6 +31,7 @@ export const FEATURES = {
 	archive_import: "Import from X: accounts upload their X archive and its posts come over (Settings > Your account)",
 	money: "Equicoins: accounts send each other money from the side bar (the instance's own play money, not real currency)",
 	circles: "Circles: posts only the people an account picks can see (Circle instead of Everyone in the composer)",
+	migration: "Move account: accounts move to and from other instances with a migration code (off: no new codes or imports here, and other instances can't read accounts from here; imports already running finish)",
 	affiliate_checkmarks: "Checkmarks for affiliates of an organisation (off: they keep the organisation's badge, and only a checkmark of their own shows)",
 } as const;
 export type Feature = keyof typeof FEATURES;
@@ -57,6 +60,7 @@ const DEFAULTS = {
 		money: false,
 		circles: true,
 		affiliate_checkmarks: true,
+		migration: true,
 	} as Record<Feature, boolean>,
 	limits: { image_mb: 5, video_mb: Number(process.env.MAX_VIDEO_MB ?? 200), video_seconds: Number(process.env.MAX_VIDEO_SECONDS ?? 600) },
 	// media-compress.ts and video.ts: uploads made smaller as they're stored, for
@@ -69,6 +73,8 @@ const DEFAULTS = {
 	post_limits: { none: 4000, blue: 25000, business: 128000, government: 256000 },
 	// posts and replies each account may make in any 24 hours; staff have none
 	daily_caps: { enabled: true, posts: 1000, replies: 3000 },
+	// distinct accounts one post may mention, and mentions an account may send in any 24 hours; staff have none
+	mention_limits: { enabled: true, per_post: 10, per_day: 300 },
 	// shown above every timeline until the viewer closes it; a new id shows it again
 	announcement: { id: "", text: "", link: "", buttons: [] as { label: string; url: string }[] },
 	// handles every new account follows
@@ -77,12 +83,16 @@ const DEFAULTS = {
 	default_avatar: "/public/default-avatar.png",
 	// the instance's rules, shown at /rules and linked from sign-up
 	rules: "",
+	terms: "",
+	privacy: "",
+	legal: { operator: "", contact: "", backup_days: 0, terms_updated: "", privacy_updated: "" },
 	// AGPL-3.0: people using an instance can get its source here
 	source_url: process.env.SOURCE_URL ?? "https://github.com/Xittered/xitter",
 	// admin panel, Settings: maintenance mode, blocked phrases, trend controls, pinned post
 	operations: {
 		maintenance: false,
 		message: "The instance is undergoing maintenance.",
+		guest_reading: false,
 		blocked_phrases: [] as string[],
 		// words no handle or display name may contain (names.ts)
 		blocked_names: [] as string[],
@@ -93,6 +103,27 @@ const DEFAULTS = {
 		global_pin: null as string | null,
 	},
 	automod: { enabled: true, strike_days: 365, ladder: [0, 24, 168, 720, -1] as number[], second_chances: 5 },
+	// claude-mod.ts: Claude reads new posts, profile changes, reports and 2020
+	// DMs (needs ANTHROPIC_API_KEY in the server's environment). It hides clear
+	// violations and files the rest for staff; it never strikes or suspends.
+	claude_mod: {
+		enabled: true,
+		model: "claude-haiku-5-5",
+		// a verdict below this confidence is only filed for staff, never acted on
+		hide_confidence: 0.85,
+		// a ceiling on model calls per day, so a flood can't run up the bill
+		daily_limit: 5000,
+		posts: true,
+		profiles: true,
+		reports: true,
+		dms: true,
+		// learn from staff confirming or dismissing its reports (claude-mod-feedback.ts)
+		learn: true,
+		borderline: false,
+		// replaces claude-mod.ts DEFAULT_GUIDE when set
+		prompt: "",
+	},
+	grok: { brain: "claude" as "claude" | "bee", model: "claude-haiku-5-5", bee_url: "", daily_per_account: 100, prompt: "" },
 	// the admin panel itself (admin.ts staffGate): staff must have two-factor on;
 	// only these addresses (IPs or CIDR ranges) reach it, none meaning any
 	security: { staff_2fa: false, admin_ips: [] as string[] },
@@ -119,7 +150,11 @@ const DEFAULTS = {
 	// network_totals: share this instance's totals with peers and show the network's
 	money: { starting_cents: 500, max_transfer_cents: 100_000, like_cents: 50, feed: "", follow_network: false, peer_daily_cents: 100_000, move_balance: true, network_totals: false },
 	// money shop: listings are in money_shop_items; only approved announcements are shown
+	ads: { enabled: true, min_spend_cents: 500, base_cpm_cents: 20, price_scale_cents: 10_000, economy_cpm_ppm: 20, demand_share_pct: 1, max_days: 7, max_pending: 3, reject_refund_pct: 100, min_viewer_age_days: 3 },
 	money_shop: { enabled: false, announcement: null as null | { id: string; text: string; buttons: { label: string; url: string }[] } },
+	// client-choice.ts: which web client people get when the instance serves more
+	// than one ("" for the CLIENT_DIR build), and whether each person may pick
+	clients: { default: process.env.DEFAULT_CLIENT ?? "", user_choice: process.env.CLIENT_CHOICE !== "off" },
 	// the client's own feature switches, set by an admin (Admin > Feature
 	// switches); they win over the build's values and Xitter's own (shell.ts)
 	switch_overrides: {} as Record<string, unknown>,

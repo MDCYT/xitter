@@ -6,27 +6,28 @@
 // converted by video.ts.
 
 import { conversationVideoMap } from "./conversation-cards";
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { open } from "node:fs/promises";
 import { join } from "node:path";
 import type { SQL } from "bun";
 import type { Viewer } from "./auth";
 import { remoteMediaFile } from "./federation-sync";
-import { PUBLIC_HOSTNAME, PUBLIC_ORIGIN } from "./config";
+import { MAX_POST_MEDIA, PUBLIC_HOSTNAME, PUBLIC_ORIGIN } from "./config";
 import { blockedFor, protectedFor, suspendedFor } from "./blocks";
-import { staffViewer } from "./staff-access";
+import { isStaffRequest, staffViewer } from "./staff-access";
 import { circleSeen } from "./circles";
 import { sql } from "./db";
 import { isId, newId } from "./ids";
 import { settings } from "./settings";
 import { gifProxy } from "./gifs";
 import { compressUpload } from "./media-compress";
-import { cropGif, maxVideoBytes, posterFile, progress, queueVideo, sourceFile, videoError, videoSupported } from "./video";
+import { cropGif, FFMPEG, maxVideoBytes, posterFile, progress, queueVideo, sourceFile, spawnLimited, videoError, videoSupported } from "./video";
 import { CDN_URL, isS3Enabled, uploadToS3 } from "./storage";
 
 export const MEDIA_DIR = process.env.MEDIA_DIR ?? "media";
 const maxImage = () => settings().limits.image_mb * 1024 * 1024;
 const MAX_GIF = 15 * 1024 * 1024;
+const LEGACY_CLIENT_TOP_BITRATE = 2_176_000;
 const MAX_PENDING_MS = 60 * 60 * 1000;
 
 type Pending = { userId: string; total: number; category: string; video: boolean; chunks: Map<number, number>; received: number; started: number };
@@ -71,6 +72,13 @@ export type MediaRow = {
 };
 
 export type Image = { mime: string; width: number; height: number };
+
+// The only types media goes out as. A file stored under any other (a peer
+// claiming image/svg+xml for a script) is sent as bytes, and none of it may run
+// anything when opened on its own.
+const SERVED_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "video/mp4"]);
+export const servedType = (mime: string) => (SERVED_TYPES.has(mime) ? mime : "application/octet-stream");
+export const MEDIA_CSP = "default-src 'none'; sandbox";
 
 // type and dimensions from the file header; nothing else is trusted
 export function sniffImage(b: Buffer): Image | undefined {
@@ -280,7 +288,7 @@ export function acceptThemePhoto(data: Buffer): ThemePhotoResult {
 async function writeThemePoster(id: string): Promise<boolean> {
 	const dest = posterFile(MEDIA_DIR, id);
 	try {
-		const proc = Bun.spawn(["ffmpeg", "-y", "-i", fileOf(id), "-frames:v", "1", "-q:v", "3", dest], { stdout: "ignore", stderr: "ignore" });
+		const proc = Bun.spawn([FFMPEG, "-y", "-protocol_whitelist", "file", "-f", "gif", "-i", fileOf(id), "-frames:v", "1", "-q:v", "3", dest], { stdout: "ignore", stderr: "ignore" });
 		const timer = setTimeout(() => proc.kill(), 8000);
 		const code = await proc.exited;
 		clearTimeout(timer);
@@ -656,7 +664,7 @@ async function servedOf(id: string): Promise<Served | undefined> {
 		return hit.served;
 	}
 	servedCache.delete(id);
-	const [row] = await sql`select id::text, mime, user_id::text as owner, post_id::text as post, detached from media where id = ${id}::bigint`;
+	const [row] = await sql`select id::text, mime, user_id::text as owner, post_id::text as post, detached from media where id = ${id}::bigint and scan_blocked_at is null`;
 	if (!row) return undefined;
 	const served = row as Served;
 	if (servedCache.size >= MAX_SERVED_CACHE) servedCache.delete(servedCache.keys().next().value!);
@@ -672,17 +680,27 @@ async function cacheFor(viewer: Viewer, served: Served): Promise<string | undefi
 	if (!served.post && !pollIds.length) {
 		// What a profile, list, community or article shows is as open as that
 		// is (its URL may later be attached to private content, so it is
-		// revalidated). An upload nothing shows yet, a draft's or a scheduled
-		// post's, is its owner's alone: ids are snowflakes, not secrets.
+		// revalidated): a private list's banner only to its owner, an article's
+		// pictures once it is published in a post the viewer may see. An upload
+		// nothing shows yet, a draft's or a scheduled post's, is its owner's
+		// alone: ids are snowflakes, not secrets.
 		const path = `/media/${served.id}`;
 		const [shown] = await sql`select 1 where
 			exists (select 1 from users where id = ${served.owner}::bigint and (avatar_url = ${path} or banner_url = ${`/media/banner/${served.id}`}))
-			or exists (select 1 from lists where banner_media_id = ${served.id}::bigint)
+			or exists (select 1 from lists l where l.banner_media_id = ${served.id}::bigint
+				and (l.owner_id = ${viewer.id}::bigint or (not l.is_private and l.owner_id not in ${blockedFor(viewer.id)})))
 			or exists (select 1 from communities where banner_url = ${path})
-			or exists (select 1 from articles where user_id = ${served.owner}::bigint
-				and (cover_media_id = ${served.id}::bigint or content_state::text like ${`%${served.id}%`}))`;
+			or exists (select 1 from articles a join posts post on post.article_id = a.id
+				where a.user_id = ${served.owner}::bigint and a.state = 'Published' and not a.hidden and not post.hidden
+					and (a.cover_media_id = ${served.id}::bigint or a.content_state::text like ${`%${served.id}%`})
+					and ${circleSeen(viewer.id, sql`post`)} and post.user_id not in ${protectedFor(viewer.id)}
+					and post.user_id not in ${suspendedFor(viewer.id)} and post.user_id not in ${blockedFor(viewer.id)})`;
 		if (shown) return REVALIDATE;
-		return served.owner === viewer.id ? PRIVATE : undefined;
+		// besides its owner: the owner's delegates, who upload as the account,
+		// and staff past the admin panel's gate
+		if (served.owner === viewer.id || isStaffRequest()) return PRIVATE;
+		const [delegate] = await sql`select 1 from delegation_members where owner_id = ${served.owner}::bigint and member_id = ${viewer.id}::bigint and status = 'Accepted'`;
+		return delegate ? PRIVATE : undefined;
 	}
 	const [access] = await sql`select not post.hidden and not author.protected and post.circle_owner_id is null as open from posts post join users author on author.id = post.user_id where
 		${served.post ? sql`post.id = ${served.post}::bigint` : sql`post.poll_id = any(${sql.array(pollIds, "INT8")})`}
@@ -733,7 +751,7 @@ export async function serveMedia(req: Request, pathname: string, viewer: Viewer)
 		}
 		const body = await remoteMediaFile(poster[1], true);
 		if (!body) return new Response("not found", { status: 404, headers: { "cache-control": PRIVATE } });
-		const headers: Record<string, string> = { "content-type": "image/jpeg", "cache-control": cache, "x-content-type-options": "nosniff", ...tagOf(served, body, cache) };
+		const headers: Record<string, string> = { "content-type": "image/jpeg", "cache-control": cache, "x-content-type-options": "nosniff", "content-security-policy": MEDIA_CSP, ...tagOf(served, body, cache) };
 		if (unchanged(req, headers)) return new Response(null, { status: 304, headers });
 		return new Response(streamable(body), { headers });
 	}
@@ -761,7 +779,7 @@ export async function serveMedia(req: Request, pathname: string, viewer: Viewer)
 		}
 		if (size) void sql`update media set size = ${size} where id = ${m[1]}::bigint`.catch(() => {});
 	}
-	const headers: Record<string, string> = { "content-type": served.mime, "cache-control": cache, "x-content-type-options": "nosniff", "accept-ranges": "bytes", ...tagOf(served, body, cache) };
+	const headers: Record<string, string> = { "content-type": servedType(served.mime), "cache-control": cache, "x-content-type-options": "nosniff", "content-security-policy": MEDIA_CSP, "accept-ranges": "bytes", ...tagOf(served, body, cache) };
 	if (unchanged(req, headers)) return new Response(null, { status: 304, headers });
 	const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.get("range") ?? "");
 	// If-Range: a part of a file that changed since would be stitched onto the
@@ -785,13 +803,67 @@ export async function serveMedia(req: Request, pathname: string, viewer: Viewer)
 	return new Response(streamable(body), { headers });
 }
 
+const AVATAR_SIZES: Record<string, number> = { mini: 24, normal: 48, bigger: 73, x96: 96, reasonably_small: 128 };
+const AVATAR_STEPS = [24, 48, 73, 96, 128, 200, 400];
+const AVATAR_DIR = () => join(MEDIA_DIR, ".avatars");
+const RESIZABLE = new Set(["image/jpeg", "image/png", "image/webp"]);
+const PIPE_FORMAT: Record<string, string> = { "image/jpeg": "jpeg_pipe", "image/png": "png_pipe", "image/webp": "webp_pipe" };
+const resizing = new Map<string, Promise<Blob | undefined>>();
+
+function avatarWidth(suffix: string | undefined): number | undefined {
+	if (!suffix) return undefined;
+	if (AVATAR_SIZES[suffix]) return AVATAR_SIZES[suffix];
+	const box = /^(\d{1,4})x\d{1,4}$/.exec(suffix);
+	if (!box) return undefined;
+	const want = Number(box[1]);
+	return AVATAR_STEPS.find((w) => w >= want) ?? undefined;
+}
+
+async function resizedAvatar(served: Served, body: Blob, width: number): Promise<Blob | undefined> {
+	const png = served.mime !== "image/jpeg";
+	const out = join(AVATAR_DIR(), `${served.id}_${width}@2x.${png ? "png" : "jpg"}`);
+	if (existsSync(out)) return Bun.file(out);
+	const key = out;
+	const running = resizing.get(key);
+	if (running) return running;
+	const job = (async () => {
+		mkdirSync(AVATAR_DIR(), { recursive: true });
+		const input = await body.bytes();
+		const tmp = `${out}.${process.pid}.tmp`;
+		const p = spawnLimited([FFMPEG, "-v", "error", "-protocol_whitelist", "pipe,file", "-f", PIPE_FORMAT[served.mime] ?? "png_pipe", "-i", "pipe:0", "-vf", `scale='min(${width * 2},iw)':-1:flags=lanczos`, "-frames:v", "1", ...(png ? ["-f", "image2", "-c:v", "png"] : ["-f", "image2", "-c:v", "mjpeg", "-q:v", "2"]), "-y", tmp], 20_000, "ignore", input);
+		if ((await p.exited) !== 0 || !existsSync(tmp)) {
+			rmSync(tmp, { force: true });
+			return undefined;
+		}
+		renameSync(tmp, out);
+		return Bun.file(out);
+	})().finally(() => resizing.delete(key));
+	resizing.set(key, job);
+	return job;
+}
+
+export async function serveAvatar(req: Request, pathname: string, viewer: Viewer): Promise<Response> {
+	const m = /^\/profile_images\/(\d{1,19})(?:_([a-z][a-z0-9_]*|\d{1,4}x\d{1,4}))?\.(?:jpe?g|png)$/.exec(pathname);
+	const original = m && isId(m[1]) && (await remoteMediaFile(m[1]));
+	const served = original && (await servedOf(m![1]));
+	const cache = served && (await cacheFor(viewer, served));
+	if (!m || !original || !served || !cache) return new Response("not found", { status: 404, headers: { "cache-control": PRIVATE } });
+	const width = RESIZABLE.has(served.mime) ? avatarWidth(m[2]) : undefined;
+	const body = (width && (await resizedAvatar(served, original, width))) || original;
+	const type = body === original ? servedType(served.mime) : served.mime === "image/jpeg" ? "image/jpeg" : "image/png";
+	const tag = tagOf(served, body, cache);
+	const headers: Record<string, string> = { "content-type": type, "cache-control": cache, "x-content-type-options": "nosniff", "content-security-policy": MEDIA_CSP, ...(tag.etag ? { etag: tag.etag.replace(/"$/, `-${width ?? 0}"`) } : {}) };
+	if (unchanged(req, headers)) return new Response(null, { status: 304, headers });
+	return new Response(body.stream().pipeThrough(new TransformStream()), { headers: { ...headers, "content-length": String(body.size) } });
+}
+
 // attaches uploads to a new post; only the poster's own unused, finished
-// uploads count. A video goes alone, photos up to four.
+// uploads count. A video goes alone, photos up to MAX_POST_MEDIA.
 export class MediaError extends Error {}
 
 export async function attachMedia(userId: string, postId: string, mediaIds: string[], opts: { db?: SQL; strict?: boolean } = {}) {
 	const db = opts.db ?? sql;
-	const ids = [...new Set(mediaIds.filter(isId).slice(0, 4))];
+	const ids = [...new Set(mediaIds.filter(isId).slice(0, MAX_POST_MEDIA))];
 	if (opts.strict && (ids.length !== mediaIds.length || !isId(postId))) throw new MediaError("Invalid media attachments.");
 	if (!ids.length) return;
 	const [post] = await db`select id from posts where id = ${postId}::bigint and user_id = ${userId}::bigint`;
@@ -898,7 +970,7 @@ function videoEntity(m: MediaRow, postId: string, screenName: string, textLength
 		video_info: {
 			aspect_ratio: [m.width / d, m.height / d],
 			duration_millis: m.duration_ms ?? 0,
-			variants: [{ bitrate: Math.round((m.size * 8) / seconds), content_type: "video/mp4", url: mediaUrl(m.id, m.mime) }],
+			variants: [{ bitrate: Math.min(Math.round((m.size * 8) / seconds), LEGACY_CLIENT_TOP_BITRATE), content_type: "video/mp4", url: mediaUrl(m.id, m.mime) }],
 		},
 	};
 }

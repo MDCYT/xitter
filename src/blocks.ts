@@ -4,7 +4,7 @@
 // and notifications. Muted words hide matching posts on the surfaces chosen.
 
 import { sql } from "./db";
-import { replyDenied } from "./reply-controls";
+import { lockedAbove } from "./reply-controls";
 import { newId } from "./ids";
 import { revealedSuspended, staffViewer } from "./staff-access";
 
@@ -24,10 +24,16 @@ export const outOfView = (viewerId: string) =>
 		and id not in (select followee_id from follows where follower_id = ${viewerId}::bigint)
 		and not ${staffViewer(viewerId)}))`;
 
+export const shadowedFor = (viewerId: string) => sql`(select id from users where shadow_banned and id <> ${viewerId}::bigint)`;
+
+export const GUEST_ID = "0";
+export const hiddenFromGuests = (u = sql`users`) => sql`coalesce(${u}.preferences->>'hide_from_guests', '') = 'true'`;
+
 // Protected accounts: their posts are for themselves and the accounts they let
 // follow. Staff see everything.
-export const protectedFor = (viewerId: string) =>
-	sql`(select id from users where protected and id <> ${viewerId}::bigint
+export const protectedFor = (viewerId: string) => viewerId === GUEST_ID
+	? sql`(select id from users where protected or ${hiddenFromGuests()})`
+	: sql`(select id from users where protected and id <> ${viewerId}::bigint
 		and id not in (select followee_id from follows where follower_id = ${viewerId}::bigint)
 		and not ${staffViewer(viewerId)})`;
 
@@ -81,8 +87,8 @@ export async function setBlock(blockerId: string, blockedId: string, on: boolean
 	return true;
 }
 
-export async function replyLimited(conversationId: string, userId: string, db: typeof sql = sql): Promise<boolean> {
-	const [limited] = await db`select exists (select 1 from posts r where r.id = ${conversationId}::bigint and ${replyDenied(userId)}) as no`;
+export async function replyLimited(parentId: string, conversationId: string, userId: string, db: typeof sql = sql): Promise<boolean> {
+	const [limited] = await db`select ${lockedAbove(sql`${parentId}::bigint`, sql`${conversationId}::bigint`, userId)} as no`;
 	return limited.no;
 }
 

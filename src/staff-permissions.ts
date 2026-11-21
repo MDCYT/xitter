@@ -18,6 +18,7 @@ type Permission = { group: string; label: string; role: Role; actions: string[] 
 
 export const PERMISSIONS: Record<string, Permission> = {
 	standing: { group: "Moderation", label: "Restrict, limit, suspend and reinstate accounts, for a while or until lifted, one at a time or many", role: "moderator", actions: ["setStatus", "setTemporaryStatus", "bulkStatus"] },
+	shadow_ban: { group: "Moderation", label: "Shadow ban accounts: their posts stay out of timelines and recommendations, and nobody is told", role: "moderator", actions: ["setShadowBan"] },
 	reports: { group: "Moderation", label: "Close reports", role: "moderator", actions: ["resolveReport"] },
 	appeals: { group: "Moderation", label: "See and answer appeals", role: "moderator", actions: ["appeals", "resolveAppeal"] },
 	messages: { group: "Moderation", label: "Send messages, warnings and strikes, and withdraw strikes", role: "moderator", actions: ["sendStaffMessage", "revokeStrike", "bulkStrike"] },
@@ -37,6 +38,7 @@ export const PERMISSIONS: Record<string, Permission> = {
 	sessions: { group: "Accounts", label: "Sign accounts out and revoke their API tokens", role: "support", actions: ["signOut", "revokeSession", "revokeApiTokens"] },
 	profiles: { group: "Accounts", label: "Edit profiles and the counts shown on profiles and posts", role: "admin", actions: ["updateUser", "setUserCounts", "setPostCounts"] },
 	account_badges: { group: "Accounts", label: "Give badges, labels and flags", role: "admin", actions: ["setBadge", "setTranslator", "setFlag", "setBadges", "setProfileLabel", "setOrgBadge"] },
+	staff_community_notes: { group: "Accounts", label: "Put community notes on posts, shown without ratings", role: "admin", actions: ["setPostNote"] },
 	notes_access: { group: "Accounts", label: "Give Community Notes writing access", role: "admin", actions: ["setNotesAccess"] },
 	delete_accounts: { group: "Accounts", label: "Delete accounts", role: "admin", actions: ["deleteUser"] },
 	orgs: { group: "Accounts", label: "Create organisations and manage their affiliates", role: "admin", actions: ["createOrg", "addAffiliate", "removeAffiliate"] },
@@ -53,6 +55,7 @@ export const PERMISSIONS: Record<string, Permission> = {
 	mail: { group: "Instance", label: "Send test mail and digests", role: "admin", actions: ["sendTestMail", "runMailDigests"] },
 	money: { group: "Instance", label: "Change Equicoins settings, adjust balances and reverse payments, open the shop and manage its listings", role: "admin", actions: ["saveMoney", "adjustMoney", "reverseTransfer", "saveShop", "reviewShopItem", "setShopItem", "setRemoteShopItem", "clearShopAnnouncement"] },
 	// delivering anything beyond a badge (a checkmark, an announcement, a hashflag, ...) stays with admins, see money-admin.ts
+	ads: { group: "Instance", label: "Review ads: approve them, reject them with a partial refund, or stop them with a full refund", role: "moderator", actions: ["reviewAd", "stopAd"] },
 	money_shop: { group: "Instance", label: "Equicoins shop: list items, review imported listings, deliver or refund badge requests", role: "moderator", actions: ["createShopItem", "reviewRemoteShopItem", "reviewShopOrder"] },
 	oauth_apps: { group: "Instance", label: "Block and unblock OAuth apps", role: "moderator", actions: ["blockOAuthApp", "unblockOAuthApp"] },
 

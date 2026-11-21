@@ -160,6 +160,18 @@
 	.user-admin-facts b { color: var(--text); font-weight: 500; }
 	.user-instance-note { margin: 0 0 16px; padding: 12px 14px; border-left: 3px solid var(--blue); border-radius: 6px; background: var(--panel); }
 	.user-admin-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+	.user-tabs { position: sticky; top: 0; z-index: 4; display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 16px; padding: 10px 0; background: var(--bg); border-bottom: 1px solid var(--line); }
+	.user-tab { padding: 8px 16px; border: 1px solid var(--line); border-radius: 999px; background: none; color: var(--dim); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+	.user-tab:hover { color: var(--text); background: var(--panel); }
+	.user-tab.on { color: var(--text); border-color: var(--blue); background: var(--panel); }
+	.user-tab-panel { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+	.user-tab-panel[hidden] { display: none; }
+	.user-tab-panel .user-admin-column > .box { margin: 0 !important; }
+	@media (max-width: 900px) { .user-tab-panel { grid-template-columns: 1fr; } }
+	.user-tab-panel .field > input, .user-tab-panel .field > select, .user-tab-panel .field > textarea { width: 100%; min-width: 0; }
+	.user-tab-panel .box > h2 { margin-top: 0; }
+	.user-tab-panel .list > p { padding: 10px 0; border-bottom: 1px solid var(--line); }
+	.user-tab-panel .list > p:last-child { border-bottom: 0; }
 	.user-admin-column { display: grid; align-content: start; gap: 16px; min-width: 0; }
 	.user-admin-column > .box { min-width: 0; margin: 0 !important; }
 	.user-related-grid > .box { display: inline-block; width: 100%; min-width: 0; margin: 0 0 16px !important; vertical-align: top; break-inside: avoid; }
@@ -376,6 +388,7 @@ const annRow = (b, dis) => '<div class="row ann-row"><input data-label maxlength
 const $ = (sel, root = document) => root.querySelector(sel);
 const RANK = { support: 1, moderator: 2, admin: 3 };
 let me = null;
+let revealIps = null;
 let flags = [];
 // a role ("moderator") or an action ("deletePost"): what an admin let this role do (Staff permissions)
 const can = (what) => !!me && (what in RANK ? RANK[me.role] >= RANK[what] : me.allowed.includes(what));
@@ -449,7 +462,8 @@ const PAGES = {
 	overview: { icon: "monitoring", title: "Overview" },
 	reports: { icon: "flag", title: "Reports" },
 	appeals: { icon: "gavel", title: "Appeals", needs: "appeals" },
-	bulkStrike: { icon: "swords", title: "Bulk strike", needs: "bulkStrike" },
+	ads: { icon: "campaign", title: "Ads", needs: "ads" },
+	bulkStrike: { icon: "swords", title: "Bulk action", needs: "bulkStrike" },
 	users: { icon: "group", title: "Users" },
 	orgs: { icon: "domain", title: "Organisations" },
 	posts: { icon: "chat", title: "Posts" },
@@ -486,7 +500,7 @@ const PAGES = {
 
 const GROUPS = [
 	[null, ["overview"]],
-	["Moderation", ["reports", "appeals", "bulkStrike", "automod", "posts", "articles", "media"]],
+	["Moderation", ["reports", "appeals", "ads", "bulkStrike", "automod", "posts", "articles", "media"]],
 	["People", ["users", "orgs", "invites", "badges"]],
 	["Content", ["stickers", "hashflags", "topics", "cards"]],
 	["Instance", ["settings-account", "settings-limits", "settings-community", "settings-safety", "settings-discovery", "settings-branding", "switches", "money", "email", "apps", "oauth", "federation"]],
@@ -635,7 +649,16 @@ const RENDER = {
 			'<div class="cards"><div class="card"><span>Serving</span><b class="code">' + esc(short(c.sha)) + '</b><span class="small dim">pinned ' + esc(when(c.fetchedAt)) + "</span></div>" +
 			'<div class="card"><span>Previous</span><b class="code">' + esc(short(c.previous?.sha)) + "</b>" + (c.previous ? '<span class="small dim">pinned ' + esc(when(c.previous.fetchedAt)) + "</span>" : "") + "</div>" +
 			'<div class="card"><span>On x.com</span><b class="code" id="latest">?</b></div></div>' +
-			'<div class="row" style="margin-top:16px"><button class="btn" id="ccheck">Check x.com</button><button class="btn primary" id="cupdate">Update</button>' + (c.previous ? '<button class="btn" id="cback">Go back to the previous build</button>' : "") + "</div>";
+			'<div class="row" style="margin-top:16px"><button class="btn" id="ccheck">Check x.com</button><button class="btn primary" id="cupdate">Update</button>' + (c.previous ? '<button class="btn" id="cback">Go back to the previous build</button>' : "") + "</div>" +
+			"<h2>Which client people get</h2>" +
+			(c.builds.length > 1
+				? '<p class="dim">This instance serves ' + c.builds.length + ' clients. New visitors and anyone who hasn\'t picked get the default; with picking on, people switch in Settings > Xitter settings > Twitter client (or at <span class="code">/settings/xitter/client</span> from an older client).</p>' +
+					'<div class="row"><label for="cdefault">Default</label><select id="cdefault">' + c.builds.map((b) => '<option value="' + esc(b.id) + '"' + (b.id === c.default ? " selected" : "") + ">" + esc(b.label) + " (" + esc(short(b.sha)) + ")</option>").join("") + "</select>" +
+					'<button class="btn" id="cdefsave">Save default</button></div>' +
+					'<p style="margin-top:12px">' + (c.user_choice ? "People can pick their own client." : "Everyone gets the default client.") + ' <button class="btn" id="cchoice">' + (c.user_choice ? "Stop people picking" : "Let people pick") + "</button></p>"
+				: '<p class="dim">Only one client is served. Add older builds with <span class="code">EXTRA_CLIENT_DIRS</span> in the server\'s environment (for example <span class="code">client/old/2020-11-a0abd565-legacy</span>) and restart, and people can pick between them.</p>');
+		if ($("#cdefsave")) $("#cdefsave").onclick = () => act(() => api("setClients", { default: $("#cdefault").value }), "Default client saved").then(route);
+		if ($("#cchoice")) $("#cchoice").onclick = () => act(() => api("setClients", { user_choice: !c.user_choice }), c.user_choice ? "Everyone gets the default now" : "People can pick their client").then(route);
 		$("#ccheck").onclick = () => act(async () => { const r = await api("checkClient"); $("#latest").textContent = short(r.latest) + (r.latest === r.sha ? " (same)" : ""); });
 		$("#cupdate").onclick = async () => {
 			if (!(await ask("Pin the build x.com serves now? Everyone gets it on their next page load."))) return;
@@ -749,7 +772,8 @@ const RENDER = {
 	},
 
 	async security(main) {
-		const s = await api("security");
+		const s = await api("security", { reveal: revealIps === "security" });
+		revealIps = null;
 		const mine = (x) => x.user_id === me.id;
 		const canEnd = (x) => !x.current && (mine(x) || RANK[x.role] < RANK[me.role]);
 		main.innerHTML = "<h1>Security</h1>" + '<div class="box security-settings"><div class="grid2 security-grid">' +
@@ -763,7 +787,9 @@ const RENDER = {
 				'<article class="security-session-card"><div class="security-session-heading"><div><a href="#user/' + esc(x.user_id) + '">@' + esc(x.screen_name) + '</a> <span class="pill staff">' + esc(x.role) + '</span>' + (x.current ? ' <span class="pill staff">you, now</span>' : "") + '</div><span class="security-session-browser">' + esc(browser(x.user_agent)) + '</span></div>' +
 				'<div class="security-session-meta"><div><span>Address</span><b class="code">' + esc(x.ip ?? "—") + '</b></div><div><span>Signed in</span><b>' + esc(when(x.created_at)) + '</b></div><div><span>Last active</span><b>' + esc(when(x.last_seen_at)) + '</b></div></div>' +
 				(canEnd(x) ? '<div class="security-session-actions"><button class="btn" data-session="' + esc(x.id) + '">Sign out</button></div>' : "") + "</article>").join("") + "</div>"
-				: '<div class="empty">No staff sessions.</div>') + "</div>";
+				: '<div class="empty">No staff sessions.</div>') +
+			(s.ips_hidden ? '<p class="dim small" style="margin-top:12px">Other staff\'s IP addresses are hidden. <button class="btn" id="revealIps">Show IP addresses</button></p>' : "") + "</div>";
+		if ($("#revealIps")) $("#revealIps").onclick = () => { revealIps = "security"; route(); };
 		$("#ssave").onclick = () => act(() => api("saveSecurity", { staff_2fa: $("#s2fa").checked, admin_ips: $("#sips").value.split("\n") }), "Saved").then(route);
 		main.querySelectorAll("[data-session]").forEach((b) => b.onclick = () => act(() => api("revokeSession", { sessionId: b.dataset.session }), "Signed out").then(route));
 	},
@@ -833,6 +859,38 @@ const RENDER = {
 			act(() => api("resolveAppeal", { id: box.dataset.appeal, status: b.dataset.do, reply: box.querySelector("[data-reply]").value }), "Answer sent").then(route)));
 	},
 
+	async ads(main) {
+		const status = sessionStorage.getItem("adStatus") || "pending";
+		const { ads, price, economy } = await api("ads", { status });
+		const usd = (c) => "$" + (c / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+		const tabs = [["pending", "To review"], ["running", "Running"], ["paused", "Paused"], ["ended", "Ended"], ["rejected", "Rejected"], ["cancelled", "Cancelled"]];
+		main.innerHTML = '<h1>Ads</h1><p class="dim small">A view costs ' + usd(price) + " per 1000 right now. " + usd(economy.supplyCents) + " is in circulation and about " + usd(economy.projectedCents) + " is expected over the longest run. Rejecting an ad refunds part of its budget.</p>" +
+			'<div class="bar">' + tabs.map(([s, l]) => '<button class="btn' + (s === status ? " primary" : "") + '" data-tab="' + s + '">' + l + "</button>").join("") + "</div>" +
+			(ads.length ? ads.map((ad) =>
+				'<div class="box" style="margin-bottom:12px" data-ad="' + esc(ad.id) + '">' +
+				'<p class="small"><a href="#user/' + esc(ad.userId) + '">@' + esc(ad.screenName || "unknown") + "</a>" + ' <span class="dim">· ' + usd(ad.budgetCents) + " for " + ad.days + (ad.days === 1 ? " day" : " days") + " · " + (ad.existingPost ? "promotes an existing post" : ad.adOnly ? "only as an ad" : "also on their profile") + " · " + esc(when(ad.createdAt)) + "</span></p>" +
+				'<p style="white-space:pre-wrap">' + esc(ad.text) + "</p>" +
+				(ad.url ? '<p class="small"><a target="_blank" rel="noopener noreferrer" href="' + esc(ad.url) + '">' + esc(ad.url) + "</a></p>" : "") +
+				(ad.status === "pending"
+					? (ad.existingPost && ad.postId ? '<p class="small"><a target="_blank" href="/i/status/' + esc(ad.postId) + '">Open the post</a></p>' : "") + (can("reviewAd") ? '<div class="field"><textarea data-reason placeholder="Why it is rejected, shown to the advertiser" maxlength="500"></textarea></div><div class="row"><button class="btn primary" data-do="1">Approve</button><button class="btn danger" data-do="0">Reject</button></div>' : "")
+					: '<p class="dim small">' + usd(ad.spentCents) + " spent · " + ad.views.toLocaleString() + " views" + (ad.refundedCents ? " · " + usd(ad.refundedCents) + " refunded" : "") + (ad.endsAt ? " · ends " + esc(when(ad.endsAt)) : "") + "</p>" +
+						(ad.rejectReason ? '<p class="dim small">Rejected: ' + esc(ad.rejectReason) + "</p>" : "") +
+						'<div class="row">' + (ad.postId ? '<a class="btn" target="_blank" href="/i/status/' + esc(ad.postId) + '">Open post</a>' : "") +
+						(can("stopAd") && (ad.status === "running" || ad.status === "paused") ? '<button class="btn danger" data-stop>Stop ad</button>' : "") + "</div>" +
+						(can("stopAd") && (ad.status === "running" || ad.status === "paused") ? '<div class="field" data-stopbox hidden><textarea data-stopreason placeholder="Why it is stopped, shown to the advertiser" maxlength="500"></textarea><div class="row"><button class="btn danger" data-stopgo>Stop and refund what is left</button></div></div>' : "")) +
+				"</div>").join("") : '<div class="empty">' + (status === "pending" ? "No ads waiting for review." : "Nothing here.") + "</div>");
+		main.querySelectorAll("[data-tab]").forEach((b) => b.onclick = () => { sessionStorage.setItem("adStatus", b.dataset.tab); route(); });
+		main.querySelectorAll("[data-stop]").forEach((b) => b.onclick = () => { const box = b.closest("[data-ad]").querySelector("[data-stopbox]"); box.hidden = !box.hidden; if (!box.hidden) box.querySelector("textarea").focus(); });
+		main.querySelectorAll("[data-stopgo]").forEach((b) => b.onclick = () => {
+			const box = b.closest("[data-ad]");
+			act(() => api("stopAd", { id: box.dataset.ad, reason: box.querySelector("[data-stopreason]").value }), "Ad stopped and refunded").then(route);
+		});
+		main.querySelectorAll("[data-ad]").forEach((box) => box.querySelectorAll("[data-do]").forEach((b) => b.onclick = () => {
+			const approve = b.dataset.do === "1";
+			act(() => api("reviewAd", { id: box.dataset.ad, approve, reason: box.querySelector("[data-reason]").value }), approve ? "Ad approved and running" : "Ad rejected and partly refunded").then(route);
+		}));
+	},
+
 	async articles(main) {
 		const { articles } = await api("articles");
 		main.innerHTML = '<h1>Articles</h1><div class="scroll">' + (articles.length
@@ -848,27 +906,55 @@ const RENDER = {
 	},
 
 	async bulkStrike(main) {
-		main.innerHTML = "<h1>Bulk strike</h1>" +
-			'<p class="dim small">One strike for many accounts at once: an alt chain, a raid, a ban evader\'s new accounts. Each account gets the message below as its own strike, and strikes count toward suspension on the usual ladder (see Automod). Accounts that staff rank protects are skipped, with the reason shown. Ticking accounts on the Users page and pressing Strike there does the same thing by id.</p>' +
+		const ACTIONS = [
+			["strike", "Strike", "Sends the message as a strike. Strikes count toward suspension on the usual ladder (see Automod), so enough strikes suspend the account on their own."],
+			["warning", "Warning", "Sends the message as a warning. Nothing about the account changes and it doesn't count toward suspension."],
+			["message", "Message", "Sends a plain staff message. Use it for a heads-up, not a sanction."],
+			["limited", "Limit", "Sends the message, then only their followers see their posts. They can still post, reply and sign in."],
+			["restricted", "Restrict", "Sends the message, then they can read but can't post or interact."],
+			["suspended", "Suspend", "Sends the message, then signs them out everywhere and hides the account and its posts."],
+		];
+		const SANCTIONS = ["limited", "restricted", "suspended"];
+		main.innerHTML = "<h1>Bulk action</h1>" +
+			'<p class="dim small">One action for many accounts at once, such as an alt chain, a raid or a ban evader\'s new accounts. Every account gets the message below. Accounts that staff rank protects are skipped, with the reason shown.</p>' +
 			(can("bulkStrike") ?
 			'<div class="field"><label>Handles, one per line</label><textarea id="bsHandles" rows="6" placeholder="@handle1&#10;@handle2"></textarea></div>' +
-			'<div class="field"><label>What they\'ll read</label><textarea id="bsBody" maxlength="2000" placeholder="Why they\'re getting this strike"></textarea></div>' +
-			'<label class="row" style="margin:6px 0"><input type="checkbox" id="bsEscalate" checked> Strikes count toward suspension</label>' +
-			(can("heldIdentities") ? '<label class="row" style="margin:6px 0"><input type="checkbox" id="bsAlts"> Also strike accounts seen from the same addresses (alts)</label>' : "") +
-			'<div class="row"><button class="btn primary" id="bsGo">Strike them all</button></div><div id="bsOut"></div>' : '<p class="dim small">Requires permission to send strikes.</p>');
+			'<div class="field"><label>What to do</label><div class="choices">' +
+			ACTIONS.map(([v, l, d], i) => '<label class="row" style="align-items:flex-start;gap:10px;margin:6px 0"><input type="radio" name="bsAction" value="' + v + '"' + (i ? "" : " checked") + '><span><b>' + l + '</b><br><span class="dim small">' + d + "</span></span></label>").join("") +
+			"</div></div>" +
+			'<div class="field" id="bsHoursBox" hidden><label>For how many hours</label><input id="bsHours" type="number" min="1" max="8760" placeholder="Leave empty for until lifted"><p class="dim small">With a number, the account goes back to its previous standing afterwards.</p></div>' +
+			'<div class="field"><label>What they\'ll read</label><textarea id="bsBody" maxlength="2000" placeholder="Why this is happening"></textarea></div>' +
+			'<label class="row" id="bsEscalateRow" style="margin:6px 0"><input type="checkbox" id="bsEscalate" checked> Strikes count toward suspension</label>' +
+			(can("heldIdentities") ? '<label class="row" style="margin:6px 0"><input type="checkbox" id="bsAlts"> Also include accounts seen from the same addresses (alts)</label>' : "") +
+			'<div class="row"><button class="btn primary" id="bsGo">Apply to all</button></div><div id="bsOut"></div>' : '<p class="dim small">Requires permission to send strikes.</p>');
 		if (!$("#bsGo")) return;
+		const picked = () => main.querySelector('input[name="bsAction"]:checked').value;
+		const sync = () => {
+			const v = picked();
+			$("#bsHoursBox").hidden = !SANCTIONS.includes(v);
+			$("#bsEscalateRow").hidden = v !== "strike";
+			$("#bsGo").className = "btn " + (v === "suspended" || v === "restricted" ? "danger" : "primary");
+		};
+		main.querySelectorAll('input[name="bsAction"]').forEach((r) => r.onchange = sync);
+		sync();
 		$("#bsGo").onclick = async () => {
 			const handles = $("#bsHandles").value.split(/[\s,]+/).filter(Boolean);
 			if (!handles.length) return;
-			if (!(await ask("Give " + handles.length + " accounts" + ($("#bsAlts")?.checked ? " and their alts" : "") + " a strike?"))) return;
+			const action = picked();
+			const label = ACTIONS.find(([v]) => v === action)[1].toLowerCase();
+			const hours = SANCTIONS.includes(action) ? $("#bsHours").value.trim() : "";
+			if (!(await ask(label[0].toUpperCase() + label.slice(1) + " " + handles.length + " accounts" + ($("#bsAlts")?.checked ? " and their alts" : "") + (hours ? " for " + hours + " hours" : SANCTIONS.includes(action) ? " until lifted" : "") + "?"))) return;
 			$("#bsGo").disabled = true;
 			await act(async () => {
-				const { results, missing } = await api("bulkStrike", { handles, body: $("#bsBody").value, escalate: $("#bsEscalate").checked, include_alts: !!$("#bsAlts")?.checked });
+				const { results, missing } = await api("bulkStrike", { handles, action, hours, body: $("#bsBody").value, escalate: $("#bsEscalate").checked, include_alts: !!$("#bsAlts")?.checked });
 				const words = (r) => !r.ok ? (r.error ? "error: " : "skipped: ") + r.why
 					: r.outcome === undefined ? "strike sent (doesn't count toward suspension)"
+					: r.outcome === "warning_sent" ? "warning sent"
+					: r.outcome === "message_sent" ? "message sent"
+					: SANCTIONS.includes(r.outcome) ? r.outcome + (r.hours ? " for " + r.hours + " hours" : " until lifted")
 					: r.outcome === "staff" ? "staff account: message sent, no sanction"
-					: r.outcome === "warning" ? "strike " + r.strikes + ": warning"
 					: r.outcome === "second_chance" ? "strike " + r.strikes + ": second chance, not suspended"
+					: r.outcome === "warning" ? "strike " + r.strikes + ": warning"
 					: r.outcome === "permanent" ? "strike " + r.strikes + ": suspended for good"
 					: "strike " + r.strikes + ": suspended for " + r.hours + " hours";
 				$("#bsOut").innerHTML = '<div class="list" style="margin-top:14px">' +
@@ -1506,19 +1592,21 @@ const RENDER = {
 			["open", "actioned", "dismissed"].map((s) => '<button class="btn' + (s === status ? " primary" : "") + '" data-tab="' + s + '">' + s + "</button>").join("") + "</div>" +
 			(reports.length ? '<div class="bar"><input type="search" id="report-search" placeholder="Search reporter, account, post or details" aria-label="Search reports" value="' + esc(savedQuery) + '"><span class="dim small" id="report-count" role="status"></span></div>' : "") +
 			(reports.length ? reports.map((r) => {
-				const reason = reasons[r.reason]?.text || r.reason;
+				const reason = reasons[r.reason]?.text || (r.reason === "csam_match" ? "CSAM match (Cloudflare)" : String(r.reason).startsWith("automod_") ? "Claude: " + String(r.reason).slice(8).replace(/_/g, " ") : r.reason);
 				const target = r.user_id ? person({ id: r.user_id, screen_name: r.screen_name, name: r.name, avatar_url: r.avatar_url, verified_type: r.verified_type, flag: r.flag, status: r.user_status, role: r.role }) : '<span class="dim">deleted account</span>';
 				return '<div class="box" style="margin-bottom:12px" data-report="' + esc(r.id) + '" data-search="' + esc([reason, r.reporter, r.screen_name, r.name, r.details, r.post_text, r.reason, r.id].filter(Boolean).join(" ").toLocaleLowerCase()) + '">' +
-					'<div class="row" style="justify-content:space-between"><div><b>' + esc(reason) + '</b> <span class="dim small">· reported by @' + esc(r.reporter ?? "?") + " · " + esc(when(r.created_at)) + "</span></div>" +
+					'<div class="row" style="justify-content:space-between"><div><b>' + esc(reason) + '</b> <span class="dim small">· ' + (r.reporter ? "reported by @" + esc(r.reporter) : String(r.reason).startsWith("automod_") ? "filed by Claude automod" : r.reason === "csam_match" ? "filed by the media scan" : "reported by a deleted account") + " · " + esc(when(r.created_at)) + "</span></div>" +
 					(r.other_open ? '<span class="pill suspended">' + r.other_open + " more open about this account</span>" : "") + "</div>" +
 					(r.details ? '<p style="white-space:pre-wrap">' + esc(r.details) + "</p>" : "") +
+					// Claude's read of a user's report, while it's still open
+					(status === "open" && r.note ? '<p class="dim small" style="white-space:pre-wrap">' + esc(r.note) + "</p>" : "") +
 					'<div style="margin:10px 0">' + target + (r.actioned_before ? '<div class="dim small" style="margin-top:4px">' + r.actioned_before + " earlier reports were acted on</div>" : "") + "</div>" +
 					(r.post_id ? (r.post_text !== null ? '<div class="box" style="background:var(--bg);border:1px solid var(--line)">' + esc(r.post_text || "(no text)") + (r.post_media ? ' <span class="dim small">· ' + r.post_media + " media</span>" : "") +
 						' <a class="small" target="_blank" href="/' + esc(r.screen_name) + "/status/" + esc(r.post_id) + '">open</a></div>' : '<p class="dim small">The post was deleted.</p>') : '<p class="dim small">Report about the account.</p>') +
 					(status === "open" && can("resolveReport") ? '<div class="field" style="margin-top:12px"><input data-note placeholder="Note for the audit log (optional)"></div><div class="row">' +
 						'<button class="btn" data-do="dismiss">Dismiss</button>' +
 						(r.post_id && r.post_text !== null && can("deletePost") ? '<button class="btn danger" data-do="delete">Delete post</button>' : "") +
-						(r.user_id && can("setStatus") ? '<button class="btn" data-do="restricted">Restrict author</button><button class="btn" data-do="limited">Limit author</button><button class="btn danger" data-do="suspended">Suspend author</button>' : "") +
+						(r.user_id && can("setStatus") ? (can("setTemporaryStatus") ? '<select data-for aria-label="How long the sanction lasts"><option value="">until lifted</option><option value="1">1 hour</option><option value="24">1 day</option><option value="168">1 week</option><option value="720">30 days</option></select>' : "") + '<button class="btn" data-do="restricted">Restrict author</button><button class="btn" data-do="limited">Limit author</button><button class="btn danger" data-do="suspended">Suspend author</button>' : "") +
 						(r.user_id ? '<a class="btn" href="#user/' + esc(r.user_id) + '">Open account</a>' : "") + "</div>"
 						: '<p class="dim small">' + esc(r.status) + (r.handled_by ? " by @" + esc(r.handled_by) : "") + (r.handled_at ? " · " + esc(when(r.handled_at)) : "") + (r.note ? " · " + esc(r.note) : "") + "</p>") +
 					"</div>";
@@ -1544,9 +1632,13 @@ const RENDER = {
 			box.querySelectorAll("[data-do]").forEach((b) => b.onclick = () => act(async () => {
 				const what = b.dataset.do;
 				const note = box.querySelector("[data-note]").value;
-				if (what === "suspended" && !(await ask("Suspend @" + r.screen_name + "?"))) return;
+				const hours = box.querySelector("[data-for]")?.value || "";
+				const span = hours ? "for " + box.querySelector("[data-for]").selectedOptions[0].textContent : "until lifted";
+				if (what === "suspended" && !(await ask("Suspend @" + r.screen_name + " " + span + "?"))) return;
 				if (what === "delete") await api("deletePost", { id: r.post_id });
-				if (["restricted", "limited", "suspended"].includes(what)) await api("setStatus", { id: r.user_id, status: what, reason: note || "report: " + r.reason });
+				const reason = note || "report: " + r.reason;
+				if (["restricted", "limited", "suspended"].includes(what))
+					await (hours ? api("setTemporaryStatus", { id: r.user_id, status: what, hours, reason }) : api("setStatus", { id: r.user_id, status: what, reason }));
 				await api("resolveReport", { id: r.id, status: what === "dismiss" ? "dismissed" : "actioned", note, samePost: true });
 				await route();
 				refreshCounts();
@@ -1672,6 +1764,7 @@ const RENDER = {
 				'</select></div><div class="field"><input data-k="text" maxlength="280" placeholder="Text (blank: the usual one for the label)" value="' + esc(n.text || "") + '"></div>' +
 				'<div class="field"><input data-k="url" placeholder="Learn more link (blank: the rules page)" value="' + esc(n.url || "") + '"></div>' +
 				'<p class="dim small">Visibility limited also keeps the post out of For you and search.</p><button class="btn primary" data-save-notice>Save label</button></div>' : "") +
+				(can("setPostNote") ? '<div><b>Community note</b><p class="dim small">Shows on the post right away, without ratings. Leave it blank to remove it.</p><div class="field"><textarea data-k="note" maxlength="500" rows="4" placeholder="Readers added context...">' + esc(p.staff_note || "") + '</textarea></div><button class="btn primary" data-save-note>Save note</button></div>' : "") +
 				(can("setPostCounts") ? '<div><b>Shown counts</b><p class="dim small">Blank shows the real number. Only the number changes, not who liked or reposted.</p><div class="row" style="flex-wrap:wrap">' +
 					["likes", "replies", "reposts", "quotes", "bookmarks", "views"].map((k) => '<label class="small" style="width:30%">' + k + '<input data-k="' + k + '" type="number" min="0" value="' + (c[k] ?? "") + '"></label>').join("") +
 					'</div><button class="btn primary" data-save-counts style="margin-top:8px">Save counts</button></div>' : "") + "</div>";
@@ -1704,7 +1797,7 @@ const RENDER = {
 						'<div class="row" style="flex-wrap:nowrap">' +
 							(can("setPostVisibility") ? '<button class="btn" data-vis="' + esc(p.id) + '" data-hidden="' + !p.hidden + '" data-sensitive="' + !!p.sensitive + '" title="Hidden posts are seen by staff only">' + (p.hidden ? "Show" : "Hide") + "</button>" +
 								'<button class="btn" data-vis="' + esc(p.id) + '" data-hidden="' + !!p.hidden + '" data-sensitive="' + !p.sensitive + '" title="Media behind a content warning">' + (p.sensitive ? "Not sensitive" : "Sensitive") + "</button>" : "") +
-							(can("setPostNotice") || can("setPostCounts") ? '<button class="btn" data-edit="' + esc(p.id) + '">Edit</button>' : "") +
+							(can("setPostNotice") || can("setPostNote") || can("setPostCounts") ? '<button class="btn" data-edit="' + esc(p.id) + '">Edit</button>' : "") +
 							(can("deletePost") ? '<button class="btn danger" data-del="' + esc(p.id) + '">Delete</button>' : "") + "</div></td></tr>" +
 						'<tr data-editor="' + esc(p.id) + '" hidden><td colspan="' + (pickable ? 5 : 4) + '">' + postEditor(p) + "</td></tr>").join("") + "</table>"
 				: '<div class="empty">No posts match.</div>';
@@ -1722,6 +1815,8 @@ const RENDER = {
 				const val = (k) => row.querySelector('[data-k="' + k + '"]').value;
 				const ns = row.querySelector("[data-save-notice]");
 				if (ns) ns.onclick = () => act(() => api("setPostNotice", { id, type: val("type"), text: val("text"), url: val("url") }), "Label saved").then(load);
+				const nb = row.querySelector("[data-save-note]");
+				if (nb) nb.onclick = () => act(() => api("setPostNote", { id, text: val("note") }), "Note saved").then(load);
 				const cs = row.querySelector("[data-save-counts]");
 				if (cs) cs.onclick = () => act(() => api("setPostCounts", { id, counts: Object.fromEntries(["likes", "replies", "reposts", "quotes", "bookmarks", "views"].map((k) => [k, val(k)])) }), "Counts saved").then(load);
 			});
@@ -1823,7 +1918,7 @@ const RENDER = {
 	},
 
 	async settings(main, focus) {
-		const [{ settings: s, features, branding, slots, compression }, { operations: o, automod: am }] = await Promise.all([api("settings"), api("operations")]);
+		const [{ settings: s, features, branding, slots, compression, claudeMod: cm }, { operations: o, automod: am }] = await Promise.all([api("settings"), api("operations")]);
 		const admin = can("admin");
 		const dis = admin ? "" : " disabled";
 		const modes = { invite: "Invite only: a code is needed", open: "Open: anyone can sign up, codes optional", closed: "Closed: no new accounts" };
@@ -1870,7 +1965,18 @@ const RENDER = {
 			'<label class="row" style="margin:6px 0"><input type="checkbox" id="capsOn"' + (s.daily_caps.enabled ? " checked" : "") + dis + "> Cap posts and replies per day</label>" +
 			'<div class="field"><label>Posts a day</label><input type="number" min="1" id="capPosts" value="' + esc(s.daily_caps.posts) + '"' + dis + "></div>" +
 			'<div class="field"><label>Replies a day</label><input type="number" min="1" id="capReplies" value="' + esc(s.daily_caps.replies) + '"' + dis + "></div>" +
-			(admin ? '<button class="btn primary" id="saveCaps">Save daily caps</button>' : "") + "</div></div><div class=\"settings-column\">" +
+			(admin ? '<button class="btn primary" id="saveCaps">Save daily caps</button>' : "") +
+			'<h3 style="margin:20px 0 8px;padding-top:16px;border-top:1px solid var(--line);font-size:15px">Mention limits</h3><p class="dim small">How many accounts one post may mention, and how many mentions one account may send in any 24 hours. Mentioning yourself doesn\'t count. Staff have no limits.</p>' +
+			'<label class="row" style="margin:6px 0"><input type="checkbox" id="mentionsOn"' + (s.mention_limits.enabled ? " checked" : "") + dis + "> Limit mentions</label>" +
+			'<div class="field"><label>Accounts per post</label><input type="number" min="1" max="50" id="mentionsPost" value="' + esc(s.mention_limits.per_post) + '"' + dis + "></div>" +
+			'<div class="field"><label>Mentions a day</label><input type="number" min="1" id="mentionsDay" value="' + esc(s.mention_limits.per_day) + '"' + dis + "></div>" +
+			(admin ? '<button class="btn primary" id="saveMentions">Save mention limits</button>' : "") +
+			'<h3 style="margin:20px 0 8px;padding-top:16px;border-top:1px solid var(--line);font-size:15px">Ads</h3><p class="dim small">People pay Equicoins to show a post in timelines, after staff approve it under Moderation, Ads. Off hides Ads Manager and stops showing ads.</p>' +
+			'<label class="row" style="margin:6px 0"><input type="checkbox" id="adsOn"' + (s.ads.enabled ? " checked" : "") + dis + "> Open Ads Manager</label>" +
+			'<div class="field"><label>Smallest budget, in cents</label><input type="number" min="1" id="adsMin" value="' + esc(s.ads.min_spend_cents) + '"' + dis + "></div>" +
+			'<div class="field"><label>Longest run, in days</label><input type="number" min="1" max="365" id="adsDays" value="' + esc(s.ads.max_days) + '"' + dis + "></div>" +
+			'<div class="field"><label>Refund when rejected, in percent</label><input type="number" min="0" max="100" id="adsRefund" value="' + esc(s.ads.reject_refund_pct) + '"' + dis + "></div>" +
+			(admin ? '<button class="btn primary" id="saveAds">Save ads</button>' : "") + "</div></div><div class=\"settings-column\">" +
 			'<div class="box"><h2>Post length</h2><p class="dim small">The longest post each badge may write, counted like X counts (links 23, Chinese, Japanese, Korean and emoji 2). Past 280 a post shows a preview with "Show more". Changes reach the composer on its next page load.</p>' +
 			[["none", "No badge"], ["blue", "Blue check"], ["business", "Gold check (organisations)"], ["government", "Grey check (government organisations and officials)"]]
 				.map(([k, l]) => '<div class="field"><label>' + l + '</label><input type="number" min="1" data-postlen="' + k + '" value="' + esc(s.post_limits[k]) + '"' + dis + "></div>").join("") +
@@ -1885,9 +1991,19 @@ const RENDER = {
 			'<div class="box"><h2>Rules</h2><p class="dim small">Shown at <a href="/rules" target="_blank">/rules</a> and linked from sign-up. A blank line starts a new paragraph.</p>' +
 			'<textarea id="rules" style="min-height:160px"' + dis + ">" + esc(s.rules) + "</textarea>" +
 			(admin ? '<button class="btn primary" id="saveRules" style="margin-top:8px">Save</button>' : "") + "</div>" +
+			[["terms", "Terms of Service", "/tos"], ["privacy", "Privacy Policy", "/privacy"]].map(([k, title, url]) =>
+				'<div class="box"><h2>' + title + '</h2><p class="dim small">Shown at <a href="' + url + '" target="_blank">' + url + '</a>. Leave it blank for the built-in text, which follows what this instance has switched on. A blank line starts a new paragraph, a paragraph starting with "## " is a heading.</p>' +
+				'<textarea id="' + k + '" style="min-height:160px"' + dis + ">" + esc(s[k]) + "</textarea>" +
+				(admin ? '<button class="btn primary" data-save-legal="' + k + '" style="margin-top:8px">Save</button>' : "") + "</div>").join("") +
+			'<div class="box"><h2>Who runs this instance</h2><p class="dim small">Used by the built-in terms and privacy policy. Blank operator: "the staff of ' + esc(s.instance_name) + '". Backups: how many days any backup, off-site copies included, can be kept; 0 works it out from the backup schedule.</p>' +
+			'<div class="field"><label>Operator</label><input id="legalOperator" placeholder="Your name or team" value="' + esc(s.legal.operator) + '"' + dis + "></div>" +
+			'<div class="field"><label>Contact for privacy and legal questions</label><input id="legalContact" placeholder="email or link" value="' + esc(s.legal.contact) + '"' + dis + "></div>" +
+			'<div class="field"><label>Backups kept for (days)</label><input id="legalBackupDays" type="number" min="0" max="3650" value="' + esc(String(s.legal.backup_days)) + '"' + dis + "></div>" +
+			(admin ? '<button class="btn primary" id="saveLegalInfo">Save</button>' : "") + "</div>" +
 			'<div class="box"><h2>Maintenance</h2><p class="dim small">While it\'s on, everyone except staff sees this message instead of the site.</p>' +
 			'<label class="row" style="margin:6px 0"><input type="checkbox" id="maint"' + (o.maintenance ? " checked" : "") + dis + "> Maintenance mode</label>" +
 			'<div class="field"><label>Message</label><input id="maintMsg" maxlength="500" value="' + esc(o.message) + '"' + dis + "></div>" +
+			'<label class="row" style="margin:6px 0"><input type="checkbox" id="guestReading"' + (o.guest_reading ? " checked" : "") + dis + "> Signed-out visitors can read public profiles and posts</label>" +
 			(admin ? '<button class="btn primary" data-save-ops>Save</button>' : "") + "</div></div></section>" +
 			'<section class="settings-section" id="settings-safety"><h2>Safety and moderation</h2><div class="settings-grid">' +
 			'<div class="box"><h2>Blocked phrases</h2><p class="dim small">Posts, articles, profiles, poll choices, image descriptions, lists and communities containing any of these are refused. One per line; case, look-alike letters from other alphabets and invisible characters are ignored.</p>' +
@@ -1906,7 +2022,24 @@ const RENDER = {
 			'<div class="field"><label>From account age (days, 0 for any)</label><input id="aiDays" type="number" min="0" max="3650" value="' + esc(String(s.archive_import.min_age_days)) + '"' + dis + "></div>" +
 			'<label class="archive-import-approval"><input type="checkbox" id="aiApproval"' + (s.archive_import.approval ? " checked" : "") + dis + "> Staff approve each import before it starts</label>" +
 			(admin ? '<div class="archive-import-actions"><button class="btn primary" id="saveArchiveImport">Save</button></div>' : "") +
-			(can("archiveImports") ? '<div class="archive-import-pending"><h2>Waiting for approval</h2><div id="aiPending" class="dim small">Loading…</div></div>' : "") + "</div></div></section>" +
+			(can("archiveImports") ? '<div class="archive-import-pending"><h2>Waiting for approval</h2><div id="aiPending" class="dim small">Loading…</div></div>' : "") + "</div>" +
+			'<div class="box"><h2>Grok</h2><p class="dim small">Who answers in Grok, and in the Grok button on posts, while the Grok feature is on. Claude needs ANTHROPIC_API_KEY on the server; Bee is a tiny model that only buzzes, run by the bee service next to Xitter.</p>' +
+			'<div class="field"><label>Brain</label><select id="grokBrain"' + dis + ">" + [["claude", "Claude"], ["bee", "Bee (buzzes)"]].map(([v, l]) => '<option value="' + v + '"' + (s.grok.brain === v ? " selected" : "") + ">" + l + "</option>").join("") + "</select></div>" +
+			'<div class="field"><label>Claude model</label><input id="grokModel" value="' + esc(s.grok.model) + '"' + dis + "></div>" +
+			'<div class="field"><label>Bee address (blank for http://bee:8080)</label><input id="grokBee" value="' + esc(s.grok.bee_url) + '"' + dis + "></div>" +
+			'<div class="field"><label>Answers a day per account (0 for no limit)</label><input id="grokDaily" type="number" min="0" value="' + esc(String(s.grok.daily_per_account)) + '"' + dis + "></div>" +
+			'<div class="field"><label>Instructions (blank for the default). {instance} and {origin} are filled in.</label><textarea id="grokPrompt" style="min-height:120px;font-family:ui-monospace,monospace;font-size:12px"' + dis + ">" + esc(s.grok.prompt) + "</textarea></div>" +
+			(admin ? '<button class="btn primary" id="saveGrok">Save</button>' : "") + "</div>" +
+			'<div class="box"><h2>Claude moderator</h2><p class="dim small">Claude reads new posts, profile changes, user reports and 2020-client DMs after they\'re saved. Clear violations are hidden and filed under Reports; doubtful ones are filed only if you turn that on below. It never gives strikes. ' +
+			(cm.hasKey ? "" : "<b>No ANTHROPIC_API_KEY on the server, so nothing runs.</b> ") + "</p>" +
+			'<label class="row" style="margin:6px 0"><input type="checkbox" id="cmOn"' + (s.claude_mod.enabled ? " checked" : "") + dis + "> On</label>" +
+			[["posts", "Posts"], ["profiles", "Names and bios"], ["reports", "User reports (settles clear ones)"], ["dms", "2020-client DMs"], ["learn", "Learn from what staff confirm and dismiss"], ["borderline", "Also file doubtful ones (off: only clear violations reach Reports)"]]
+				.map(([k, l]) => '<label class="row" style="margin:4px 0"><input type="checkbox" data-cm="' + k + '"' + (s.claude_mod[k] ? " checked" : "") + dis + "> " + l + "</label>").join("") +
+			'<div class="field"><label>Hide from this confidence (0.5 to 1)</label><input id="cmHide" type="number" min="0.5" max="1" step="0.05" value="' + esc(String(s.claude_mod.hide_confidence)) + '"' + dis + "></div>" +
+			'<div class="field"><label>Model calls a day</label><input id="cmLimit" type="number" min="0" value="' + esc(String(s.claude_mod.daily_limit)) + '"' + dis + "></div>" +
+			'<div class="field"><label>Instructions (' + (s.claude_mod.prompt ? "custom" : "default") + '). {instance} and {origin} are filled in. Your Rules, the item type and the staff feedback are always added, and the item is always treated as data, not instructions.</label>' +
+			'<textarea id="cmPrompt" style="min-height:260px;font-family:ui-monospace,monospace;font-size:12px"' + dis + ">" + esc(s.claude_mod.prompt || cm.defaultPrompt) + "</textarea></div>" +
+			(admin ? '<div class="row" style="margin-top:8px"><button class="btn primary" id="saveClaudeMod">Save</button><button class="btn" id="resetClaudePrompt" type="button">Back to default</button></div>' : "") + "</div></div></section>" +
 			'<section class="settings-section" id="settings-discovery"><h2>Discovery</h2><div class="settings-grid">' +
 			'<div class="box"><h2>Trends</h2><div class="field"><label>Hidden hashtags, one per line</label><textarea id="hiddenTrends"' + dis + ">" + esc(o.hidden_trends.map((t) => "#" + t).join("\n")) + "</textarea></div>" +
 			'<div class="field"><label>Promoted hashtags, shown first</label><textarea id="promotedTrends"' + dis + ">" + esc(o.promoted_trends.map((t) => "#" + t).join("\n")) + "</textarea></div>" +
@@ -1939,7 +2072,7 @@ const RENDER = {
 			}));
 		};
 		stackCards("settings-account", [["Sign-up", "Composer"], ["Name and source", "AI and tools"], ["Core social", "Accounts and integrations"]]);
-		stackCards("settings-safety", [["Blocked phrases", "Import from X"], ["Blocked names"], ["Automod"]]);
+		stackCards("settings-safety", [["Blocked phrases", "Import from X"], ["Blocked names"], ["Automod", "Claude moderator"], ["Grok"]]);
 
 		if (focus) {
 			const section = main.querySelector("#" + focus);
@@ -1998,6 +2131,8 @@ const RENDER = {
 			main.querySelectorAll("[data-postlen]").forEach((i) => r[i.dataset.postlen] = i.value);
 			save({ post_limits: r }, "Post lengths saved");
 		};
+		if ($("#saveAds")) $("#saveAds").onclick = () => save({ ads: { enabled: $("#adsOn").checked, min_spend_cents: $("#adsMin").value, max_days: $("#adsDays").value, reject_refund_pct: $("#adsRefund").value } }, "Ads saved");
+		if ($("#saveMentions")) $("#saveMentions").onclick = () => save({ mention_limits: { enabled: $("#mentionsOn").checked, per_post: $("#mentionsPost").value, per_day: $("#mentionsDay").value } }, "Mention limits saved");
 		if ($("#saveCaps")) $("#saveCaps").onclick = () => save({ daily_caps: { enabled: $("#capsOn").checked, posts: $("#capPosts").value, replies: $("#capReplies").value } }, "Daily caps saved");
 		const annList = $("#annButtons");
 		const annFull = () => { if ($("#addAnnBtn")) $("#addAnnBtn").disabled = annList.children.length >= 4; };
@@ -2010,6 +2145,18 @@ const RENDER = {
 		annList.onclick = (e) => { const x = e.target.closest("[data-remove]"); if (x) { x.closest(".ann-row").remove(); annFull(); } };
 		$("#saveAnn").onclick = () => save({ announcement: { text: $("#annText").value, buttons: [...annList.querySelectorAll(".ann-row")].map((r) => ({ label: r.querySelector("[data-label]").value, url: r.querySelector("[data-url]").value })) } }, "Announcement saved");
 		$("#saveRules").onclick = () => save({ rules: $("#rules").value }, "Rules saved");
+		main.querySelectorAll("[data-save-legal]").forEach((b) => b.onclick = () => save({ [b.dataset.saveLegal]: $("#" + b.dataset.saveLegal).value }, "Saved"));
+		if ($("#saveLegalInfo")) $("#saveLegalInfo").onclick = () => save({ legal: { operator: $("#legalOperator").value, contact: $("#legalContact").value, backup_days: $("#legalBackupDays").value } }, "Saved");
+		if ($("#saveGrok")) $("#saveGrok").onclick = () => save({ grok: { brain: $("#grokBrain").value, model: $("#grokModel").value, bee_url: $("#grokBee").value, daily_per_account: $("#grokDaily").value, prompt: $("#grokPrompt").value } }, "Grok saved");
+		if ($("#saveClaudeMod")) {
+			const claudeMod = (prompt) => {
+				const c = { enabled: $("#cmOn").checked, hide_confidence: $("#cmHide").value, daily_limit: $("#cmLimit").value, prompt };
+				main.querySelectorAll("[data-cm]").forEach((i) => c[i.dataset.cm] = i.checked);
+				return { claude_mod: c };
+			};
+			$("#saveClaudeMod").onclick = () => save(claudeMod($("#cmPrompt").value), "Claude moderator saved");
+			$("#resetClaudePrompt").onclick = () => { if (confirm("Put the default instructions back?")) save(claudeMod(""), "Default instructions back"); };
+		}
 		const listOf = (id) => $(id).value.split("\n").map((x) => x.trim()).filter(Boolean);
 		// accounts that already carry a blocked name, then suspend them in one go
 		if ($("#checkNames")) $("#checkNames").onclick = () => act(async () => {
@@ -2028,6 +2175,7 @@ const RENDER = {
 		main.querySelectorAll("[data-save-ops]").forEach((b) => b.onclick = () => act(() => api("saveOperations", {
 			maintenance: $("#maint").checked,
 			message: $("#maintMsg").value,
+			guest_reading: $("#guestReading").checked,
 			blocked_phrases: listOf("#blocked"),
 			blocked_names: listOf("#blockedNames"),
 			hidden_trends: listOf("#hiddenTrends"),
@@ -2195,7 +2343,7 @@ function userTable(users, orgs = false, pick = false) {
 }
 
 async function renderUser(main, id) {
-	const { user: u, invited, log, alts, strikes, next_step } = await api("user", { id });
+	const { user: u, invited, log, alts, strikes, next_step, clients } = await api("user", { id });
 	const [affiliates, { badges }, { labels }, { notes }, { messages }, sessions, handles] = await Promise.all([
 		api("affiliates", { orgId: id }).then((r) => r.affiliates),
 		api("badges"),
@@ -2203,10 +2351,11 @@ async function renderUser(main, id) {
 		api("staffNotes", { id }),
 		api("staffMessages", { id }),
 		// staff at the viewer's level or above keep their sessions to themselves
-		api("userSessions", { id }).then((r) => r.sessions, () => null),
+		api("userSessions", { id, reveal: revealIps === id }).then((r) => (r.sessions.hidden = r.ips_hidden, r.sessions), () => null),
 		api("handleHistory", { id }).then((r) => r.changes, () => []),
 	]);
 	const badgeOptions = (selected, none) => '<option value="">' + none + "</option>" + badges.map((b) => '<option value="' + esc(b.id) + '"' + (selected === b.id ? " selected" : "") + ">" + esc(b.name) + "</option>").join("");
+	revealIps = null;
 	const self = me && me.id === u.id;
 	const canHere = (what) => !u.instance && can(what);
 	main.innerHTML =
@@ -2229,7 +2378,7 @@ async function renderUser(main, id) {
 			'</div><button class="btn" id="saveCounts" style="margin-top:8px">Save counts</button>' : "") + "</div>" +
 		// badges
 		'<div class="box user-card-identity"><h2>Identity and badges</h2><div class="field"><label>Verification badge</label><select id="badge"' + (can("setBadge") ? "" : " disabled") + ">" +
-		[["", "none"], ["blue", "blue"], ["business", "gold (organisation)"], ["government", "grey (government organisation)"], ["government_individual", "grey (government official)"]].map(([v, l]) => '<option value="' + v + '"' + ((u.verified_type ?? "") === v ? " selected" : "") + ">" + l + "</option>").join("") +
+		[["", "none"], ["blue", "blue"], ["business", "gold (organization)"], ["government", "grey (government organization)"], ["government_individual", "grey (government official)"]].map(([v, l]) => '<option value="' + v + '"' + ((u.verified_type ?? "") === v ? " selected" : "") + ">" + l + "</option>").join("") +
 		'</select></div><div class="field"><label>Translator badge (a globe after the verification badge)</label><select id="translator"' + (canHere("setTranslator") ? "" : " disabled") + ">" +
 		[["", "none"], ["translator", "blue (translator)"], ["moderator", "gold (translator moderator)"], ["approver", "yellow (approver)"]].map(([v, l]) => '<option value="' + v + '"' + ((u.translator ?? "") === v ? " selected" : "") + ">" + l + "</option>").join("") +
 		'</select></div><div class="field"><label>Profile label (under the name, where X shows "Parody account"; <a href="#badges">make one</a>)</label><select id="plabel"' + (can("setProfileLabel") ? "" : " disabled") + ">" +
@@ -2238,6 +2387,9 @@ async function renderUser(main, id) {
 		[{ id: "", name: "none" }].concat(flags).map((f) => '<button type="button" title="' + esc(f.name) + '" data-flag="' + esc(f.id) + '"' + (can("setFlag") ? "" : " disabled") + ">" +
 			(f.id ? '<img alt="" loading="lazy" src="/public/flag-' + esc(f.id) + '.svg">' : "none") + "</button>").join("") + "</div>" +
 		(can("setFlag") ? '<div class="row" style="margin-top:8px"><button class="btn primary" id="saveFlags" disabled>Save flags</button><span class="dim small" id="flagState"></span></div>' : '<p class="dim small">Requires permission to set flags.</p>') + "</div>" +
+		(clients?.length > 1 && canHere("setUserClient") ? '<div class="field"><label>Twitter client</label><div class="row"><select id="userClient" aria-label="Which client this account gets">' +
+			clients.map((c) => '<option value="' + esc(c.id) + '"' + (u.web_client === c.id ? " selected" : "") + ">" + esc(c.label) + "</option>").join("") +
+			'</select><button class="btn" id="saveUserClient">Switch</button></div><p class="dim small">For an account stuck on a client that doesn\'t load. Takes effect on their next page load.</p></div>' : "") +
 		(u.decor ? '<div class="field"><label>Profile decor from Steam</label><div class="dim small">' +
 			esc([u.decor.profile && "game profile " + u.decor.profile.name, u.decor.theme && "theme " + u.decor.theme, u.decor.background && "background " + u.decor.background.name, u.decor.frame && "frame " + u.decor.frame.name].filter(Boolean).join(" · ")) +
 			"</div>" + (canHere("resetDecor") ? '<button class="btn" id="resetDecor" style="margin-top:6px">Reset decor</button>' : "") + "</div>" : "") +
@@ -2258,10 +2410,16 @@ async function renderUser(main, id) {
 		'<div class="field"><label>For</label><select id="for"' + (!can("setTemporaryStatus") || self ? " disabled" : "") + '><option value="">until lifted</option><option value="1">1 hour</option><option value="24">1 day</option><option value="168">1 week</option><option value="720">30 days</option></select></div><div class="row">' +
 		[["active", "Reinstate", ""], ["restricted", "Restrict", "Can read, can't post"], ["limited", "Limit", "Only followers see their posts"], ["suspended", "Suspend", "Signed out, hidden everywhere"]]
 			.map(([s, l, t]) => '<button class="btn' + (s === "suspended" ? " danger" : "") + '" data-status="' + s + '" title="' + esc(t) + '"' + (u.status === s || !can("setStatus") || self ? " disabled" : "") + ">" + l + "</button>").join("") +
-		'</div><p class="dim small">Restrict: can read, can\'t post. Limit: only followers see their posts. Suspend: signed out and hidden everywhere.</p></div>' +
+		"</div>" + (alts?.length && can("setStatus") && !self ? '<label class="row" style="margin:6px 0"><input type="checkbox" id="withAlts"> Also for the ' + alts.length + (alts.length === 1 ? " account" : " accounts") + ' seen from the same addresses: ' + alts.map((a) => "@" + esc(a.screen_name)).join(", ") + "</label>" : "") +
+		'<p class="dim small">Restrict: can read, can\'t post. Limit: only followers see their posts. Suspend: signed out and hidden everywhere.</p>' +
+		(can("setShadowBan") && !self ? '<div class="row" style="margin-top:8px"><button class="btn' + (u.shadow_banned ? "" : " danger") + '" id="shadow">' + (u.shadow_banned ? "Lift shadow ban" : "Shadow ban") + "</button>" + (u.shadow_banned ? '<span class="dim small">Shadow banned</span>' : "") + "</div>" +
+			'<p class="dim small">Shadow ban: their posts and reposts stay out of every timeline, For you, trends and topics, and they aren\'t suggested as a follow. Their profile, replies, search and notifications work as before. Nobody is told, them included.</p>' : "") + "</div>" +
 		// access
 		'<div class="box user-card-access"><h2>Access</h2><div class="row">' + (canHere("resetPassword") ? '<button class="btn" id="reset">Reset password</button>' : "") + (canHere("signOut") ? '<button class="btn" id="signout">Sign out everywhere</button>' : "") +
 			(canHere("revokeApiTokens") ? '<button class="btn danger" id="revoketokens"' + (u.api_tokens ? "" : " disabled") + ">Revoke API tokens (" + u.api_tokens + ")</button>" : "") + '</div><div id="secret"></div>' +
+			(me.superadmin_home && !self && !u.role && !u.instance && u.status !== "suspended" ? '<h3 style="margin:16px 0 6px;font-size:15px">Sign in as @' + esc(u.screen_name) + '</h3><p class="dim small">Opens the app as them for an hour, in this browser, with a banner to come back. Their security settings, sessions and money stay out of reach. The audit log records it.</p>' +
+				'<div class="field"><input id="impReason" placeholder="Why (kept in the audit log)" aria-label="Why"></div><div class="row"><input id="impPass" type="password" autocomplete="current-password" placeholder="Your password" aria-label="Your password" style="flex:1;min-width:140px">' +
+				'<input id="impCode" inputmode="numeric" autocomplete="one-time-code" placeholder="Two-factor code" aria-label="Two-factor code" style="flex:1;min-width:120px"><button class="btn danger" id="impGo">Sign in as them</button></div>' : "") +
 		'<label class="row" style="margin-top:14px"><input type="checkbox" id="notes-access"' + (u.notes_writer ? " checked" : "") + (canHere("setNotesAccess") ? "" : " disabled") + '>Community Notes writing access</label>' +
 		'<label class="row" style="margin-top:8px"><input type="checkbox" id="never-sensitive"' + (u.never_sensitive ? " checked" : "") + (can("setNeverSensitive") ? "" : " disabled") + '>Never mark their posts as sensitive</label>' +
 		(canHere("admin") ? '<div class="field" style="margin-top:14px"><label>Staff role</label><select id="role"><option value="">none</option>' + ["support", "moderator", "admin"].map((r) => '<option' + (u.role === r ? " selected" : "") + ">" + r + "</option>").join("") + "</select></div>" : "") +
@@ -2282,27 +2440,58 @@ async function renderUser(main, id) {
 			: sessions.length ? '<div class="list">' + sessions.slice(0, 10).map((s) => "<p>" + esc(browser(s.user_agent)) + (s.current ? ' <span class="pill staff">you, now</span>' : "") +
 				'<br><span class="dim small">' + (s.ip ? esc(s.ip) + " · " : "") + "signed in " + esc(when(s.created_at)) + " · last active " + esc(when(s.last_seen_at)) + "</span>" +
 				(s.current || !can("revokeSession") ? "" : ' <button class="btn" data-session="' + esc(s.id) + '">Sign out</button>') + "</p>").join("") +
-				(sessions.length > 10 ? '<p class="dim small">and ' + (sessions.length - 10) + ' older (Access → Sign out everywhere ends them all)</p>' : "") + "</div>"
+				(sessions.length > 10 ? '<p class="dim small">and ' + (sessions.length - 10) + ' older (Access → Sign out everywhere ends them all)</p>' : "") + "</div>" +
+				(sessions.hidden ? '<p class="dim small">IP addresses of staff are hidden. <button class="btn" id="revealIps">Show IP addresses</button></p>' : "")
 			: '<p class="dim small">Not signed in anywhere.</p>') + "</div>" +
 		"</div><div class=\"user-related-grid\">" +
 		'<section class="box user-affiliates"><h2>Affiliates</h2>' + (canHere("addAffiliate") ? '<div class="bar"><input id="aff" placeholder="@handle to add"><button class="btn primary" id="addaff">Add affiliate</button></div>' : "") +
 			(affiliates.length ? '<div class="scroll"><table class="table">' + affiliates.map((a) => '<tr><td>' + person(a) + "</td><td>" + (can("removeAffiliate") ? '<button class="btn danger" data-unaff="' + esc(a.id) + '">Remove</button>' : "") + "</td></tr>").join("") + "</table></div>" : '<p class="dim small">No affiliates yet.</p>') + "</section>" +
-		(alts?.length ? '<section class="box"><h2>Seen from the same addresses</h2><p class="dim small">Accounts that signed in from an address this one used in the last 90 days. Shared networks may put strangers here too.</p><div class="user-related-links">' + alts.map((a) => '<a href="#user/' + esc(a.id) + '">@' + esc(a.screen_name) + "</a>" + (a.status !== "active" ? ' <span class="pill ' + esc(a.status) + '">' + esc(a.status) + "</span>" : "")).join("") + "</div></section>" : "") +
-		(invited.length ? '<section class="box"><h2>Invited accounts</h2><div class="user-related-links">' + invited.map((i) => '<a href="#user/' + esc(i.id) + '">@' + esc(i.screen_name) + "</a>").join("") + "</div></section>" : "") +
+		(alts?.length ? '<section class="box user-alts"><h2>Seen from the same addresses</h2><p class="dim small">Accounts that signed in from an address this one used in the last 90 days. Shared networks may put strangers here too.</p><div class="user-related-links">' + alts.map((a) => '<a href="#user/' + esc(a.id) + '">@' + esc(a.screen_name) + "</a>" + (a.status !== "active" ? ' <span class="pill ' + esc(a.status) + '">' + esc(a.status) + "</span>" : "")).join("") + "</div></section>" : "") +
+		(invited.length ? '<section class="box user-invited"><h2>Invited accounts</h2><div class="user-related-links">' + invited.map((i) => '<a href="#user/' + esc(i.id) + '">@' + esc(i.screen_name) + "</a>").join("") + "</div></section>" : "") +
 		'<section class="box user-history"><h2>Staff history</h2>' + (log.length ? '<div class="scroll"><table class="table"><tbody>' + log.map((e) => '<tr><td class="small dim">' + esc(when(e.created_at)) + "</td><td>" + (e.automatic ? "Automod" : "@" + esc(e.actor ?? "?")) + " " + esc(e.action.replace(/_/g, " ")) + '</td><td class="small dim code">' + esc(e.detail ? JSON.stringify(e.detail) : "") + "</td></tr>").join("") + "</tbody></table></div>" : '<p class="dim small">No staff actions yet.</p>') + "</section></div>";
 
-	const userGrid = main.querySelector(".user-admin-grid");
-	const userColumns = [document.createElement("div"), document.createElement("div")];
-	userColumns.forEach((column) => column.className = "user-admin-column");
-	const moveCards = (column, selectors) => selectors.forEach((selector) => {
-		const card = main.querySelector(selector);
-		if (card) column.append(card);
+	const userTabs = [
+		["moderation", "Moderation", [".user-card-standing", ".user-card-messages", ".user-alts", ".user-card-notes", ".user-history"]],
+		["profile", "Profile and badges", [".user-card-profile", ".user-card-identity"]],
+		["access", "Access and sessions", [".user-card-access", ".user-card-sessions", ".user-card-handles"]],
+		["related", "Affiliates and invites", [".user-affiliates", ".user-invited"]],
+	].map(([key, label, selectors]) => [key, label, selectors.map((sel) => main.querySelector(sel)).filter(Boolean)]).filter(([, , cards]) => cards.length);
+	const tabBar = document.createElement("div");
+	tabBar.className = "user-tabs";
+	const panels = userTabs.map(([key, label, cards]) => {
+		const tab = document.createElement("button");
+		tab.className = "user-tab";
+		tab.dataset.tab = key;
+		tab.textContent = label;
+		tabBar.append(tab);
+		const panel = document.createElement("div");
+		panel.className = "user-tab-panel";
+		panel.dataset.panel = key;
+		panel.cards = cards;
+		panel.append(...cards);
+		return panel;
 	});
-	moveCards(userColumns[0], [".user-card-profile", ".user-card-standing", ".user-affiliates", ".user-card-messages"]);
-	moveCards(userColumns[1], [".user-card-identity", ".user-history", ".user-card-access", ".user-card-notes", ".user-card-sessions", ".user-card-handles"]);
-	userGrid.replaceChildren(...userColumns);
-	const relatedGrid = main.querySelector(".user-related-grid");
-	if (!relatedGrid.children.length) relatedGrid.remove();
+	const layOut = (panel) => {
+		if (panel.laidOut) return;
+		panel.laidOut = true;
+		const columns = [document.createElement("div"), document.createElement("div")];
+		columns.forEach((column) => column.className = "user-admin-column");
+		panel.replaceChildren(...columns);
+		const wide = getComputedStyle(panel).gridTemplateColumns.split(" ").length > 1;
+		panel.cards.forEach((card) => (wide && columns[1].offsetHeight < columns[0].offsetHeight ? columns[1] : columns[0]).append(card));
+	};
+	main.querySelector(".user-admin-grid").replaceWith(tabBar, ...panels);
+	main.querySelector(".user-related-grid").remove();
+	const showTab = (key) => {
+		if (!userTabs.some(([k]) => k === key)) key = userTabs[0][0];
+		tabBar.querySelectorAll("[data-tab]").forEach((t) => t.classList.toggle("on", t.dataset.tab === key));
+		panels.forEach((panel) => { panel.hidden = panel.dataset.panel !== key; if (!panel.hidden) layOut(panel); });
+		try { localStorage.setItem("xitterUserTab", key); } catch {}
+	};
+	tabBar.querySelectorAll("[data-tab]").forEach((t) => t.onclick = () => showTab(t.dataset.tab));
+	let lastTab = "";
+	try { lastTab = localStorage.getItem("xitterUserTab") || ""; } catch {}
+	showTab(lastTab);
 
 	const again = () => renderUser(main, id);
 	if ($("#saveCounts")) $("#saveCounts").onclick = () => act(() => api("setUserCounts", { id, counts: Object.fromEntries([...main.querySelectorAll("[data-count]")].map((el) => [el.dataset.count, el.value])) }), "Counts saved").then(again);
@@ -2335,16 +2524,30 @@ async function renderUser(main, id) {
 		if ($("#saveFlags")) $("#saveFlags").onclick = () => act(() => api("setFlag", { id, flag: picked.join(",") }), "Flags saved").then(again);
 		drawFlags();
 	}
+	if ($("#saveUserClient")) $("#saveUserClient").onclick = () => act(() => api("setUserClient", { id, client: $("#userClient").value }), "Client switched").then(again);
 	if ($("#resetDecor")) $("#resetDecor").onclick = async () => {
 		if (!(await ask("Take off @" + u.screen_name + "'s profile decor?"))) return;
 		act(() => api("resetDecor", { id }), "Decor reset").then(again);
 	};
+	if ($("#impGo")) $("#impGo").onclick = () => act(() => api("impersonate", { id, reason: $("#impReason").value, password: $("#impPass").value, code: $("#impCode").value }).then((r) => { location.href = r.url; }));
+	if ($("#revealIps")) $("#revealIps").onclick = () => { revealIps = id; again(); };
+	if ($("#shadow")) $("#shadow").onclick = async () => {
+		if (!u.shadow_banned && !(await ask("Shadow ban @" + u.screen_name + "?"))) return;
+		act(() => api("setShadowBan", { id, on: !u.shadow_banned, reason: $("#reason").value }), u.shadow_banned ? "Shadow ban lifted" : "Shadow banned").then(again);
+	};
 	main.querySelectorAll("[data-status]").forEach((b) => b.onclick = async () => {
-		if (b.dataset.status === "suspended" && !(await ask("Suspend @" + u.screen_name + "?"))) return;
-		const hours = $("#for").value;
-		act(() => hours && b.dataset.status !== "active"
-			? api("setTemporaryStatus", { id, status: b.dataset.status, hours, reason: $("#reason").value })
-			: api("setStatus", { id, status: b.dataset.status, reason: $("#reason").value }), "Standing changed").then(again);
+		const others = $("#withAlts")?.checked ? alts.filter((a) => a.status !== b.dataset.status) : [];
+		if (b.dataset.status === "suspended" && !(await ask("Suspend @" + u.screen_name + (others.length ? " and " + others.length + (others.length === 1 ? " alt" : " alts") : "") + "?"))) return;
+		const hours = $("#for").value, reason = $("#reason").value;
+		const apply = (target) => hours && b.dataset.status !== "active"
+			? api("setTemporaryStatus", { id: target, status: b.dataset.status, hours, reason })
+			: api("setStatus", { id: target, status: b.dataset.status, reason: reason || (target === id ? "" : "alt of @" + u.screen_name) });
+		const changed = await act(() => apply(id).then(() => true));
+		if (!changed) return;
+		const skipped = [];
+		for (const a of others) await apply(a.id).catch((e) => skipped.push("@" + a.screen_name + " (" + e.message + ")"));
+		notice(others.length ? "Standing changed for @" + u.screen_name + " and " + (others.length - skipped.length) + " of " + others.length + " alts" + (skipped.length ? ". Skipped: " + skipped.join(", ") : "") : "Standing changed", skipped.length > 0);
+		again();
 	});
 	if ($("#reset")) $("#reset").onclick = async () => {
 		if (!(await ask("Give @" + u.screen_name + " a new password and sign them out?"))) return;

@@ -6,7 +6,7 @@
 import { existsSync, realpathSync, unlinkSync } from "node:fs";
 import { dirname, resolve, sep } from "node:path";
 import { type Action, AdminError, audit, guard, idOf } from "./admin";
-import { loadBuild } from "./build";
+import { clientBuild, clientBuilds, loadBuild } from "./build";
 import { INSTANCE_ID, isPeer } from "./federation";
 import { sql } from "./db";
 import { newId } from "./ids";
@@ -24,6 +24,13 @@ import { selfUpdateEnabled, selfUpdateReady, selfUpdateStatus, startRollback, st
 import { reauthenticate } from "./superadmin";
 import { BACKUP_DIR, BACKUP_INTERVALS, MAX_BACKUPS_KEPT, createBackup, deleteBackup, listBackups } from "./backups";
 import { clientStatus, latestSha, rollbackClient, updateClient } from "./client-update";
+import { defaultClient } from "./client-choice";
+
+const clientChoices = () => ({
+	builds: clientBuilds().map((c) => ({ id: c.id, label: c.label, sha: loadBuild(c.dir)?.build.sha ?? null })),
+	default: defaultClient()?.id ?? null,
+	user_choice: settings().clients.user_choice,
+});
 import { decideImport, pendingImports } from "./archive-import";
 
 const STANDINGS = ["active", "restricted", "limited", "suspended"];
@@ -46,6 +53,17 @@ function optionalText(value: unknown, max: number) {
 	const text = typeof value === "string" ? value.trim() : "";
 	if ([...text].length > max) throw new AdminError(`Up to ${max} characters.`);
 	return text;
+}
+
+function linkOf(value: unknown) {
+	const raw = optionalText(value, 500).replace(/^<|>$/g, "");
+	if (!raw) return "";
+	const url = /^[a-z][a-z0-9+.-]*:/i.test(raw) ? raw : `https://${raw.replace(/^\/+/, "")}`;
+	try {
+		const parsed = new URL(url);
+		if ((parsed.protocol === "http:" || parsed.protocol === "https:") && parsed.hostname.includes(".")) return parsed.href;
+	} catch {}
+	throw new AdminError("The link must be a web address, like example.com/page.");
 }
 
 function textOf(value: unknown, max = 2000) {
@@ -123,8 +141,7 @@ export const toolActions: Record<string, Action> = {
 			const text = textOf(b.text, 40);
 			const badge = b.badgeId ? idOf(b.badgeId, "badge") : null;
 			await badgeExists(badge);
-			const url = optionalText(b.url, 500);
-			if (url && !/^https?:\/\/\S+$/.test(url)) throw new AdminError("The link must be an http or https address.");
+			const url = linkOf(b.url);
 			const id = newId();
 			await sql`insert into account_labels (id, text, badge_id, url) values (${id}::bigint, ${text}, ${badge}::bigint, ${url || null})`;
 			await audit(a, "create_label", id, { text });
@@ -142,6 +159,19 @@ export const toolActions: Record<string, Action> = {
 	},
 	// takes off everything an account wears from Steam (decor.ts): theme,
 	// background, frame; what it wore goes in the audit log
+	setUserClient: {
+		role: "moderator",
+		run: async (a, b) => {
+			const id = idOf(b.id);
+			await guard(a, id, true);
+			const pick = typeof b.client === "string" ? b.client : "";
+			if (!clientBuilds().some((c) => c.id === pick)) throw new AdminError("Choose a client this instance has.");
+			const [before] = await sql`select preferences->>'web_client' as client from users where id = ${id}::bigint`;
+			await sql`update users set preferences = jsonb_set(coalesce(preferences, '{}'), '{web_client}', to_jsonb(${pick}::text)) where id = ${id}::bigint`;
+			await audit(a, "set_user_client", id, { from: before?.client ?? null, to: pick });
+			return {};
+		},
+	},
 	resetDecor: {
 		role: "moderator",
 		run: async (a, b) => {
@@ -253,6 +283,11 @@ export const toolActions: Record<string, Action> = {
 		role: "moderator",
 		run: async (a, b) => {
 			const body = textOf(b.body);
+			const action = b.action ?? "strike";
+			if (!["strike", "warning", "message", "restricted", "limited", "suspended"].includes(action)) throw new AdminError("Choose what to do.");
+			const sanction = ["restricted", "limited", "suspended"].includes(action);
+			const hours = b.hours === undefined || b.hours === null || b.hours === "" ? 0 : Number(b.hours);
+			if (sanction && (!Number.isFinite(hours) || hours < 0 || hours > 8760)) throw new AdminError("Choose 1–8760 hours, or none for until lifted.");
 			if (b.include_alts === true && !allows(a.role, "ip_addresses")) throw new AdminError("IP address permission is required to include alts.", 403);
 			if ((b.ids !== undefined && !Array.isArray(b.ids)) || (b.handles !== undefined && !Array.isArray(b.handles))) throw new AdminError("Provide lists of ids or handles.");
 			if ((b.ids?.length ?? 0) + (b.handles?.length ?? 0) > 50) throw new AdminError("At most 50 handles or ids at a time.");
@@ -290,17 +325,24 @@ export const toolActions: Record<string, Action> = {
 				try {
 					const u = await guard(a, id, true);
 					screenName = u.screen_name;
-					const message = newId();
-					await sql`insert into staff_messages (id, user_id, actor_id, kind, body) values (${message}::bigint, ${id}::bigint, ${a.id}::bigint, 'strike', ${body})`;
+					const kind = action === "strike" || action === "warning" ? action : "message";
+					await sql`insert into staff_messages (id, user_id, actor_id, kind, body) values (${newId()}::bigint, ${id}::bigint, ${a.id}::bigint, ${kind}, ${body})`;
 					delivered = true;
-					const escalation = b.escalate !== false ? await escalate(id, a.id, `bulk strike from @${a.screen_name}`) : undefined;
-					results.push({ id, screen_name: screenName, ok: true, strikes: escalation?.strikes, outcome: escalation?.outcome, hours: escalation?.hours });
+					if (sanction) {
+						if (hours) await sql`update users set status_restore = coalesce(status_restore, status), status = ${action}, status_until = now() + ${hours} * interval '1 hour', deactivated_at = null where id = ${id}::bigint`;
+						else await sql`update users set status = ${action}, status_until = null, status_restore = null, deactivated_at = null where id = ${id}::bigint`;
+						if (action === "suspended") await shutOut(id);
+						results.push({ id, screen_name: screenName, ok: true, outcome: action, hours: hours || undefined });
+						continue;
+					}
+					const escalation = action === "strike" && b.escalate !== false ? await escalate(id, a.id, `bulk strike from @${a.screen_name}`) : undefined;
+					results.push({ id, screen_name: screenName, ok: true, strikes: escalation?.strikes, outcome: action === "strike" ? escalation?.outcome : `${action}_sent`, hours: escalation?.hours });
 				} catch (e) {
-					results.push({ id, screen_name: screenName, ok: false, delivered, error: !(e instanceof AdminError), why: e instanceof AdminError ? e.message : delivered ? "Strike sent, but escalation failed. Review the account before retrying." : "Could not send the strike." });
+					results.push({ id, screen_name: screenName, ok: false, delivered, error: !(e instanceof AdminError), why: e instanceof AdminError ? e.message : delivered ? "Message sent, but the sanction failed. Review the account before retrying." : "Could not send the strike." });
 				}
 			}
 			const struck = results.filter((r) => r.ok || r.delivered);
-			await audit(a, "bulk_strike", null, { count: struck.length, ids: struck.map((r) => r.id), results, missing, escalate: b.escalate !== false, alts: withAlts });
+			await audit(a, "bulk_strike", null, { count: struck.length, ids: struck.map((r) => r.id), results, missing, action, hours: sanction ? hours : undefined, escalate: action === "strike" && b.escalate !== false, alts: withAlts });
 			return { results, missing };
 		},
 	},
@@ -382,7 +424,15 @@ export const toolActions: Record<string, Action> = {
 		run: async (a, b) => {
 			const id = idOf(b.id);
 			await guard(a, id);
-			return { sessions: await sql`select id::text, created_at, last_seen_at, user_agent, ${allows(a.role, "ip_addresses") ? sql`ip` : sql`null as ip`}, token = ${a.token} as current from sessions where user_id = ${id}::bigint order by last_seen_at desc` };
+			const [target] = await sql`select role from users where id = ${id}::bigint`;
+			const staff = !!target?.role && id !== a.id;
+			const may = allows(a.role, "ip_addresses");
+			const show = may && (!staff || b.reveal === true);
+			if (show && staff) await audit(a, "reveal_staff_ips", id);
+			return {
+				sessions: await sql`select id::text, created_at, last_seen_at, user_agent, ${show ? sql`ip` : sql`null as ip`}, token = ${a.token} as current from sessions where user_id = ${id}::bigint order by last_seen_at desc`,
+				ips_hidden: may && !show,
+			};
 		},
 	},
 	revokeSession: {
@@ -435,11 +485,30 @@ export const toolActions: Record<string, Action> = {
 			const type = b.type || null;
 			if (type !== null && !(type in NOTICE_TYPES)) throw new AdminError("Unknown label.");
 			const text = optionalText(b.text, 280);
-			const url = optionalText(b.url, 500);
-			if (url && !/^https?:\/\/\S+$/.test(url)) throw new AdminError("The link must be an http or https address.");
+			const url = linkOf(b.url);
 			const notice = type ? { type, text: text || NOTICE_TYPES[type as keyof typeof NOTICE_TYPES], ...(url ? { url } : {}) } : null;
 			await sql`update posts set notice = ${notice ? sql`${JSON.stringify(notice)}::text::jsonb` : null} where id = ${id}::bigint`;
 			await audit(a, "set_post_notice", p.user_id, { post: id, notice });
+			return {};
+		},
+	},
+	setPostNote: {
+		role: "admin",
+		run: async (a, b) => {
+			const id = idOf(b.id);
+			const [p] = await sql`select user_id::text from posts where id = ${id}::bigint`;
+			if (!p) throw new AdminError("No such post.", 404);
+			const text = optionalText(b.text, 500);
+			if (!text) {
+				await sql`delete from community_notes where post_id = ${id}::bigint and staff`;
+				await audit(a, "remove_post_note", p.user_id, { post: id });
+				return {};
+			}
+			await sql`delete from community_notes where post_id = ${id}::bigint and staff and author_id <> ${a.id}::bigint`;
+			await sql`insert into community_notes(id, post_id, author_id, text, classification, staff)
+				values(${newId()}::bigint, ${id}::bigint, ${a.id}::bigint, ${text}, 'Misleading', true)
+				on conflict(post_id, author_id) do update set text = excluded.text, classification = 'Misleading', staff = true`;
+			await audit(a, "set_post_note", p.user_id, { post: id, text });
 			return {};
 		},
 	},
@@ -605,6 +674,7 @@ export const toolActions: Record<string, Action> = {
 			await setSetting("operations", {
 				maintenance: b.maintenance,
 				message: b.message.trim() || "The instance is undergoing maintenance.",
+				guest_reading: typeof b.guest_reading === "boolean" ? b.guest_reading : settings().operations.guest_reading,
 				blocked_phrases: lines(b.blocked_phrases, "phrase"),
 				blocked_names: lines(b.blocked_names ?? [], "name"),
 				hidden_trends: lines(b.hidden_trends, "trend", true),
@@ -636,14 +706,19 @@ export const toolActions: Record<string, Action> = {
 	// Admin > Security: who reaches the panel (staff-access.ts), and staff sessions
 	security: {
 		role: "admin",
-		run: async (a, b, req) => ({
+		run: async (a, b, req) => {
+			if (b.reveal === true) await audit(a, "reveal_staff_ips", null);
+			return {
 			security: settings().security,
 			your_ip: req ? clientIp(req) : null,
 			without_2fa: await sql`select id::text, screen_name, role from users where role is not null and not totp_enabled order by screen_name`,
-			sessions: await sql`select s.id::text, s.created_at, s.last_seen_at, s.user_agent, s.ip, s.token = ${a.token} as current,
+			ips_hidden: b.reveal !== true,
+			sessions: await sql`select s.id::text, s.created_at, s.last_seen_at, s.user_agent,
+				${b.reveal === true ? sql`s.ip` : sql`case when s.user_id = ${a.id}::bigint then s.ip end as ip`}, s.token = ${a.token} as current,
 				u.id::text as user_id, u.screen_name, u.role
 				from sessions s join users u on u.id = s.user_id where u.role is not null order by s.last_seen_at desc limit 200`,
-		}),
+			};
+		},
 	},
 	saveSecurity: {
 		role: "admin",
@@ -766,7 +841,25 @@ export const toolActions: Record<string, Action> = {
 	},
 
 	// client-update.ts
-	client: { role: "admin", run: async () => clientStatus() },
+	client: { role: "admin", run: async () => ({ ...clientStatus(), ...clientChoices() }) },
+	// client-choice.ts: the instance's default client and whether people pick their own
+	setClients: {
+		role: "admin",
+		run: async (a, b) => {
+			const next = { ...settings().clients };
+			if (b.default !== undefined) {
+				if (typeof b.default !== "string" || !clientBuild(b.default)) throw new AdminError("Pick one of the clients this instance serves.");
+				next.default = b.default;
+			}
+			if (b.user_choice !== undefined) {
+				if (typeof b.user_choice !== "boolean") throw new AdminError("Turn picking on or off.");
+				next.user_choice = b.user_choice;
+			}
+			await setSetting("clients", next);
+			await audit(a, "set_clients", null, next);
+			return clientChoices();
+		},
+	},
 	checkClient: {
 		role: "admin",
 		run: async () => ({ latest: await latestSha().catch((e: Error) => { throw new AdminError(e.message); }), ...clientStatus() }),

@@ -11,7 +11,7 @@
 //                                            one, if any, takes its place
 
 import { recordSignIn } from "./login-history";
-import { SECURE, type Viewer, clearedCookies, logout, parseCookies, sessionCookies } from "./auth";
+import { MULTI_COOKIE, SECURE, SESSION_COOKIE, type Viewer, clearedCookies, logout, parseCookies, sessionCookies, sessionKey, viewerById } from "./auth";
 import { loadLook, nightModeCookies } from "./themes/api";
 import { sql } from "./db";
 import { avatarUrl } from "./model";
@@ -25,32 +25,38 @@ const max = () => Math.min(Math.max(Math.trunc(Number(settings().switch_override
 type Session = { token: string; csrf: string; userId: string };
 
 const multiCookie = (tokens: string[]) =>
-	tokens.length ? `auth_multi=${tokens.join(",")}; HttpOnly; Path=/; Max-Age=31536000; SameSite=Lax${SECURE}` : `auth_multi=; Path=/; Max-Age=0; SameSite=Lax${SECURE}`;
+	tokens.length ? `${MULTI_COOKIE}=${tokens.join(",")}; HttpOnly; Path=/; Max-Age=31536000; SameSite=Lax${SECURE}` : `${MULTI_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax${SECURE}`;
 
-const multiTokens = (req: Request) => (parseCookies(req).auth_multi ?? "").split(",").filter(Boolean);
+const multiTokens = (req: Request) => (parseCookies(req)[MULTI_COOKIE] ?? "").split(",").filter(Boolean);
 
 // The given tokens' sessions that still exist, in that order, one per account
 // and none of `except`'s.
 async function live(tokens: string[], except?: string): Promise<Session[]> {
 	if (!tokens.length) return [];
 	const rows = await sql`select s.token, s.csrf, s.user_id::text as "userId" from sessions s join users u on u.id = s.user_id
-		where s.token = any(${sql.array(tokens, "TEXT")}) and u.status <> 'suspended'`;
+		where s.token = any(${sql.array(tokens.map(sessionKey), "TEXT")}) and u.status <> 'suspended'`;
 	const seen = new Set(except ? [except] : []);
 	const out: Session[] = [];
 	for (const t of tokens) {
-		const s = rows.find((r: Session) => r.token === t);
+		const s = rows.find((r: Session) => r.token === sessionKey(t));
 		if (!s || seen.has(s.userId)) continue;
 		seen.add(s.userId);
-		out.push(s);
+		out.push({ ...s, token: t });
 	}
 	return out;
+}
+
+export async function multiViewer(req: Request, viewer: Viewer, userId: string): Promise<Viewer | undefined> {
+	const session = (await live(multiTokens(req), viewer.id)).find((s) => s.userId === userId);
+	const user = session && (await viewerById(session.userId));
+	return user && { ...viewer, ...user, token: sessionKey(session.token), csrf: session.csrf };
 }
 
 // Cookies for a new sign-in from this browser: the session it was using, and
 // the others it had, stay signed in behind the new one.
 export async function signInCookies(req: Request, session: Session): Promise<string[]> {
 	await recordSignIn(req, session);
-	const before = parseCookies(req).auth_token;
+	const before = parseCookies(req)[SESSION_COOKIE];
 	const others = await live([...(before ? [before] : []), ...multiTokens(req)], session.userId);
 	return [...sessionCookies(session), multiCookie(others.slice(0, max() - 1).map((s) => s.token))];
 }
@@ -70,7 +76,8 @@ export async function switchCookies(req: Request, viewer: Viewer, userId: string
 	const others = await live(multiTokens(req), viewer.id);
 	const target = others.find((s) => s.userId === userId);
 	if (!target) return undefined;
-	const rest = [viewer.token, ...others.filter((s) => s !== target).map((s) => s.token)];
+	const active = parseCookies(req)[SESSION_COOKIE];
+	const rest = [...(active ? [active] : []), ...others.filter((s) => s !== target).map((s) => s.token)];
 	return [...sessionCookies(target), multiCookie(rest), ...nightModeCookies(await loadLook(target.userId))];
 }
 
@@ -83,14 +90,15 @@ function withCookies(body: unknown, cookies: string[]): Response {
 export async function accountsRoute(method: string, path: string, viewer: Viewer, req: Request): Promise<Response | undefined> {
 	if (path === "/1.1/account/multi/list.json") {
 		const others = await live(multiTokens(req), viewer.id);
-		const users = others.length
-			? await sql`select id::text, screen_name, name, avatar_url, verified_type from users where id = any(${sql.array(others.map((s) => s.userId), "INT8")})`
+		const ids = others.length ? [viewer.id, ...others.map((s) => s.userId)] : [];
+		const users = ids.length
+			? await sql`select id::text, screen_name, name, avatar_url, verified_type from users where id = any(${sql.array(ids, "INT8")})`
 			: [];
 		return Response.json({
-			users: others.map((s) => {
-				const u = users.find((x: { id: string }) => x.id === s.userId);
+			users: ids.map((id) => {
+				const u = users.find((x: { id: string }) => x.id === id);
 				return {
-					user_id: s.userId,
+					user_id: id,
 					name: u.name,
 					screen_name: u.screen_name,
 					avatar_image_url: avatarUrl(u.avatar_url),
@@ -114,7 +122,7 @@ export async function accountsRoute(method: string, path: string, viewer: Viewer
 		return withCookies({}, [multiCookie((await live(multiTokens(req), viewer.id)).map((s) => s.token))]);
 	}
 	if (path === "/1.1/account/multi/logout_all.json") {
-		for (const t of [viewer.token, ...multiTokens(req)]) await logout(t);
+		for (const t of [viewer.token, ...multiTokens(req).map(sessionKey)]) await logout(t);
 		return withCookies({ status: "ok" }, [...clearedCookies(), multiCookie([])]);
 	}
 	if (path === "/1.1/account/logout.json") {

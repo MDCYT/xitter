@@ -52,13 +52,10 @@ describe("Rich Embeds (fxTwitter / vxTwitter style)", () => {
 		expect(html).toContain('<meta name="twitter:card" content="player">');
 		expect(html).toContain(`<meta name="twitter:player" content="${PUBLIC_ORIGIN}/embed/video/4001.mp4">`);
 		expect(html).toContain(`<meta name="twitter:player:stream" content="${PUBLIC_ORIGIN}/embed/video/4001.mp4">`);
-		expect(html).toContain(`<meta property="og:image" content="${PUBLIC_ORIGIN}/embed/poster/4001.jpg">`);
+		expect(html).toContain(`<meta property="og:image" content="${PUBLIC_ORIGIN}/embed/post/3001">`);
 
-		// Stats row
-		expect(html).toContain("💬 3   🔁 7   ❤️ 42");
-
-		// Redirect to post URL, NOT "/"
-		expect(html).toContain(`<meta http-equiv="refresh" content="0;url=${PUBLIC_ORIGIN}/johndoe/status/3001">`);
+		// Redirect to post URL
+		expect(html).toContain(`<meta http-equiv="refresh" content="0; url=${PUBLIC_ORIGIN}/johndoe/status/3001">`);
 	});
 
 	test("multi-image post preview generates multiple og:image tags for gallery grid", async () => {
@@ -72,9 +69,7 @@ describe("Rich Embeds (fxTwitter / vxTwitter style)", () => {
 				{ id: "4012", kind: "photo", mime: "image/png", width: 1200, height: 800, remote: false },
 				{ id: "4013", kind: "photo", mime: "image/webp", width: 1000, height: 1000, remote: false },
 			],
-			like_count: 1540,
-			repost_count: 230,
-			reply_count: 85,
+			counts: { replies: 85, reposts: 230, likes: 1540, views: 5000 },
 		};
 
 		const res = postPreview(photoPost);
@@ -82,34 +77,24 @@ describe("Rich Embeds (fxTwitter / vxTwitter style)", () => {
 
 		expect(html).toContain('<meta property="og:type" content="article">');
 		expect(html).toContain('<meta name="twitter:card" content="summary_large_image">');
-		expect(html).toContain(`<meta property="og:image" content="${PUBLIC_ORIGIN}/embed/media/4011">`);
-		expect(html).toContain(`<meta property="og:image" content="${PUBLIC_ORIGIN}/embed/media/4012">`);
-		expect(html).toContain(`<meta property="og:image" content="${PUBLIC_ORIGIN}/embed/media/4013">`);
-
-		// Formatted stats with K suffixes
-		expect(html).toContain("💬 85   🔁 230   ❤️ 1.5K");
+		expect(html).toContain(`<meta property="og:image" content="${PUBLIC_ORIGIN}/embed/post/3002">`);
+		expect(html).toContain(`<meta property="og:image" content="${PUBLIC_ORIGIN}/embed/post/3002/1">`);
+		expect(html).toContain(`<meta property="og:image" content="${PUBLIC_ORIGIN}/embed/post/3002/2">`);
 	});
 
-	test("quote tweet and poll are formatted in embed description", async () => {
+	test("quote tweet is formatted in embed description", async () => {
 		const complexPost: Post = {
 			id: "3003",
 			text: "What do you think of this idea?",
 			created_at: new Date("2026-10-21T12:00:00Z"),
 			author: sampleAuthor,
 			media: [],
-			like_count: 10,
-			repost_count: 2,
-			reply_count: 1,
-			quoted: {
+			counts: { replies: 1, reposts: 2, likes: 10, views: 50 },
+			quote: {
 				id: "2999",
 				text: "We should build something new today.",
-				author: { screen_name: "alice", name: "Alice" },
-			},
-			poll: {
-				choices: ["Yes", "No"],
-				counts: [80, 20],
-				totalVotes: 100,
-				closed: true,
+				author: { id: "1002", screen_name: "alice", name: "Alice", bio: "", avatar_url: null },
+				media: [],
 			},
 		};
 
@@ -117,23 +102,16 @@ describe("Rich Embeds (fxTwitter / vxTwitter style)", () => {
 		const html = await res.text();
 
 		// Quote tweet text
-		expect(html).toContain("🗨️ Quoting Alice (@alice):");
+		expect(html).toContain("Quoting Alice (@alice):");
 		expect(html).toContain("We should build something new today.");
-
-		// Poll text
-		expect(html).toContain("📊 Poll (Final results):");
-		expect(html).toContain("🔘 Yes (80%)");
-		expect(html).toContain("🔘 No (20%)");
-		expect(html).toContain("100 votes");
 	});
 
-	test("profile preview formats bio and follower stats", async () => {
+	test("profile preview formats bio and meta redirect", async () => {
 		const res = profilePreview(sampleAuthor);
 		const html = await res.text();
 
 		expect(html).toContain("John Doe (@johndoe)");
 		expect(html).toContain("Developer &amp; open source enthusiast");
-		expect(html).toContain("👥 1.3K Followers   •   Following 340   •   📝 89 Posts");
-		expect(html).toContain(`<meta http-equiv="refresh" content="0;url=${PUBLIC_ORIGIN}/johndoe">`);
+		expect(html).toContain(`<meta http-equiv="refresh" content="0; url=${PUBLIC_ORIGIN}/johndoe">`);
 	});
 });

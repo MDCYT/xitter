@@ -5,6 +5,7 @@ import { RateLimitError, limitedResponse } from "./ratelimit";
 import { ChatError, chatHandlers } from "./chat";
 import { delegationHandlers } from "./delegation";
 import { automationHandlers } from "./automation";
+import { GrokError, grokHandlers } from "./grok";
 import { analyticsHandlers } from "./analytics";
 import { bookmarkFolderHandlers } from "./bookmark-folders";
 import { communityHandlers } from "./communities";
@@ -24,16 +25,17 @@ import { PUBLIC_ORIGIN } from "./config";
 import { sql } from "./db";
 import { trendScope } from "./explore-settings";
 import { activeCards, cardsEntry } from "./explore-cards";
-import { isBlockedEitherWay, blockedIds, blockedFor, outOfView, protectedFor } from "./blocks";
+import { isBlockedEitherWay, blockedIds, blockedFor, outOfView, protectedFor, shadowedFor } from "./blocks";
+import { chargeView, pickAd } from "./ads";
 import { feature, settings } from "./settings";
-import { freshAsOf, rankedFeed } from "./ranking";
+import { freshAsOf, newView, rankedFeed } from "./ranking";
 import * as articles from "./articles";
 import type { User, Viewer } from "./auth";
 import { getLanguageDisplayName } from "./lang";
 import { revealSuspended, seesSuspended } from "./staff-access";
 import { notificationsTimeline, unreadCount } from "./notifications";
 import { cachedTrends, searchPosts, searchUsers } from "./search";
-import { isId, newId } from "./ids";
+import { idTime, isId, newId } from "./ids";
 import { attachMedia } from "./media";
 import { type ThreadItem, cursorEntry, feedEntry, gridAppend, gridEntry, pinnedEntry, promotedEntry, showMoreThreadsEntry, threadEntry, threadItems, tombstoneEntry, tweetEntry, tweetResult, userEntry, userResult } from "./model";
 import { MORE_PER_PAGE, type Placed, THREADS_PER_PAGE, conversationThreads } from "./threads";
@@ -66,7 +68,7 @@ import {
 } from "./posts";
 import { lookupRemoteUser } from "./federation-sync";
 import { TopicError, setTopicState, suggestedTopics, topicById, topicContext, topicFeedbackActions, topicFeedbackKeys, topicResult, topicsForPosts } from "./topics";
-import { affiliatesOf, followList, localName, suggestedUsers, userById, userByName, usersByIds } from "./users";
+import { affiliatesOf, followList, localName, setFollow, suggestedUsers, userById, userByName, usersByIds } from "./users";
 
 type Vars = Record<string, any>;
 type Handler = (viewer: Viewer, vars: Vars) => Promise<unknown> | unknown;
@@ -146,10 +148,16 @@ const homeResponse = (entries: unknown[], feedbackActions: unknown[] = []) => ({
 // One boosted post (the shop's Post boost) on each page of "For you": not the
 // viewer's own, nor one the page shows already.
 async function boostedPost(viewer: Viewer, onPage: string[]) {
+	const ad = await pickAd(viewer.id, onPage);
+	const adPost = ad && (await getPost(viewer.id, ad.postId));
+	if (ad && adPost) {
+		void chargeView(ad.adId, viewer.id).catch(() => {});
+		return adPost;
+	}
 	if (!feature("money")) return undefined;
 	const [b] = await sql`select b.post_id::text as id from post_boosts b join posts p on p.id = b.post_id
 		where b.ends_at > now() and not p.hidden and p.user_id <> ${viewer.id}::bigint
-			and p.user_id not in ${blockedFor(viewer.id)} and p.user_id not in ${outOfView(viewer.id)}
+			and p.user_id not in ${blockedFor(viewer.id)} and p.user_id not in ${outOfView(viewer.id)} and p.user_id not in ${shadowedFor(viewer.id)}
 			and not (b.post_id = any(${sql.array(onPage, "INT8")}))
 		order by random() limit 1`;
 	return b ? getPost(viewer.id, b.id) : undefined;
@@ -172,25 +180,30 @@ async function globalPin(viewer: Viewer, entries: unknown[], first: boolean) {
 // newer posts gets what arrived since, newest first, above the ranked entries.
 const forYou: Handler = async (viewer, vars) => {
 	const cursor = typeof vars.cursor === "string" ? vars.cursor : "";
-	const ranked = /^r(\d+)\.(\d{1,19})$/.exec(cursor);
-	if (cursor && !ranked) return home(false)(viewer, vars);
+	const parsed = /^r(\d{1,5})\.(\d{1,19})(?:\.(\d{1,10}))?$/.exec(cursor);
+	if (cursor && !parsed) return home(false)(viewer, vars);
+	const age = parsed && isId(parsed[2]) ? Date.now() - idTime(parsed[2]).getTime() : Number.NaN;
+	const ranked = age > -60_000 && age < 24 * 3600_000 ? parsed : null;
 	const count = Math.min(Math.max(Number(vars.count) || 20, 1), 100);
 	const asOf = ranked ? ranked[2] : await freshAsOf(viewer.id);
 	const offset = ranked ? Number(ranked[1]) : 0;
-	const page = await rankedFeed(viewer.id, { asOf, offset, limit: count });
+	const seed = ranked ? Number(ranked[3] ?? 0) : newView();
+	const page = await rankedFeed(viewer.id, { asOf, offset, limit: count, view: seed });
 	// sort indexes run down from asOf in ranked order, below anything newer,
 	// two apart so a boosted post fits between two of them
 	const base = BigInt(asOf);
-	const topics = await topicsForPosts(viewer.id, page.items.filter((i) => !i.repost).map((i) => ({ id: i.post.id, authorId: i.post.author.id })));
+	const [topics, boosted] = await Promise.all([
+		topicsForPosts(viewer.id, page.items.filter((i) => !i.repost).map((i) => ({ id: i.post.id, authorId: i.post.author.id }))),
+		page.items.length > 2 ? boostedPost(viewer, page.items.map((i) => i.post.id)) : undefined,
+	]);
 	const feedbackActions = [...new Map([...topics.values()].map((t) => [t.id, t])).values()].flatMap(topicFeedbackActions);
 	const entries: unknown[] = page.items.map((item, i) => {
 		const topic = item.repost ? undefined : topics.get(item.post.id);
 		return feedEntry(item, (base - 2n * BigInt(offset + i) - 2n).toString(), topic && { context: topicContext(topic), feedbackKeys: topicFeedbackKeys(topic) });
 	});
-	const boosted = page.items.length > 2 ? await boostedPost(viewer, page.items.map((i) => i.post.id)) : undefined;
 	if (boosted) entries.splice(2, 0, promotedEntry(boosted, (base - 2n * BigInt(offset + 2) - 1n).toString()));
 	if (!ranked) entries.unshift(cursorEntry("Top", `t${asOf}`, inc(asOf)));
-	if (page.next !== undefined) entries.push(cursorEntry("Bottom", `r${page.next}.${asOf}`, (base - 2n * BigInt(page.next) - 1n).toString()));
+	if (page.next !== undefined) entries.push(cursorEntry("Bottom", `r${page.next}.${asOf}${seed ? `.${seed}` : ""}`, (base - 2n * BigInt(page.next) - 1n).toString()));
 	await globalPin(viewer,entries,!cursor);
 	return homeResponse(entries, feedbackActions);
 };
@@ -233,11 +246,11 @@ const tweetDetail: Handler = async (viewer, vars) => {
 	const cursor = typeof vars.cursor === "string" ? vars.cursor : "";
 	const entries: unknown[] = [];
 	const feedbackActions: unknown[] = [];
-	const focal = await getPost(viewer.id, id);
+	const [focal, below] = await Promise.all([getPost(viewer.id, id), repliesBelow(viewer.id, id)]);
 	if (!focal) throw new PostError("No status found with that ID.", 144);
 	const pinned = focal.reply_to_id ? null : await pinnedReplyOf(id);
 	const canPin = !focal.reply_to_id && focal.author.id === viewer.id;
-	const { roots, thread } = conversationThreads(focal, await repliesBelow(viewer.id, id), pinned);
+	const { roots, thread } = conversationThreads(focal, below, pinned);
 	const labelled = (it: Placed): ThreadItem =>
 		it.parent ? it : { ...it, pinned: it.post.id === pinned, ...(canPin ? { feedbackKey: it.post.id === pinned ? PIN_KEYS.Pinned : PIN_KEYS.Pinnable } : {}) };
 	const threadsPage = async (offset: number, start: bigint) => {
@@ -790,13 +803,13 @@ const handlers: Record<string, Handler> = {
 	UsersByRestIds: async (v, vars) => {
 		const ids: unknown[] = Array.isArray(vars.userIds) ? vars.userIds.slice(0, 100) : [];
 		const users = await Promise.all(ids.filter(isId).map((id) => userById(v.id, id)));
-		return { data: { users: users.filter((u) => u !== undefined).map((u) => ({ result: userResult(u) })) } };
+		return { data: { users: users.filter((u) => u !== undefined).map((u) => ({ result: u.status === "suspended" ? suspendedUser(v, u) : userResult(u) })) } };
 	},
 	// the account menu's badges and avatars for the other signed-in accounts
 	UsersVerifiedAvatars: async (v, vars) => {
 		const ids: unknown[] = Array.isArray(vars.userIds) ? vars.userIds.slice(0, 10) : [];
 		const users = await Promise.all(ids.filter(isId).map((id) => userById(v.id, id)));
-		return { data: { usersResults: users.filter((u) => u !== undefined).map((u) => ({ result: userResult(u) })) } };
+		return { data: { usersResults: users.filter((u) => u !== undefined).map((u) => ({ result: u.status === "suspended" ? suspendedUser(v, u) : userResult(u) })) } };
 	},
 	UserTweets: profileFeed(false, "both"),
 	UserRepostsTimeline: profileFeed(false, "reposts"),
@@ -808,6 +821,11 @@ const handlers: Record<string, Handler> = {
 	TopicUnfollow: topicState("unfollow"),
 	TopicNotInterested: topicState("not_interested"),
 	TopicUndoNotInterested: topicState("undo_not_interested"),
+	RemoveFollower: async (v: Viewer, vars: Vars) => {
+		const id = String(vars.target_user_id ?? "");
+		if (/^\d{1,19}$/.test(id)) await setFollow(id, v.id, false);
+		return { data: { remove_follower: { unfollow_success_reason: "Unfollowed" } } };
+	},
 	TopicToFollowSidebar: async (v) => {
 		const topics = await suggestedTopics(v.id);
 		const entries = topics.length
@@ -880,15 +898,15 @@ const handlers: Record<string, Handler> = {
 		const id = postId(vars);
 		const control = replyControl(vars.mode, vars.allowed_country_codes);
 		const rows = await sql`update posts set reply_policy = ${control.policy}, reply_selections = ${sql.array(control.selections, "TEXT")}, reply_allowed_values = ${sql.array(control.values, "TEXT")}
-			where id = ${id}::bigint and user_id = ${viewer.id}::bigint and conversation_id = id returning id`;
-		if (!rows.length) throw new PostError("You can only change reply controls on your own conversation.", 144);
+			where id = ${id}::bigint and user_id = ${viewer.id}::bigint returning id`;
+		if (!rows.length) throw new PostError("You can only change reply controls on your own posts.", 144);
 		return { data: { conversation_control_change: { __typename: "ConversationControlChangeResult", tweet_results: { result: tweetResult((await getPost(viewer.id, id))!) } } } };
 	},
 	ConversationControlDelete: async (viewer, vars) => {
 		const id = postId(vars);
 		const rows = await sql`update posts set reply_policy = null, reply_selections = '{}', reply_allowed_values = '{}'
-			where id = ${id}::bigint and user_id = ${viewer.id}::bigint and conversation_id = id returning id`;
-		if (!rows.length) throw new PostError("You can only change reply controls on your own conversation.", 144);
+			where id = ${id}::bigint and user_id = ${viewer.id}::bigint returning id`;
+		if (!rows.length) throw new PostError("You can only change reply controls on your own posts.", 144);
 		return { data: { conversation_control_delete: { __typename: "ConversationControlDeleteResult", tweet_results: { result: tweetResult((await getPost(viewer.id, id))!) } } } };
 	},
 	CreateHighlight: async (v, vars) => ({ data: { tweet_highlights_put: { success: await setHighlight(v.id, postId(vars), true) } } }),
@@ -900,7 +918,7 @@ const handlers: Record<string, Handler> = {
 	// account as null, and the About card then said it doesn't exist.
 	ProfileSpotlightsQuery: async (v, vars) => {
 		const user = typeof vars.screen_name === "string" ? await userByName(v.id, vars.screen_name) : undefined;
-		if (!user) return { data: { user_result_by_screen_name: null } };
+		if (!user || (user.status === "suspended" && !seesSuspended(v))) return { data: { user_result_by_screen_name: null } };
 		return { data: { user_result_by_screen_name: { id: globalId("UserResults", user.id), result: { ...userResult(user), profilemodules: { v1: [] } } } } };
 	},
 	UserSportsProfile: () => ({ data: {} }),
@@ -1206,8 +1224,10 @@ Object.assign(handlers, {
 	},
 } satisfies Record<string, Handler>);
 Object.assign(handlers, automationHandlers);
+Object.assign(handlers, grokHandlers);
 
-export const knownOperation = (name: string) => name in handlers;
+// own names only: "constructor" is in every object, and called it hands the viewer back
+export const knownOperation = (name: string) => Object.hasOwn(handlers, name);
 
 export const GUEST_ALLOWED_GQL = new Set([
 	"HomeTimeline",
@@ -1283,6 +1303,7 @@ export async function runOperation(name: string, viewer: Viewer, vars: Vars): Pr
 		if (e instanceof RateLimitError) return limitedResponse(e.hit);
 		// the chat app reads these as they are
 		if (e instanceof ChatError) return Response.json({ errors: [{ message: e.message, code: e.code }], data: {} });
+		if (e instanceof GrokError) return Response.json({ errors: [{ message: `Error: ${e.message}`, code: 403, extensions: { code: 403 } }], data: {} });
 		// the main client takes the code from extensions and shows the message
 		// after its first ": ", as in X's "_Missing: No status found with that ID."
 		if (e instanceof PostError || e instanceof ReplyControlError || e instanceof articles.ArticleError) {

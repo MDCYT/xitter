@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { PUBLIC_ORIGIN } from "./config";
+import { MAX_POST_MEDIA, PUBLIC_ORIGIN } from "./config";
 import { sql } from "./db";
 import { flagValue } from "./flags";
 import { pronounsValue } from "./pronouns";
@@ -14,6 +14,7 @@ import { cleanText, oneLine } from "./text-clean";
 import { parseDecoration } from "./decorations";
 import { posterFile } from "./video";
 import { getS3File, isS3Enabled, uploadToS3 } from "./storage";
+import { NAME_MAX } from "./settings";
 
 const MEDIA_DIR = process.env.MEDIA_DIR ?? "media";
 const PAGE = 200;
@@ -287,7 +288,8 @@ async function resolvePost(value: unknown, depth = 0): Promise<string | undefine
 async function remoteMedia(instance: string, owner: string, m: any, post: string | null, position: number | null): Promise<string | undefined> {
 	if (!m || typeof m.id !== "string" || !/^\d{1,19}$/.test(m.id)) return undefined;
 	const kind = ["photo", "video", "animated_gif"].includes(m.kind) ? m.kind : "photo";
-	const mime = typeof m.mime === "string" && /^(image|video)\/[\w.+-]{1,40}$/.test(m.mime) ? m.mime : "application/octet-stream";
+	// what an upload here can be; a peer's image/svg+xml would run script on this origin
+	const mime = typeof m.mime === "string" && /^(image\/(png|jpeg|gif|webp)|video\/mp4)$/.test(m.mime) ? m.mime : "application/octet-stream";
 	const width = Number.isInteger(m.width) ? Math.min(Math.max(m.width, 1), 20_000) : 1;
 	const height = Number.isInteger(m.height) ? Math.min(Math.max(m.height, 1), 20_000) : 1;
 	const alt = typeof m.alt_text === "string" ? m.alt_text.slice(0, 1000) : null;
@@ -337,13 +339,13 @@ export async function applyUser(instance: string, u: any): Promise<string | unde
 	const created = typeof u.created_at === "string" && !Number.isNaN(Date.parse(u.created_at)) ? new Date(u.created_at) : new Date();
 	const id = local ?? newId();
 	if (local)
-		await sql`update users set screen_name = ${handle}, name = ${oneLine(clip(u.name, 50))}, bio = ${cleanText(clip(u.bio, 300), { lines: 6 })}, location = ${oneLine(clip(u.location, 60))}, website = ${website}, protected = ${!!u.protected}
+		await sql`update users set screen_name = ${handle}, name = ${oneLine(clip(u.name, NAME_MAX))}, bio = ${cleanText(clip(u.bio, 300), { lines: 6 })}, location = ${oneLine(clip(u.location, 60))}, website = ${website}, protected = ${!!u.protected}
 			where id = ${local}::bigint`;
 	else {
 		const [{ n }] = await sql`select count(*)::int as n from users where instance = ${instance}`;
 		if (n >= MAX_ACCOUNTS) throw new FederationError(`${instance} already has ${MAX_ACCOUNTS} accounts here`);
 		await sql`insert into users (id, screen_name, name, password_hash, bio, location, website, protected, instance, remote_id, created_at)
-			values (${id}::bigint, ${handle}, ${oneLine(clip(u.name, 50))}, '!', ${cleanText(clip(u.bio, 300), { lines: 6 })}, ${oneLine(clip(u.location, 60))}, ${website}, ${!!u.protected}, ${instance}, ${u.id}::bigint, ${created})
+			values (${id}::bigint, ${handle}, ${oneLine(clip(u.name, NAME_MAX))}, '!', ${cleanText(clip(u.bio, 300), { lines: 6 })}, ${oneLine(clip(u.location, 60))}, ${website}, ${!!u.protected}, ${instance}, ${u.id}::bigint, ${created})
 			on conflict (instance, remote_id) where instance is not null do nothing`;
 		const again = await mapped(instance, "user", u.id);
 		if (again) return again;
@@ -390,7 +392,8 @@ async function applyPost(instance: string, p: any, depth = 0): Promise<string | 
 		if (old && (!old.reply_to_id || orphaned) && p.reply_to) {
 			const replyTo = await resolvePost(p.reply_to, depth);
 			const [parent] = replyTo ? await sql`select conversation_id::text, user_id::text from posts where id = ${replyTo}::bigint` : [];
-			if (parent && !(await blockedBetween(author, parent.user_id)))
+			// the same checks as a new reply: an orphan sent first mustn't get past who may reply
+			if (parent && !(await blockedBetween(author, parent.user_id)) && !(await replyLimited(replyTo!, parent.conversation_id, author)))
 				await sql`update posts set reply_to_id = ${replyTo}::bigint, reply_to_user_id = ${parent.user_id}::bigint, conversation_id = ${parent.conversation_id}::bigint where id = ${local}::bigint`;
 		}
 		await saveMentions(local, text, instance, lookupRemoteUser);
@@ -399,7 +402,7 @@ async function applyPost(instance: string, p: any, depth = 0): Promise<string | 
 	}
 	const replyTo = (p.reply_to ? await resolvePost(p.reply_to, depth) : undefined) ?? (p.reply_to || p.is_reply === true ? newId() : undefined);
 	const [parent] = replyTo ? await sql`select conversation_id::text, user_id::text from posts where id = ${replyTo}::bigint` : [];
-	if (parent && ((await blockedBetween(author, parent.user_id)) || (await replyLimited(parent.conversation_id, author)))) return undefined;
+	if (parent && ((await blockedBetween(author, parent.user_id)) || (await replyLimited(replyTo!, parent.conversation_id, author)))) return undefined;
 	const id = newId();
 	const created = typeof p.created_at === "string" && !Number.isNaN(Date.parse(p.created_at)) ? new Date(Math.min(Date.parse(p.created_at), Date.now())) : new Date();
 	await sql`insert into posts (id, user_id, text, reply_to_id, reply_to_user_id, conversation_id, quote_id, source, sensitive, edited_at, created_at)
@@ -413,7 +416,7 @@ async function applyPost(instance: string, p: any, depth = 0): Promise<string | 
 }
 
 async function attachMedia(instance: string, author: string, post: string, list: unknown) {
-	const items = Array.isArray(list) ? list.slice(0, 4) : [];
+	const items = Array.isArray(list) ? list.slice(0, MAX_POST_MEDIA) : [];
 	const kept: string[] = [];
 	for (const [i, m] of items.entries()) {
 		const id = await remoteMedia(instance, author, m, post, i);

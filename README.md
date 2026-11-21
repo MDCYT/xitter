@@ -335,8 +335,12 @@ cache and autovacuum settings; adjust them for the host's memory and workload.
 | `DB_STATEMENT_TIMEOUT`, `DB_LOCK_TIMEOUT` | `30s`, `10s` | A query running or waiting on a lock longer than this is cancelled, so one stuck query can't hold every connection (the migration at start-up has no limit) |
 | `PORT` | `3000` | Listen port |
 | `PUBLIC_ORIGIN` | `http://localhost:$PORT` | Address browsers use to reach the instance |
+| `PASSKEY_ORIGINS` | none | Other https sites of this instance, comma separated, that may make and use its passkeys (subdomains of `PUBLIC_ORIGIN`'s host only) |
 | `CLIENT_DIR` | `client` | Where the pinned client is stored |
+| `EXTRA_CLIENT_DIRS` | none | More client builds served next to it, comma separated, each `dir` or `id=dir` (the Nov 2020 one from `bun scripts/fetch-old-client.ts`, for example `client/old/2020-11-a0abd565-legacy`); people pick theirs in Settings > Xitter settings > Twitter client |
+| `DEFAULT_CLIENT`, `CLIENT_CHOICE` | the `CLIENT_DIR` build, on | Starting values for the default client's id (`current`, `2020`) and whether people may pick (`off` to stop them); both change in Admin > Client |
 | `MEDIA_DIR` | `media` | Uploaded images and videos |
+| `MEDIA_SCAN` | unset | `1` behind Cloudflare with its CSAM Scanning Tool on: every photo gets a signed public copy at `/media-scan/<id>.<ext>`, fetched once through `PUBLIC_ORIGIN` so the edge caches and scans it; a 451 hides the media and its post and files a report (`src/media-scan.ts`). `MEDIA_SCAN_SECRET` sets the signing key, else one is kept in `MEDIA_DIR/.scan-key` |
 | `BRANDING_DIR` | `data/branding` | Logos uploaded in the admin panel |
 | `FFMPEG`, `FFPROBE` | `ffmpeg`, `ffprobe` | Video tools |
 | `MAX_VIDEO_MB`, `MAX_VIDEO_SECONDS` | `200`, `600` | Starting video limits (changeable in the panel) |
@@ -368,6 +372,10 @@ cache and autovacuum settings; adjust them for the host's memory and workload.
 | `GOOGLE_FONTS_CSS_ORIGIN`, `GOOGLE_FONTS_FILE_ORIGIN` | Google's | Where theme fonts are fetched from before this instance serves them |
 | `FEDERATION` | on | `off` stops federating (see [FEDERATION.md](FEDERATION.md)) |
 | `FEDERATION_KEY_FILE` | `data/federation-key.json` | This instance's federation key; back it up |
+| `CAP_SECRET` | from `CAP_SECRET_FILE` | Secret that signs Cap challenges, at least 16 bytes |
+| `CAP_SECRET_FILE` | `data/cap-secret` | Where the Cap secret is made and kept when `CAP_SECRET` isn't set |
+| `CAP_RSW_FILE` | `data/cap-rsw.json` | The Cap RSW keypair, made on first use |
+| `CAP_RSW_T` | `10000` | How much sequential work the Cap RSW puzzle asks for |
 | `FEDERATION_REGISTRY_URL` | `instances.json` on this repository's `main` | The list of instances to federate with |
 | `FEDERATION_MEDIA`, `FEDERATION_MEDIA_CACHE_MB` | unset, `64` | `store` keeps other instances' media on disk; otherwise it's fetched on view and the newest kept in memory |
 | `FEDERATION_EVENTS_PER_HOUR`, `FEDERATION_MAX_ACCOUNTS` | `20000`, `100000` | Changes taken from one other instance per hour before its sync pauses, and the most of its accounts this instance takes |

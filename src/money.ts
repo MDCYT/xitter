@@ -6,14 +6,14 @@
 import { audit } from "./admin";
 import { esc } from "./account-page";
 import type { Viewer } from "./auth";
-import { isBlockedEitherWay } from "./blocks";
+import { blockedFor, isBlockedEitherWay, protectedFor, suspendedFor } from "./blocks";
 import { PUBLIC_ORIGIN } from "./config";
 import { sql } from "./db";
 import { hateIn } from "./hate";
 import { newId } from "./ids";
 import { linksIn } from "./links";
 import { absolute } from "./media";
-import { avatarUrl, remoteCheckHidden } from "./model";
+import { avatarUrl, checkHidden } from "./model";
 import { feature, hasBlockedPhrase, settings } from "./settings";
 import { MONEY_ICON } from "./tidy";
 import { isPeer } from "./federation";
@@ -126,6 +126,8 @@ function checkNote(note: string) {
 // returns the transfer it already made. Paying a request checks it is still
 // open, for this payer, to its requester, for its amount.
 export async function sendMoney(senderId: string, handle: string, amountCents: number, note: string, idem: string, requestId?: string): Promise<{ id: string; to: string; repeated: boolean }> {
+	const [me] = await sql`select status from users where id = ${senderId}::bigint`;
+	if (me?.status === "restricted") throw new MoneyError("Your account can't send money right now.");
 	if (!Number.isSafeInteger(amountCents) || amountCents <= 0) throw new MoneyError("Enter an amount over $0.");
 	const max = economy().max_transfer_cents;
 	if (amountCents > max) throw new MoneyError(`You can send up to ${formatCents(max)} at a time.`);
@@ -190,7 +192,7 @@ export async function announcePayment(id: string) {
 		const { createPost } = await import("./posts");
 		// a name that would read as a mention or a link keeps the @ and dots out of it
 		const name = (p: Party) => (p.merchant?.name ?? p.name).replace(/[@＠]/g, "").replace(/\./g, "\u2024").trim() || p.screen_name;
-		await createPost(feed.id, `${name(t.sender)} sent ${shortCents(t.amount)} to ${name(t.recipient)}! #Money ${paymentUrl(id)}`, { skipPreview: true });
+		await createPost(feed.id, `${name(t.sender)} sent ${shortCents(t.amount)} to ${name(t.recipient)}! #Money ${paymentUrl(id)}`, { skipPreview: true, skipReview: true });
 	} catch (e) {
 		console.error("money feed:", e instanceof Error ? e.message : e);
 	}
@@ -268,9 +270,9 @@ export async function rewardLike(likerId: string, postId: string, likerInstance?
 	await sql.begin(async (tx) => {
 		const [p] = likerInstance
 			? await tx`select p.user_id::text as author from posts p join users a on a.id = p.user_id join users l on l.id = ${likerId}::bigint
-				where p.id = ${postId}::bigint and a.instance is null and l.instance = ${likerInstance} and l.status <> 'suspended'`
+				where p.id = ${postId}::bigint and not p.ad_only and a.instance is null and l.instance = ${likerInstance} and l.status <> 'suspended'`
 			: await tx`select p.user_id::text as author from posts p join users a on a.id = p.user_id join users l on l.id = ${likerId}::bigint
-				where p.id = ${postId}::bigint and a.instance is null and l.instance is null and l.status <> 'suspended'`;
+				where p.id = ${postId}::bigint and not p.ad_only and a.instance is null and l.instance is null and l.status <> 'suspended'`;
 		if (!p || p.author === likerId) return;
 		if (likerInstance) {
 			await lockPeer(tx, likerInstance);
@@ -359,7 +361,7 @@ export async function parties(ids: string[]): Promise<Map<string, Party>> {
 				screen_name: r.screen_name,
 				name: r.name || r.screen_name,
 				avatar: avatarUrl(r.avatar_url),
-				badge: remoteCheckHidden(r) ? null : (r.verified_type ?? (r.org && feature("affiliate_checkmarks") ? "blue" : null)),
+				badge: checkHidden(r) ? null : (r.verified_type ?? (r.org && feature("affiliate_checkmarks") ? "blue" : null)),
 				org: r.org ? { name: r.org.name, screen_name: r.org.screen_name, avatar: avatarUrl(r.org.avatar) } : null,
 				square: r.verified_type === "business" || r.verified_type === "government",
 				merchant: r.merchant ? { name: r.m_name || r.name || r.screen_name, banner: r.show_banner && r.banner_url ? plainUrl(absolute(r.banner_url)) : null } : null,
@@ -384,6 +386,10 @@ export const MONEY_WORDMARK = `<span class="xm-mark"><svg viewBox="0 0 24 24" ar
 // reversed: staff sent the money back (Admin > Money)
 export type Payment = { id: string; amount: number; note: string; at: Date; sender: Party; recipient: Party; reversed?: boolean; status: string };
 
+// a post (p) that names a payment or request shows it only to those who can see that post
+const postSeenBy = (viewerId: string) =>
+	sql`not p.hidden and p.user_id not in ${protectedFor(viewerId)} and p.user_id not in ${suspendedFor(viewerId)} and p.user_id not in ${blockedFor(viewerId)}`;
+
 // payments by id, with both sides; `visibleTo` keeps the ones that account is
 // part of or that one side put in a post
 export async function payments(ids: string[], visibleTo?: string): Promise<Map<string, Payment>> {
@@ -394,7 +400,7 @@ export async function payments(ids: string[], visibleTo?: string): Promise<Map<s
 		${
 			visibleTo
 				? sql`and (${visibleTo}::bigint in (t.sender_id, t.recipient_id) or exists (select 1 from posts p
-				where p.user_id in (t.sender_id, t.recipient_id, ${feed}::bigint) and p.text ~ ('/i/xmoney/p/' || t.id::text || '([^0-9]|$)')))`
+				where p.user_id in (t.sender_id, t.recipient_id, ${feed}::bigint) and ${postSeenBy(visibleTo)} and p.text ~ ('/i/xmoney/p/' || t.id::text || '([^0-9]|$)')))`
 				: sql``
 		}`;
 	const who = await parties(rows.flatMap((r: any) => [r.sender_id, r.recipient_id]));
@@ -420,7 +426,7 @@ export async function requests(ids: string[], visibleTo?: string): Promise<Map<s
 		${
 			visibleTo
 				? sql`and (q.payer_id is null or ${visibleTo}::bigint in (q.requester_id, q.payer_id) or exists (select 1 from posts p
-				where p.user_id = q.requester_id and p.text ~ ('/i/xmoney/r/' || q.id::text || '([^0-9]|$)')))`
+				where p.user_id = q.requester_id and ${postSeenBy(visibleTo)} and p.text ~ ('/i/xmoney/r/' || q.id::text || '([^0-9]|$)')))`
 				: sql``
 		}`;
 	const who = await parties(rows.flatMap((r: any) => [r.requester_id, ...(r.payer_id ? [r.payer_id] : [])]));

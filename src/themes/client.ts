@@ -187,7 +187,7 @@ export const THEME_SCRIPT = String.raw`(function(){
 		var muted=t.muted||mix(tr,hexRgb(avgHex),0.45),border=t.border||mix(tr,hexRgb(avgHex),0.82),link=t.link||accent;
 		var reply=t.reply||accent,bookmark=t.bookmark||accent,like=t.like||"#f91880",repost=t.repost||"#00ba7c";
 		return {
-			"--xt-bg":fill(t.bg),"--xt-surface":fill(t.surface),"--xt-text":text,"--xt-secondary":t.secondary||mix(tr,hexRgb(avgHex),0.28),"--xt-muted":muted,"--xt-link":link,
+			"--xt-bg":fill(t.bg),"--xt-surface":fill(t.surface),"--xt-surface-solid":surface,"--xt-text":text,"--xt-secondary":t.secondary||mix(tr,hexRgb(avgHex),0.28),"--xt-muted":muted,"--xt-link":link,
 			"--xt-border":border,"--xt-divider":t.divider||border,"--xt-accent":accent,"--xt-accent-fill":accentFill,"--xt-button":fill(t.button),"--xt-button-text":t.buttonText,
 			"--xt-button-hover":t.buttonHover||mix(hexRgb(hexOf(t.button)),tr,0.12),"--xt-header":t.header?fill(t.header):"rgb("+Math.round(avg[0])+" "+Math.round(avg[1])+" "+Math.round(avg[2])+" / .85)",
 			"--xt-hover":t.hover||("rgb("+tr[0]+" "+tr[1]+" "+tr[2]+" / .1)"),"--xt-input":t.inputBg||mix(hexRgb(surface),tr,0.08),"--xt-input-text":t.inputText||text,"--xt-input-border":t.inputBorder||border,
@@ -215,7 +215,7 @@ export const THEME_SCRIPT = String.raw`(function(){
 		if(fontOk(t.font.display)){addFont(t.font.display);css+='html[data-xitter-theme] [data-testid="User-Name"] span:first-of-type,html[data-xitter-theme] [data-testid="UserName"],html[data-xitter-theme] h1,html[data-xitter-theme] h2{font-family:"'+t.font.display+'",'+CHIRP+'!important}'}
 		fontSheet.textContent=css;
 	}
-	var VAR_KEYS=["--xt-bg","--xt-surface","--xt-text","--xt-secondary","--xt-muted","--xt-link","--xt-border","--xt-divider","--xt-accent","--xt-accent-fill","--xt-button","--xt-button-text","--xt-button-hover","--xt-header","--xt-hover","--xt-input","--xt-input-text","--xt-input-border","--xt-menu","--xt-tooltip","--xt-icon","--xt-icon-active","--xt-reply","--xt-repost","--xt-like","--xt-bookmark","--xt-views","--xt-secondary-button","--xt-secondary-button-border","--xt-secondary-button-text","--xt-badge","--xt-selection","--xt-accent-soft","--xt-reply-soft","--xt-repost-soft","--xt-like-soft","--xt-bookmark-soft"];
+	var VAR_KEYS=["--xt-bg","--xt-surface","--xt-surface-solid","--xt-text","--xt-secondary","--xt-muted","--xt-link","--xt-border","--xt-divider","--xt-accent","--xt-accent-fill","--xt-button","--xt-button-text","--xt-button-hover","--xt-header","--xt-hover","--xt-input","--xt-input-text","--xt-input-border","--xt-menu","--xt-tooltip","--xt-icon","--xt-icon-active","--xt-reply","--xt-repost","--xt-like","--xt-bookmark","--xt-views","--xt-secondary-button","--xt-secondary-button-border","--xt-secondary-button-text","--xt-badge","--xt-selection","--xt-accent-soft","--xt-reply-soft","--xt-repost-soft","--xt-like-soft","--xt-bookmark-soft"];
 	var ACCENT_KEYS={"--xt-accent":1,"--xt-accent-fill":1,"--xt-accent-soft":1,"--xt-accent-hover":1};
 	// An organization's decor owns its profile. While the decor script marks the
 	// page with data-xitter-decor, the viewer's theme and accent step aside
@@ -431,6 +431,7 @@ export const THEME_SCRIPT = String.raw`(function(){
 			// Inside a dialog the page's black is the dialog's own surface, as in the
 			// media viewer's reply panel: made clear, the page behind read through it
 			css.push(wrap('[aria-modal="true"] '+layer) + "{background:var(--xt-menu)!important}");
+			css.push(wrap('[role="alertdialog"] '+layer) + "{background:var(--xt-menu)!important}");
 			glassOn=false;
 		}
 		// Over an image, the glass goes on X's own rounded boxes in the sidebar:
@@ -441,8 +442,8 @@ export const THEME_SCRIPT = String.raw`(function(){
 			glassOn=true;
 			var card=wrap('[data-testid="sidebarColumn"] :is('+found.pagebg.join(",")+'):is('+found.rounded.join(",")+')'+(posSels.length?':not(:is('+posSels.join(",")+'))':''),true);
 			glassOn=false;
-			css.push(card+"{background:color-mix(in srgb,var(--xt-surface) var(--xt-bg-panel),transparent)!important;-webkit-backdrop-filter:blur(14px)!important;backdrop-filter:blur(14px)!important}");
-			css.push("@supports not ((-webkit-backdrop-filter:blur(1px)) or (backdrop-filter:blur(1px))){"+card+"{background:color-mix(in srgb,var(--xt-surface) 92%,transparent)!important}}");
+			css.push(card+"{background:color-mix(in srgb,var(--xt-surface-solid,var(--xt-surface)) var(--xt-bg-panel),transparent)!important;-webkit-backdrop-filter:blur(14px)!important;backdrop-filter:blur(14px)!important}");
+			css.push("@supports not ((-webkit-backdrop-filter:blur(1px)) or (backdrop-filter:blur(1px))){"+card+"{background:color-mix(in srgb,var(--xt-surface-solid,var(--xt-surface)) 92%,transparent)!important}}");
 		}
 		// A sidebar module with nothing to show is hidden: one that is only its
 		// border, and one whose only content is X's empty-state message ("No
@@ -468,6 +469,7 @@ export const THEME_SCRIPT = String.raw`(function(){
 		add("border","border-color:var(--xt-border)!important;border-bottom-color:var(--xt-divider)!important",false);
 		add("button","background:var(--xt-button)!important",false);
 		add("buttonText","color:var(--xt-button-text)!important",false);
+		css.push(wrap(light?'[style*="background-color: rgb(15, 20, 25)"] [style*="color: rgb(255, 255, 255)"]':'[style*="background-color: rgb(239, 243, 244)"] [style*="color: rgb(15, 20, 25)"]')+"{color:var(--xt-button-text)!important}");
 		add("accentColor","color:var(--xt-accent)!important;fill:var(--xt-accent)!important",false);
 		add("accentOutline","outline-color:var(--xt-accent)!important",false);
 		add("accentBg","background:var(--xt-accent-fill,var(--xt-accent))!important",false);
@@ -532,8 +534,8 @@ export const THEME_SCRIPT = String.raw`(function(){
 		add('[style*="border-color: rgb(29, 155, 240)"]',"border-color:var(--xt-accent)!important");
 		add('[style*="border-color: rgb(26, 140, 216)"]',"border-color:var(--xt-accent-hover,var(--xt-accent))!important");
 		add('[style*="background-color: rgb(142, 205, 248)"]',"background-color:var(--xt-accent-tint)!important");
-		css.push('html[data-xitter-accent] [data-testid="tweetButton"],html[data-xitter-accent] [data-testid="tweetButtonInline"]{background:var(--xt-accent-fill,var(--xt-accent))!important;border-color:transparent!important}');
-		css.push('html[data-xitter-accent] [data-testid="tweetButton"] div,html[data-xitter-accent] [data-testid="tweetButtonInline"] div{color:var(--xt-accent-text,#fff)!important}');
+		css.push('html[data-xitter-accent]:not([data-xitter-theme]) [data-testid="tweetButton"],html[data-xitter-accent]:not([data-xitter-theme]) [data-testid="tweetButtonInline"]{background:var(--xt-accent-fill,var(--xt-accent))!important;border-color:transparent!important}');
+		css.push('html[data-xitter-accent]:not([data-xitter-theme]) [data-testid="tweetButton"] div,html[data-xitter-accent]:not([data-xitter-theme]) [data-testid="tweetButtonInline"] div{color:var(--xt-accent-text,#fff)!important}');
 		var next=css.join("");
 		if(next!==accentKey){
 			accentKey=next;

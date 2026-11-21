@@ -8,6 +8,7 @@
 // support more or take some away (staff-permissions.ts). Every change is
 // written to the audit log.
 
+import { clientBuilds } from "./build";
 import { isSuperadminViewer } from "./superadmin";
 import { oneLine } from "./text-clean";
 import { SUPERADMINS, isSuperadminHome, superadminNameHere, superadminOf } from "./superadmins";
@@ -19,11 +20,13 @@ import { isOrganizationSql } from "./users";
 import { flagValue, unknownFlag } from "./flags";
 import { isId, newId } from "./ids";
 import { createInvite, staffHandleProblem } from "./invites";
-import { forgetHeld, handleHeld, retireAccount } from "./held";
+import { forgetHeld, retireAccount } from "./held";
+import { forgetAllRankings } from "./ranking";
 import { activeStrikes, shutOut } from "./moderation";
 import { REASONS } from "./reports";
 import { startSweep, sweepState } from "./media-compress";
-import { FEATURES, type Feature, type SignupMode, allSettings, setSetting, settings } from "./settings";
+import { DEFAULT_GUIDE, PROMPT_MAX, claudeModKey } from "./claude-mod";
+import { FEATURES, NAME_MAX, type Feature, type SignupMode, allSettings, setSetting, settings } from "./settings";
 import { SLOTS, brandingState, resetBranding, saveBranding } from "./branding";
 import { createPlatform, renameWebSource } from "./platforms";
 import { TopicError, deleteTopic, listTopics, saveTopic } from "./topics";
@@ -36,6 +39,8 @@ import { oauthAppActions } from "./oauth-admin";
 import { hashflagActions } from "./hashflags";
 import { switchActions } from "./feature-switches";
 import { moneyActions } from "./money-admin";
+import { adActions } from "./ads-admin";
+import { impersonateActions } from "./impersonate";
 import { AFFILIATION_LIMIT } from "./org-manage";
 import { staffGate } from "./staff-access";
 import { countryCode, countryDisplayName } from "./countries";
@@ -52,6 +57,26 @@ export class AdminError extends Error {
 
 type Body = Record<string, any>;
 export type Action = { role: Role; run: (actor: Viewer, b: Body, req?: Request) => Promise<unknown> };
+
+// Every action the code logs (grep audit( and audit_log inserts when adding one),
+// so the audit filter offers them all, logged yet or not.
+export const AUDIT_ACTIONS = [
+	"ad_approve", "ad_reject", "ad_stop", "add_affiliate", "add_staff_note", "add_sticker", "archive_import", "article_visibility", "auto_suspend_name", "automod_second_chance",
+	"automod_strike", "backup_schedule", "block_oauth_app", "bulk_status", "bulk_strike", "compress_stored", "create_backup", "create_badge",
+	"create_hashflag", "create_invites", "create_label", "create_org", "create_platform", "create_sticker_pack", "delete_account", "delete_backup",
+	"delete_badge", "delete_community_note", "delete_explore_card", "delete_hashflag", "delete_label", "delete_media", "delete_post", "delete_sticker",
+	"delete_sticker_pack", "delete_topic", "download_backup", "edit_profile", "end_hashflag", "escalate", "evasion_signup_refused", "expire_sanction",
+	"federation_accept_key", "federation_block", "federation_drop_media", "federation_pull", "federation_purge", "federation_unblock", "hosting_adopt",
+	"hosting_approve", "hosting_reject", "hosting_revoke", "invite_quota", "money_adjust", "money_remote_shop_update", "money_reverse",
+	"money_settings", "money_shop_announcement_clear", "money_shop_item_create", "money_shop_item_update", "money_shop_settings", "org_badge",
+	"release_identity", "remove_affiliate", "rename_sticker_pack", "reset_branding", "reset_decor", "reset_password", "resolve_appeal",
+	"resolve_errors", "review_community_note_appeal", "revoke_api_tokens", "revoke_invite", "revoke_platform", "revoke_session", "revoke_strike",
+	"rollback_client", "save_automod", "save_operations", "save_security", "save_settings", "self_update", "self_update_rollback", "send_staff_message",
+	"send_test_mail", "set_badge", "set_badges", "set_clients", "set_feature_switch", "set_flag", "set_never_sensitive", "set_notes_access", "set_post_counts",
+	"set_post_note", "remove_post_note", "impersonate", "reveal_staff_ips", "shadow_ban", "lift_shadow_ban", "set_post_notice", "set_post_visibility", "set_profile_label", "set_remote_checkmarks", "set_role", "set_signup_mode", "set_staff_permissions",
+	"set_status", "set_translator", "set_user_client", "set_user_counts", "sign_out", "superadmin_emergency_block", "superadmin_emergency_lift", "suspend_blocked_names",
+	"temporary_status", "unblock_oauth_app", "update_client", "upload_branding",
+];
 
 export async function audit(actor: Viewer, action: string, target: string | null, detail: unknown = null) {
 	const [user] = actor.id && isId(actor.id) ? await sql`select 1 from users where id = ${actor.id}::bigint` : [null];
@@ -398,7 +423,7 @@ const ACTIONS: Record<string, Action> = {
 		role: "support",
 		run: async (a, b) => {
 			const id = idOf(b.id);
-			const [u] = await sql`select ${userListCols}, ${allows(a.role, "invites") ? sql`u.invite_code` : sql`null::text as invite_code`}, u.bio, u.location, u.website, u.banner_url, u.based_in_override, u.country, u.signup_country, u.count_overrides, u.decor, u.notes_writer, u.never_sensitive, u.org_badge_id::text, u.status_until, u.parody_label, u.label_id::text, u.instance,
+			const [u] = await sql`select ${userListCols}, ${allows(a.role, "invites") ? sql`u.invite_code` : sql`null::text as invite_code`}, u.bio, u.location, u.website, u.banner_url, u.based_in_override, u.country, u.signup_country, u.count_overrides, u.decor, u.notes_writer, u.never_sensitive, u.shadow_banned, u.org_badge_id::text, u.status_until, u.parody_label, u.label_id::text, u.instance, u.preferences->>'web_client' as web_client,
 				(select coalesce(json_agg(ub.badge_id::text order by ub.position), '[]') from user_badges ub where ub.user_id = u.id) as badge_ids,
 				(select count(*)::int from sessions s where s.user_id = u.id) as sessions,
 				(select count(*)::int from api_tokens t where t.user_id = u.id) as api_tokens,
@@ -419,7 +444,7 @@ const ACTIONS: Record<string, Action> = {
 				and not (mine.ip = '127.0.0.1' or mine.ip = '::1' or mine.ip like '172.%' or mine.ip like '::ffff:172.%' or mine.ip like '10.%' or mine.ip like '192.168.%')
 				limit 20`;
 			u.joined_from = u.signup_country ? countryDisplayName(u.signup_country) : "";
-			return { user: u, invited, log, alts, strikes, next_step: ladder.length ? ladder[Math.min(strikes + 1, ladder.length) - 1] : 0 };
+			return { clients: clientBuilds().map(({ id, label }) => ({ id, label })), user: u, invited, log, alts, strikes, next_step: ladder.length ? ladder[Math.min(strikes + 1, ladder.length) - 1] : 0 };
 		},
 	},
 
@@ -428,7 +453,7 @@ const ACTIONS: Record<string, Action> = {
 		run: async (a, b) => {
 			const id = idOf(b.id);
 			await guard(a, id, true);
-			const limits: Record<string, [string, number]> = { name: ["name", 50], screen_name: ["screen_name", 50], bio: ["bio", 160], location: ["location", 30], website: ["website", 100], based_in: ["based_in_override", 50] };
+			const limits: Record<string, [string, number]> = { name: ["name", NAME_MAX], screen_name: ["screen_name", 50], bio: ["bio", 160], location: ["location", 30], website: ["website", 100], based_in: ["based_in_override", 50] };
 			const [old] = await sql`select screen_name from users where id = ${id}::bigint`;
 			const changes: Record<string, string | null> = {};
 			for (const [field, [column, max]] of Object.entries(limits)) {
@@ -437,7 +462,7 @@ const ACTIONS: Record<string, Action> = {
 				// the form always sends the handle; one set before the handle rules
 				// (a symbol in it) must not block saving the rest of the profile
 				if (field === "screen_name" && value === old?.screen_name) continue;
-				if ([...value].length > max) throw new AdminError(`${field} is at most ${max} characters.`);
+				if ((field === "name" ? value.length : [...value].length) > max) throw new AdminError(`${field} is at most ${max} characters.`);
 				if (field === "screen_name" && staffHandleProblem(value)) throw new AdminError(staffHandleProblem(value)!);
 				if (field === "name" && !value) throw new AdminError("Name can't be blank.");
 				if (field === "website" && value && !/^https?:\/\/\S+$/.test(value)) throw new AdminError("Website must be an http or https address.");
@@ -454,7 +479,6 @@ const ACTIONS: Record<string, Action> = {
 			if (changes.screen_name) {
 				const [taken] = await sql`select 1 from users where lower(screen_name) = lower(${changes.screen_name}) and id <> ${id}::bigint`;
 				if (taken) throw new AdminError("That handle is taken.");
-				if (await handleHeld(changes.screen_name, id)) throw new AdminError("That handle looks too much like another account's.");
 			}
 			await sql`update users set ${sql(changes)} where id = ${id}::bigint`;
 			if (changes.screen_name && changes.screen_name !== old.screen_name)
@@ -516,6 +540,20 @@ const ACTIONS: Record<string, Action> = {
 			await sql`update users set status = ${status}, status_until = null, status_restore = null, deactivated_at = null where id = ${id}::bigint`;
 			if (status === "suspended") await shutOut(id);
 			await audit(a, "set_status", id, { status, reason: String(b.reason ?? "").slice(0, 500) || undefined });
+			return {};
+		},
+	},
+
+	setShadowBan: {
+		role: "moderator",
+		run: async (a, b) => {
+			const id = idOf(b.id);
+			if (id === a.id) throw new AdminError("You can't shadow ban yourself.");
+			await guard(a, id);
+			const on = !!b.on;
+			await sql`update users set shadow_banned = ${on} where id = ${id}::bigint`;
+			forgetAllRankings();
+			await audit(a, on ? "shadow_ban" : "lift_shadow_ban", id, { reason: String(b.reason ?? "").slice(0, 500) || undefined });
 			return {};
 		},
 	},
@@ -597,7 +635,8 @@ const ACTIONS: Record<string, Action> = {
 			if (id === a.id) throw new AdminError("You can't delete your own account here.");
 			const u = await guard(a, id);
 			if (String(b.confirm ?? "").toLowerCase() !== u.screen_name.toLowerCase()) throw new AdminError("Type the handle to confirm.");
-			if (u.status === "suspended") await retireAccount(id, `deleted while suspended by @${a.screen_name}`);
+			const [{ deactivated }] = await sql`select deactivated_at is not null as deactivated from users where id = ${id}::bigint`;
+			if (u.status === "suspended" && !deactivated) await retireAccount(id, `deleted while suspended by @${a.screen_name}`);
 			await sql`delete from users where id = ${id}::bigint`;
 			await audit(a, "delete_account", id, { screen_name: u.screen_name });
 			return {};
@@ -618,7 +657,6 @@ const ACTIONS: Record<string, Action> = {
 			const name = String(b.name ?? "").trim() || screenName;
 			if (!/^[A-Za-z0-9_]{1,15}$/.test(screenName)) throw new AdminError("Handles are 1 to 15 letters, digits or underscores.");
 			if (superadminNameHere(screenName)) throw new AdminError("That handle is reserved.");
-			if (await handleHeld(screenName)) throw new AdminError("That handle looks too much like another account's.");
 			const [taken] = await sql`select 1 from users where lower(screen_name) = lower(${screenName})`;
 			if (taken) throw new AdminError("That handle is taken.");
 			const password = randomPassword();
@@ -674,7 +712,7 @@ const ACTIONS: Record<string, Action> = {
 			const q = String(b.q ?? "").trim();
 			const author = String(b.author ?? "").trim().replace(/^@/, "");
 			const match = sql`(${q} = '' or p.text ilike ${like(q)}) and (${author} = '' or lower(u.screen_name) = lower(${author}))`;
-			const rows = await sql`select p.id::text as id, p.text, p.created_at, p.hidden, p.sensitive, p.notice, p.count_overrides, p.reply_to_id::text as reply_to_id, u.id::text as user_id, u.screen_name, u.name,
+			const rows = await sql`select p.id::text as id, p.text, p.created_at, p.hidden, p.sensitive, p.notice, p.count_overrides, (select n.text from community_notes n where n.post_id = p.id and n.staff limit 1) as staff_note, p.reply_to_id::text as reply_to_id, u.id::text as user_id, u.screen_name, u.name,
 				(select c.screen_name from users c where c.id = p.circle_owner_id) as circle_owner,
 				(select count(*)::int from likes l where l.post_id = p.id) as likes,
 				(select count(*)::int from media m where m.post_id = p.id) as media
@@ -773,7 +811,7 @@ const ACTIONS: Record<string, Action> = {
 
 	settings: {
 		role: "support",
-		run: async () => ({ settings: await allSettings(), features: FEATURES, branding: brandingState(), slots: SLOTS, compression: sweepState() }),
+		run: async () => ({ settings: await allSettings(), features: FEATURES, branding: brandingState(), slots: SLOTS, compression: sweepState(), claudeMod: { defaultPrompt: DEFAULT_GUIDE, hasKey: claudeModKey() } }),
 	},
 
 	// Settings > Media: files stored before compression was on (media-compress.ts)
@@ -866,6 +904,30 @@ const ACTIONS: Record<string, Action> = {
 				await setSetting("daily_caps", { enabled: !!b.daily_caps.enabled, posts: cap(b.daily_caps.posts, "post"), replies: cap(b.daily_caps.replies, "reply") });
 				changed.push("daily_caps");
 			}
+			if (b.ads && typeof b.ads === "object") {
+				const num = (v: unknown, name: string, min: number, max: number) => {
+					const x = Number(v);
+					if (!Number.isInteger(x) || x < min || x > max) throw new AdminError(`${name} must be a whole number from ${min} to ${max}.`);
+					return x;
+				};
+				await setSetting("ads", {
+					...s.ads,
+					enabled: !!b.ads.enabled,
+					min_spend_cents: num(b.ads.min_spend_cents, "The smallest budget", 1, 10_000_000),
+					max_days: num(b.ads.max_days, "The longest run", 1, 365),
+					reject_refund_pct: num(b.ads.reject_refund_pct, "The refund on rejection", 0, 100),
+				});
+				changed.push("ads");
+			}
+			if (b.mention_limits && typeof b.mention_limits === "object") {
+				const cap = (v: unknown, name: string, max: number) => {
+					const x = Number(v);
+					if (!Number.isInteger(x) || x < 1 || x > max) throw new AdminError(`Mentions ${name} must be a whole number from 1 to ${max}.`);
+					return x;
+				};
+				await setSetting("mention_limits", { enabled: !!b.mention_limits.enabled, per_post: cap(b.mention_limits.per_post, "per post", 50), per_day: cap(b.mention_limits.per_day, "a day", 100_000) });
+				changed.push("mention_limits");
+			}
 			if (b.announcement && typeof b.announcement === "object") {
 				const text = String(b.announcement.text ?? "").trim().slice(0, 500);
 				const raw = Array.isArray(b.announcement.buttons) ? b.announcement.buttons : [];
@@ -898,6 +960,77 @@ const ACTIONS: Record<string, Action> = {
 			if (typeof b.rules === "string") {
 				await setSetting("rules", b.rules.slice(0, 20000));
 				changed.push("rules");
+			}
+			const legal = { ...settings().legal };
+			let legalChanged = false;
+			for (const key of ["terms", "privacy"] as const)
+				if (typeof b[key] === "string") {
+					await setSetting(key, b[key].slice(0, 50000));
+					legal[`${key}_updated`] = new Date().toISOString().slice(0, 10);
+					legalChanged = true;
+					changed.push(key);
+				}
+			if (b.legal && typeof b.legal === "object") {
+				if (typeof b.legal.operator === "string") legal.operator = b.legal.operator.trim().slice(0, 200);
+				if (typeof b.legal.contact === "string") legal.contact = b.legal.contact.trim().slice(0, 200);
+				if (b.legal.backup_days !== undefined) {
+					const days = Number(b.legal.backup_days);
+					if (!Number.isInteger(days) || days < 0 || days > 3650) throw new AdminError("Backup days must be a whole number from 0 to 3650.");
+					legal.backup_days = days;
+				}
+				legalChanged = true;
+				changed.push("legal");
+			}
+			if (legalChanged) await setSetting("legal", legal);
+			if (b.grok && typeof b.grok === "object") {
+				const g = b.grok;
+				const next = { ...s.grok };
+				if (g.brain === "claude" || g.brain === "bee") next.brain = g.brain;
+				if (typeof g.model === "string") {
+					const m = g.model.trim();
+					if (!/^[a-z0-9.\-]{1,80}$/.test(m)) throw new AdminError("That isn't a model name.");
+					next.model = m;
+				}
+				if (typeof g.bee_url === "string") {
+					const u = g.bee_url.trim();
+					if (u && !/^https?:\/\/[^\s]{1,200}$/.test(u)) throw new AdminError("The bee address is an http(s) URL.");
+					next.bee_url = u;
+				}
+				if (g.daily_per_account !== undefined) {
+					const n = Number(g.daily_per_account);
+					if (!Number.isInteger(n) || n < 0 || n > 100_000) throw new AdminError("Answers a day is a whole number up to 100000.");
+					next.daily_per_account = n;
+				}
+				if (typeof g.prompt === "string") {
+					const t = g.prompt.replace(/\r\n/g, "\n").trim();
+					if (t.length > 8000) throw new AdminError("The instructions are at most 8000 characters.");
+					next.prompt = t;
+				}
+				await setSetting("grok", next);
+				changed.push("grok");
+			}
+			if (b.claude_mod && typeof b.claude_mod === "object") {
+				const c = b.claude_mod;
+				const next = { ...s.claude_mod };
+				for (const k of ["enabled", "posts", "profiles", "reports", "dms", "learn", "borderline"] as const) if (typeof c[k] === "boolean") next[k] = c[k];
+				if (c.hide_confidence !== undefined) {
+					const n = Number(c.hide_confidence);
+					if (!(n >= 0.5 && n <= 1)) throw new AdminError("Hide confidence is between 0.5 and 1.");
+					next.hide_confidence = n;
+				}
+				if (c.daily_limit !== undefined) {
+					const n = Number(c.daily_limit);
+					if (!Number.isInteger(n) || n < 0 || n > 1_000_000) throw new AdminError("The daily limit is a whole number up to 1000000.");
+					next.daily_limit = n;
+				}
+				if (typeof c.prompt === "string") {
+					const text = c.prompt.replace(/\r\n/g, "\n").trim();
+					if (text.length > PROMPT_MAX) throw new AdminError(`The prompt is at most ${PROMPT_MAX} characters.`);
+					// the default saved as is stays the default, so later changes to it reach this instance
+					next.prompt = text === DEFAULT_GUIDE ? "" : text;
+				}
+				await setSetting("claude_mod", next);
+				changed.push("claude_mod");
 			}
 			await audit(a, "save_settings", null, { changed });
 			return {};
@@ -934,11 +1067,11 @@ const ACTIONS: Record<string, Action> = {
 					left join users t on l.target ~ '^[0-9]+$' and t.id = l.target::bigint
 					where ${action ? sql`l.action = ${action}` : sql`true`} and ${b.automatic ? sql`l.actor_id is null` : sql`true`}
 						and ${who ? sql`lower(t.screen_name) = lower(${who})` : sql`true`}`;
-			// the filter offers what the log holds: actions are logged from all over, and a fixed list misses some
-			const actions = await sql`select distinct action from audit_log order by action`;
+			// the filter offers every action the code logs, and anything older the log still holds
+			const logged = await sql`select distinct action from audit_log order by action`;
 			return {
 				total: Number(total[0]?.total ?? 0),
-				actions: actions.map((r: { action: string }) => r.action),
+				actions: [...new Set([...AUDIT_ACTIONS, ...logged.map((r: { action: string }) => r.action)])].sort(),
 				entries: await sql`select l.id::text as id, l.action, l.target, l.detail, l.created_at, a.screen_name as actor, l.actor_id is null as automatic,
 					t.screen_name as target_name
 					from audit_log l left join users a on a.id = l.actor_id
@@ -957,6 +1090,8 @@ Object.assign(ACTIONS, oauthAppActions);
 Object.assign(ACTIONS, hashflagActions);
 Object.assign(ACTIONS, switchActions);
 Object.assign(ACTIONS, moneyActions);
+Object.assign(ACTIONS, adActions);
+Object.assign(ACTIONS, impersonateActions);
 
 // every permission names real actions, and its default is the role written on them
 for (const [key, p] of Object.entries(PERMISSIONS))
@@ -964,7 +1099,7 @@ for (const [key, p] of Object.entries(PERMISSIONS))
 		if (ACTIONS[name]?.role !== p.role) throw new Error(`Staff permission ${key}: ${name} ${ACTIONS[name] ? `needs ${ACTIONS[name].role}, not ${p.role}` : "is no action"}.`);
 
 const READS = new Set(
-	"federation platforms mail cards topics me staffPermissions stats users user orgs affiliates posts reports invites settings audit badges labels staffNotes staffMessages appeals handleHistory userSessions blockedNameAccounts articles media mediaAccount operations heldIdentities updateStatus health security backups archiveImports client checkClient errors inviteTree featureSwitches hashflags oauthApps stickers automodScan money".split(
+	"ads federation platforms mail cards topics me staffPermissions stats users user orgs affiliates posts reports invites settings audit badges labels staffNotes staffMessages appeals handleHistory userSessions blockedNameAccounts articles media mediaAccount operations heldIdentities updateStatus health security backups archiveImports client checkClient errors inviteTree featureSwitches hashflags oauthApps stickers automodScan money".split(
 		" ",
 	),
 );
@@ -985,7 +1120,7 @@ export async function adminApi(req: Request, action: string, viewer: Viewer | un
 		await audit(viewer, "upload_branding", null, { slot });
 		return Response.json({});
 	}
-	const a = ACTIONS[action];
+	const a = Object.hasOwn(ACTIONS, action) ? ACTIONS[action] : undefined;
 	if (!a) return fail("Unknown action.", 404);
 	if (!mayRun(viewer.role, action, a.role)) return fail(permissionOf(action) ? "An admin hasn't given your role permission to do that." : `Needs the ${a.role} role.`, 403);
 	const body = await req.json().catch(() => ({}));

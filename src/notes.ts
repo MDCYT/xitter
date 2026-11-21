@@ -3,7 +3,7 @@ import { shownSource } from "./platforms";
 import { sql } from "./db";
 import { isId, newId } from "./ids";
 import { blockedFor, isBlockedEitherWay, outOfView, protectedFor } from "./blocks";
-import { staffViewer } from "./staff-access";
+import { isStaffRequest, staffViewer } from "./staff-access";
 import { getPost, postsByIds, PostError, refuseHate } from "./posts";
 import { noteText, tweetEntry, tweetResult } from "./model";
 import { feature } from "./settings";
@@ -28,7 +28,7 @@ async function membership(v: Viewer) {
 
 async function profile(v: Viewer, alias?: string) {
 	const [user] = await sql`select id::text, notes_alias, notes_writer from users where ${alias === undefined ? sql`id = ${v.id}::bigint` : sql`notes_alias = ${alias}`}`;
-	if (!user || await isBlockedEitherWay(v.id, user.id)) return null;
+	if (!user) return null;
 	const scores = await sql`select n.id, count(voter.id) as ratings, count(voter.id) filter(where r.rating = 'Helpful') as helpful, count(voter.id) filter(where r.rating = 'NotHelpful') as not_helpful
 		from community_notes n left join community_note_ratings r on r.note_id = n.id left join users voter on voter.id = r.user_id and voter.status = 'active'
 		where n.author_id = ${user.id}::bigint group by n.id`;
@@ -50,18 +50,18 @@ export async function notesFor(v: Viewer, postId: string) {
 
 async function notesMany(v: Viewer, postIds: string[], noteIds?: string[]) {
 	if (!postIds.length) return new Map<string, any[]>();
-	const rows = await sql`select n.id::text, n.post_id::text, n.author_id::text, n.text, n.classification, n.created_at, n.data_v1, u.notes_alias as alias, a.status as appeal_status,
+	const rows = await sql`select n.id::text, n.post_id::text, n.author_id::text, n.text, n.classification, n.created_at, n.data_v1, n.staff, u.notes_alias as alias, a.status as appeal_status,
 		count(r.user_id)::int as ratings, count(r.user_id) filter(where r.rating = 'Helpful')::int as helpful,
 		count(r.user_id) filter(where r.rating = 'NotHelpful')::int as not_helpful,
 		max(r.rating) filter(where r.user_id = ${v.id}::bigint) as viewer_rating,
 		(jsonb_agg(r.data_v2) filter(where r.user_id = ${v.id}::bigint))->0 as viewer_data
 		from community_notes n left join (select x.* from community_note_ratings x join users voter on voter.id = x.user_id and voter.status = 'active') r on r.note_id = n.id
 		join users u on u.id = n.author_id and u.status <> 'suspended' left join community_note_appeals a on a.note_id = n.id
-		where n.post_id = any(${sql.array(postIds, "INT8")}) and ${noteIds ? sql`n.id = any(${sql.array(noteIds, "INT8")})` : sql`true`} and n.author_id not in ${blockedFor(v.id)} group by n.id, u.notes_alias, a.status order by n.id desc`;
+		where n.post_id = any(${sql.array(postIds, "INT8")}) and ${noteIds ? sql`n.id = any(${sql.array(noteIds, "INT8")})` : sql`true`} group by n.id, u.notes_alias, a.status order by n.id desc`;
 	const result = new Map<string, any[]>();
 	for (const n of rows) {
 		const list = result.get(n.post_id) ?? [];
-		if (list.length < 100 || n.author_id === v.id) list.push({ ...n, own: n.author_id === v.id, status: noteStatus(n.ratings, n.helpful, n.not_helpful) });
+		if (list.length < 100 || n.author_id === v.id) list.push({ ...n, own: n.author_id === v.id, status: noteStatus(n.ratings, n.helpful, n.not_helpful, n.staff) });
 		result.set(n.post_id, list);
 	}
 	return result;
@@ -153,7 +153,15 @@ export const noteHandlers = {
 	},
 	BirdwatchDeleteNote: async (v: Viewer, vars: any) => {
 		const note = await target(v, vars.note_id, true);
-		if (note.author_id !== v.id && !["admin", "moderator"].includes(v.role ?? "")) throw new PostError("You can't delete this note.", 144);
+		if (note.author_id !== v.id) {
+			// staff delete others' notes under the admin panel's rules: its gate, and
+			// not the notes of staff ranked at or above them
+			if (!["admin", "moderator"].includes(v.role ?? "") || !isStaffRequest()) throw new PostError("You can't delete this note.", 144);
+			const { guard } = await import("./admin");
+			await guard(v, note.author_id).catch(() => {
+				throw new PostError("You can't delete this note.", 144);
+			});
+		}
 		if (note.author_id !== v.id) await sql`insert into audit_log(id, actor_id, action, target, detail) values(${newId()}::bigint, ${v.id}::bigint, 'delete_community_note', ${note.id}, ${JSON.stringify({ post_id: note.post_id })}::text::jsonb)`;
 		await sql`delete from community_notes where id = ${note.id}::bigint`;
 		return { data: { birdwatchnote_delete: true } };
@@ -191,7 +199,7 @@ export const noteHandlers = {
 		const alias = typeof vars.alias === "string" ? vars.alias.slice(0, 80) : "";
 		const before = isId(vars.cursor) ? vars.cursor : "9223372036854775807";
 		const rows = await sql`select n.id::text, n.post_id::text from community_notes n join users u on u.id = n.author_id join posts p on p.id = n.post_id
-			where u.notes_alias = ${alias} and n.id < ${before}::bigint and n.author_id not in ${blockedFor(v.id)} and p.user_id not in ${blockedFor(v.id)} and p.user_id not in ${outOfView(v.id)} order by n.id desc limit 11`;
+			where u.notes_alias = ${alias} and n.id < ${before}::bigint and p.user_id not in ${blockedFor(v.id)} and p.user_id not in ${outOfView(v.id)} order by n.id desc limit 11`;
 		const page = rows.slice(0, 10), ids = page.map((r: any) => r.post_id);
 		const values = await notesMany(v, ids, page.map((r: any) => r.id)), posts = await postsByIds(v.id, ids);
 		const notes = page.flatMap((r: any) => { const note = values.get(r.post_id)?.find((n: any) => n.id === r.id), post = posts.get(r.post_id); return note && post ? [entity(note, post)] : []; });

@@ -2,11 +2,13 @@
 // (status, media_ids, reply target, ...); it is kept as sent and replayed when
 // the time comes.
 
+import { MAX_POST_MEDIA } from "./config";
 import { replyControl, replyCountrySelections } from "./reply-controls";
 import { conversationCard } from "./conversation-cards";
 import { checkConversationCard } from "./conversation-card-moderation";
 import type { Viewer } from "./auth";
 import { sql } from "./db";
+import { queueReview } from "./claude-mod";
 import { isId, newId } from "./ids";
 import { MediaError, attachMedia, mediaUrl, posterUrl, type MediaRow } from "./media";
 import { fetchPreview, linksIn, previewable } from "./links";
@@ -33,7 +35,7 @@ function cleanPart(value: unknown, draft = false): Vars {
 	const r = value && typeof value === "object" && !Array.isArray(value) ? value as Vars : {};
 	const out: Vars = {
 		status: typeof r.status === "string" ? r.status : "",
-		media_ids: ids(r.media_ids).slice(0, 4),
+		media_ids: ids(r.media_ids).slice(0, MAX_POST_MEDIA),
 		exclude_reply_user_ids: ids(r.exclude_reply_user_ids).slice(0, 50),
 	};
 	const selections = replyCountrySelections(r.conversation_control_region_codes);
@@ -47,7 +49,7 @@ function cleanPart(value: unknown, draft = false): Vars {
 		catch (error) { throw new PostError(error instanceof Error ? error.message : "Invalid conversation card.", 214); }
 		if (r.attachment_url || r.card_uri) throw new PostError("Conversation cards cannot be combined with quotes or other cards.", 214);
 	}
-	if (Array.isArray(r.media_ids) && (r.media_ids.length > 4 || r.media_ids.some((id: unknown) => !isId(id))))
+	if (Array.isArray(r.media_ids) && (r.media_ids.length > MAX_POST_MEDIA || r.media_ids.some((id: unknown) => !isId(id))))
 		throw new PostError("A post can have up to four valid attachments.", 186);
 	if (isId(r.in_reply_to_status_id)) out.in_reply_to_status_id = r.in_reply_to_status_id;
 	if (typeof r.attachment_url === "string" && r.attachment_url.length <= 300) out.attachment_url = r.attachment_url;
@@ -79,7 +81,7 @@ const quoteOf = (request: Vars) => {
 
 function mediaIdsOf(request: Vars | null): string[] {
 	return [request, ...(Array.isArray(request?.thread_tweets) ? request.thread_tweets.slice(0, 25) : [])]
-		.flatMap((part) => Array.isArray(part?.media_ids) ? part.media_ids.slice(0, 4).filter(isId) : []);
+		.flatMap((part) => Array.isArray(part?.media_ids) ? part.media_ids.slice(0, MAX_POST_MEDIA).filter(isId) : []);
 }
 
 // Unsent posts use ApiImage/ApiVideo/ApiGif, not the published tweet's legacy
@@ -290,6 +292,7 @@ export async function runDue(lookupMention: (handle: string) => Promise<unknown>
 				// Recheck mutable account/upload state on this transaction. The exact
 				// request snapshot (and trimmed text) already passed static moderation.
 				await check(row.user_id, request, "scheduled", tx, false);
+				const posted: string[] = [];
 				await tx.savepoint(async (publication) => {
 					let replyTo = request.in_reply_to_status_id;
 					for (const part of parts(request)) {
@@ -298,10 +301,11 @@ export async function runDue(lookupMention: (handle: string) => Promise<unknown>
 						if (part.xitter_conversation_card) await publication`update posts set conversation_card = ${JSON.stringify(part.xitter_conversation_card)}::text::jsonb where id = ${id}::bigint`;
 						if (part.possibly_sensitive) await publication`update posts set sensitive = true where id = ${id}::bigint`;
 						replyTo = id;
+						posted.push(id);
 					}
 					await publication`delete from scheduled_posts where id = ${row.id}::bigint`;
 				});
-				return { previews: parts(request).filter((part) => !quoteOf(part) && !part.media_ids.length)
+				return { posted, previews: parts(request).filter((part) => !quoteOf(part) && !part.media_ids.length)
 					.map((part) => linksIn(part.status).filter((link) => previewable(link.url)).at(-1)?.url).filter((url): url is string => !!url) };
 			} catch (e) {
 				const message = (e instanceof Error ? e.message : String(e)).slice(0, 1000);
@@ -314,12 +318,13 @@ export async function runDue(lookupMention: (handle: string) => Promise<unknown>
 					await tx`update scheduled_posts set execute_at = now() + ${`${2 ** row.attempts} minutes`}::interval,
 						attempts = attempts + 1, last_error = ${message} where id = ${row.id}::bigint`;
 				}
-				return { previews: [] as string[] };
+				return { posted: [] as string[], previews: [] as string[] };
 			}
 		});
 		if (!result) continue;
 		handled++;
 		// Preview network I/O starts only after publication commits.
+		for (const id of result.posted) queueReview("post", id);
 		for (const url of new Set(result.previews)) void fetchPreview(url).catch((e) => console.error("scheduled preview:", e));
 	}
 	return handled;

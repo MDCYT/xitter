@@ -1,12 +1,13 @@
 import { randomBytes } from "node:crypto";
 import { accountPage, esc } from "./account-page";
-import { type Viewer, sessionCookies } from "./auth";
+import { type Viewer, sessionCookies, sessionKey } from "./auth";
 import { sql } from "./db";
 import { FEDERATION_ON, INSTANCE_ID, type Incoming, b64url, baseUrl, keyFor, liftBlock, listed, listedInstance, open, seal, setBlock, signedAnswer, signedFetch } from "./federation";
 import { newId } from "./ids";
 import { hit, limitedResponse } from "./ratelimit";
 import { SUPERADMINS, isSuperadminHome, superadminOf } from "./superadmins";
 import { codeAccepted } from "./two-factor";
+import { NAME_MAX } from "./settings";
 
 const TICKET_SECONDS = 60;
 const SESSION_MINUTES = 60;
@@ -61,6 +62,8 @@ function homePage(req: Request, viewer: Viewer, message = "") {
 <form method="post" action="/federation/superadmin/enter">
 <input type="hidden" name="csrf" value="${esc(viewer.csrf)}">
 <label>Instance <select name="instance" required>${options}</select></label>
+<label>Password <input type="password" name="password" autocomplete="current-password" required></label>
+<label>Two-factor code <input name="code" inputmode="numeric" autocomplete="one-time-code" required></label>
 <button>Open admin panel</button>
 </form>
 <h1>Emergency defederation</h1>
@@ -90,6 +93,10 @@ export async function superadminHomeRoute(req: Request, url: URL, viewer: Viewer
 		if (String(form.get("csrf") ?? "") !== viewer.csrf) return homePage(req, viewer, "That form is out of date. Try again.");
 		const h = hit("auth", `superadmin:${viewer.id}`);
 		if (!h.ok) return limitedResponse(h);
+		// the ticket is an admin session on another instance: a session someone
+		// took here must not be enough to sign one
+		const refused = await reauthenticate(u, form.get("password"), form.get("code"));
+		if (refused) return homePage(req, viewer, refused);
 		const now = Math.floor(Date.now() / 1000);
 		const ticket = seal({ typ: "xitter-superadmin-v1", iss: INSTANCE_ID, aud: instance, sub: viewer.screen_name, sub_id: viewer.id, name: viewer.name, iat: now, exp: now + TICKET_SECONDS, nonce: b64url(randomBytes(18)) });
 		return accountPage({
@@ -208,13 +215,13 @@ export async function acceptTicket(req: Request, ip: string): Promise<Response> 
 	const id = known?.id ?? newId();
 	if (!known) {
 		await sql`update users set screen_name = screen_name || '~' || remote_id::text where lower(screen_name) = lower(${handle}) and instance = ${issuer}`;
-		await sql`insert into users (id, screen_name, name, password_hash, instance, remote_id) values (${id}::bigint, ${handle}, ${String(t.name ?? t.sub).slice(0, 50)}, '!', ${issuer}, ${t.sub_id}::bigint)`;
+		await sql`insert into users (id, screen_name, name, password_hash, instance, remote_id) values (${id}::bigint, ${handle}, ${String(t.name ?? t.sub).slice(0, NAME_MAX)}, '!', ${issuer}, ${t.sub_id}::bigint)`;
 		await sql`insert into federated_objects (instance, kind, remote_id, local_id) values (${issuer}, 'user', ${t.sub_id}::bigint, ${id}::bigint) on conflict do nothing`;
 	}
 	await sql`update users set role = 'admin', status = 'active', deactivated_at = null where id = ${id}::bigint`;
 	const token = b64url(randomBytes(32));
 	const csrf = b64url(randomBytes(24));
-	await sql`insert into sessions (token, user_id, csrf, superadmin, expires_at, ip) values (${token}, ${id}::bigint, ${csrf}, true, now() + make_interval(mins => ${SESSION_MINUTES}), ${ip})`;
+	await sql`insert into sessions (token, user_id, csrf, superadmin, expires_at, ip) values (${sessionKey(token)}, ${id}::bigint, ${csrf}, true, now() + make_interval(mins => ${SESSION_MINUTES}), ${ip})`;
 	const headers = new Headers({ location: "/admin" });
 	for (const c of sessionCookies({ token, csrf, userId: id })) headers.append("set-cookie", c);
 	return new Response(null, { status: 303, headers });

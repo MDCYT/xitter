@@ -1,6 +1,7 @@
 import type { User } from "./auth";
 import { PUBLIC_ORIGIN } from "./config";
 import { sql } from "./db";
+import { queueReview } from "./claude-mod";
 import { INSTANCE_ID } from "./federation";
 import { idAt, isId, newId } from "./ids";
 import { hateIn } from "./hate";
@@ -9,7 +10,7 @@ import { feature, hasBlockedPhrase, settings } from "./settings";
 import { postLimitFor, weightedLength } from "./textlen";
 import type { PostRow } from "./model";
 import { articlesByIds } from "./articles";
-import { blockedFor, federatedHiddenFor, hasMutedWord, isBlockedEitherWay, mutedFor, outOfView, protectedFor, replyLimited, suspendedFor } from "./blocks";
+import { blockedFor, federatedHiddenFor, hasMutedWord, isBlockedEitherWay, mutedFor, outOfView, protectedFor, replyLimited, shadowedFor, suspendedFor } from "./blocks";
 import { staffViewer } from "./staff-access";
 import { fetchPreview, linkCard, linksIn, previewable, previewsFor, statusLinkOf } from "./links";
 import { paymentCards, rewardLike } from "./money";
@@ -19,7 +20,7 @@ import { webSource } from "./platforms";
 import { pollCard, pollsByIds } from "./polls";
 import { toUser, userCols, usersByIds } from "./users";
 import { lookupRemoteUser } from "./federation-sync";
-import { saveMentions } from "./mentions";
+import { mentionsIn, saveMentions } from "./mentions";
 import { cleanText } from "./text-clean";
 import { replyControl, replyRestricted } from "./reply-controls";
 import { noteStatus } from "./note-score";
@@ -34,9 +35,9 @@ const SUSPENDED = sql`(select id from users where status = 'suspended' or instan
 const select = (viewerId: string) => sql`
 	select p.id, p.text, p.conversation_card, p.conversation_card_post_id::text, p.reply_to_id, p.conversation_id, p.quote_id, p.article_id, p.created_at, p.source, p.sensitive and not u.never_sensitive as sensitive, u.never_sensitive, p.community_id::text as community_id, p.poll_id::text as poll_id, p.place_id, p.edit_count, p.edited_at, p.reply_policy,
 		${replyRestricted(viewerId)} as reply_limited,
-		(select cr.reply_policy from posts cr where cr.id = p.conversation_id) as conversation_policy,
-		(select cr.reply_selections from posts cr where cr.id = p.conversation_id) as conversation_selections,
-		(select cu.screen_name from posts cr join users cu on cu.id = cr.user_id where cr.id = p.conversation_id) as conversation_owner,
+		coalesce(p.reply_policy, (select cr.reply_policy from posts cr where cr.id = p.conversation_id)) as conversation_policy,
+		case when p.reply_policy is not null then p.reply_selections else (select cr.reply_selections from posts cr where cr.id = p.conversation_id) end as conversation_selections,
+		case when p.reply_policy is not null then u.screen_name else (select cu.screen_name from posts cr join users cu on cu.id = cr.user_id where cr.id = p.conversation_id) end as conversation_owner,
 		ru.id as reply_user_id, ru.screen_name as reply_screen_name,
 		${userCols(viewerId)},
 		-- staff can set the shown counts (admin panel); the lists behind them stay real
@@ -98,14 +99,53 @@ function toRow(r: any): PostRow {
 	};
 }
 
-// media, articles, and the post each one quotes (one level: a quote inside a quote is not expanded)
+// media, articles, and the post each one quotes (one level: a quote inside a quote is not expanded).
+// The lookups run at once (in a row they were a dozen round trips on each
+// timeline page) and are applied in the order below: whether a link becomes a
+// quote, a preview or a payment card depends on what came before it.
 async function hydrate(viewerId: string, posts: PostRow[], quotes = true): Promise<PostRow[]> {
 	let cardPost: PostRow, cardSource: any;
-	const media = await mediaForPosts(posts.map((p) => p.id));
+	const ids = posts.map((p) => p.id);
 	const cardSourceIds = [...new Set(posts.map((p) => p.conversationCardPostId).filter((id): id is string => !!id))];
-	const cardRows = cardSourceIds.length ? await sql`${select(viewerId)} where p.id = any(${sql.array(cardSourceIds, "INT8")}) and p.conversation_card_post_id is null` : [];
+	const pollIds = [...new Set(posts.map((p) => p.poll_id).filter((id): id is string => !!id))];
+	const statusLinks = posts.flatMap((p) => linksIn(p.text).flatMap((l) => {
+		const at = statusLinkOf(l.url);
+		return at ? [{ post: p, url: l.url, ...at }] : [];
+	}));
+	const editedIds = posts.filter((p) => p.edit_count).map((p) => p.id);
+	const communityIds = [...new Set(posts.map((p) => p.community_id).filter((id): id is string => !!id))];
+	const quoteIds = [...new Set(posts.map((p) => p.quote_id).filter((id): id is string => !!id))];
+	const linkedPosts = async () => {
+		const copies = await sql`select instance, remote_id::text, local_id::text from federated_objects where kind = 'post'
+			and (instance, remote_id) in (select * from unnest(${sql.array(statusLinks.map((l) => l.host), "TEXT")}::text[], ${sql.array(statusLinks.map((l) => l.id), "TEXT")}::bigint[]))`;
+		const localOf = (l: (typeof statusLinks)[number]) => (l.host === INSTANCE_ID ? l.id : copies.find((c: any) => c.instance === l.host && c.remote_id === l.id)?.local_id);
+		const linked = await postsByIds(viewerId, [...new Set(statusLinks.map(localOf).filter((id): id is string => !!id))], false);
+		return { localOf, linked };
+	};
+	const [media, cardRows, cardMedia, notes, mentions, polls, links, versions, communities, articles, quoted] = await Promise.all([
+		mediaForPosts(ids),
+		cardSourceIds.length ? sql`${select(viewerId)} where p.id = any(${sql.array(cardSourceIds, "INT8")}) and p.conversation_card_post_id is null` : [],
+		mediaForPosts(cardSourceIds),
+		ids.length
+			? sql`select n.id::text, n.post_id::text, n.text, n.staff, count(r.user_id)::int as ratings,
+				count(r.user_id) filter(where r.rating = 'Helpful')::int as helpful, count(r.user_id) filter(where r.rating = 'NotHelpful')::int as not_helpful
+				from community_notes n join users author on author.id = n.author_id and author.status <> 'suspended'
+				left join (select x.* from community_note_ratings x join users voter on voter.id = x.user_id and voter.status = 'active') r on r.note_id = n.id
+				where n.post_id = any(${sql.array(ids, "INT8")}) and n.classification = 'Misleading' and (n.staff or n.author_id not in ${blockedFor(viewerId)})
+				group by n.id order by n.staff desc, n.id desc`
+			: [],
+		ids.length
+			? sql`select m.post_id, u.id, u.screen_name, u.name from post_mentions m join users u on u.id = m.user_id
+				where m.post_id = any(${sql.array(ids, "INT8")})`
+			: [],
+		pollIds.length ? pollsByIds(viewerId, pollIds) : undefined,
+		statusLinks.length ? linkedPosts() : undefined,
+		editedIds.length ? sql`select post_id::text, version_id::text from post_versions where post_id = any(${sql.array(editedIds, "INT8")}) order by seq` : [],
+		communityIds.length ? communityObjects(viewerId, communityIds) : undefined,
+		articlesByIds(viewerId, [...new Set(posts.map((p) => p.article_id).filter((id): id is string => !!id))]),
+		quotes && quoteIds.length ? postsByIds(viewerId, quoteIds, false) : undefined,
+	]);
 	const cardSources = new Map<string, any>(cardRows.map((row: any) => [String(row.id), row]));
-	const cardMedia = await mediaForPosts(cardSourceIds);
 	for (cardPost of posts) {
 		cardSource = cardPost.conversationCardPostId ? cardSources.get(cardPost.conversationCardPostId) : undefined;
 		if (cardSource?.conversation_card) {
@@ -115,35 +155,15 @@ async function hydrate(viewerId: string, posts: PostRow[], quotes = true): Promi
 		}
 	}
 	for (const p of posts) p.media = (media.get(p.id) ?? []).map((m) => (p.never_sensitive ? { ...m, sensitive_warning: null } : m));
-	if (posts.length) {
-		const notes = await sql`select n.id::text, n.post_id::text, n.text, count(*)::int as ratings,
-			count(*) filter(where r.rating = 'Helpful')::int as helpful, count(*) filter(where r.rating = 'NotHelpful')::int as not_helpful
-			from community_notes n join users author on author.id = n.author_id and author.status <> 'suspended'
-			join community_note_ratings r on r.note_id = n.id join users voter on voter.id = r.user_id and voter.status = 'active'
-			where n.post_id = any(${sql.array(posts.map(p => p.id), "INT8")}) and n.classification = 'Misleading' and n.author_id not in ${blockedFor(viewerId)}
-			group by n.id order by n.id desc`;
-		for (const p of posts) { const note = notes.find((n: any) => n.post_id === p.id && noteStatus(n.ratings, n.helpful, n.not_helpful) === "Helpful"); if (note) p.communityNote = { id: note.id, text: note.text }; }
-		const mentions = await sql`select m.post_id, u.id, u.screen_name, u.name from post_mentions m join users u on u.id = m.user_id
-			where m.post_id = any(${sql.array(posts.map((p) => p.id), "INT8")})`;
-		for (const p of posts) p.mentions = mentions.filter((m: any) => String(m.post_id) === p.id).map((m: any) => ({ id: String(m.id), screen_name: m.screen_name, name: m.name }));
-	}
-	const pollIds = [...new Set(posts.map((p) => p.poll_id).filter((id): id is string => !!id))];
-	if (pollIds.length) {
-		const polls = await pollsByIds(viewerId, pollIds);
+	for (const p of posts) { const note = notes.find((n: any) => n.post_id === p.id && noteStatus(n.ratings, n.helpful, n.not_helpful, n.staff) === "Helpful"); if (note) p.communityNote = { id: note.id, text: note.text }; }
+	if (ids.length) for (const p of posts) p.mentions = mentions.filter((m: any) => String(m.post_id) === p.id).map((m: any) => ({ id: String(m.id), screen_name: m.screen_name, name: m.name }));
+	if (polls)
 		for (const p of posts) {
 			const poll = p.poll_id ? polls.get(p.poll_id) : undefined;
 			if (poll) p.poll = pollCard(poll);
 		}
-	}
-	const statusLinks = posts.flatMap((p) => linksIn(p.text).flatMap((l) => {
-		const at = statusLinkOf(l.url);
-		return at ? [{ post: p, url: l.url, ...at }] : [];
-	}));
-	if (statusLinks.length) {
-		const copies = await sql`select instance, remote_id::text, local_id::text from federated_objects where kind = 'post'
-			and (instance, remote_id) in (select * from unnest(${sql.array(statusLinks.map((l) => l.host), "TEXT")}::text[], ${sql.array(statusLinks.map((l) => l.id), "TEXT")}::bigint[]))`;
-		const localOf = (l: (typeof statusLinks)[number]) => (l.host === INSTANCE_ID ? l.id : copies.find((c: any) => c.instance === l.host && c.remote_id === l.id)?.local_id);
-		const linked = await postsByIds(viewerId, [...new Set(statusLinks.map(localOf).filter((id): id is string => !!id))], false);
+	if (links) {
+		const { localOf, linked } = links;
 		for (const l of statusLinks) {
 			const target = linked.get(localOf(l) ?? "");
 			if (!target) continue;
@@ -165,23 +185,10 @@ async function hydrate(viewerId: string, posts: PostRow[], quotes = true): Promi
 		const cards = await paymentCards(payable.map((p) => ({ authorId: p.author.id, text: p.text })));
 		for (const [i, p] of payable.entries()) if (cards[i]) p.linkCard = cards[i];
 	}
-	const editedIds = posts.filter((p) => p.edit_count).map((p) => p.id);
-	if (editedIds.length) {
-		const versions = await sql`select post_id::text, version_id::text from post_versions where post_id = any(${sql.array(editedIds, "INT8")}) order by seq`;
-		for (const p of posts) if (p.edit_count) p.versionIds = versions.filter((v: any) => v.post_id === p.id).map((v: any) => v.version_id);
-	}
-	const communityIds = [...new Set(posts.map((p) => p.community_id).filter((id): id is string => !!id))];
-	if (communityIds.length) {
-		const communities = await communityObjects(viewerId, communityIds);
-		for (const p of posts) if (p.community_id) p.community = communities.get(p.community_id);
-	}
-	const articles = await articlesByIds(viewerId, [...new Set(posts.map((p) => p.article_id).filter((id): id is string => !!id))]);
+	if (editedIds.length) for (const p of posts) if (p.edit_count) p.versionIds = versions.filter((v: any) => v.post_id === p.id).map((v: any) => v.version_id);
+	if (communities) for (const p of posts) if (p.community_id) p.community = communities.get(p.community_id);
 	for (const p of posts) if (p.article_id) p.article = articles.get(p.article_id);
-	const quoteIds = [...new Set(posts.map((p) => p.quote_id).filter((id): id is string => !!id))];
-	if (quotes && quoteIds.length) {
-		const quoted = await postsByIds(viewerId, quoteIds, false);
-		for (const p of posts) if (p.quote_id) p.quoted = quoted.get(p.quote_id);
-	}
+	if (quoted) for (const p of posts) if (p.quote_id) p.quoted = quoted.get(p.quote_id);
 	return posts;
 }
 
@@ -219,6 +226,21 @@ export async function checkLength(userId: string, text: string, db: typeof sql =
 	if (weightedLength(text) > limit) throw new PostError(`Posts are limited to ${limit.toLocaleString("en-US")} characters.`, 186);
 }
 
+async function checkMentions(userId: string, text: string, role: string | null, db: typeof sql, editing?: string) {
+	const limits = settings().mention_limits;
+	if (!limits.enabled || role) return;
+	const keys = [...new Set(mentionsIn(text).map((m) => m.key))];
+	if (!keys.length) return;
+	const [me] = await db`select lower(screen_name) as n from users where id = ${userId}::bigint`;
+	const named = keys.filter((k) => k !== me?.n);
+	if (!named.length) return;
+	if (named.length > limits.per_post) throw new PostError(`A post can mention up to ${limits.per_post} ${limits.per_post === 1 ? "account" : "accounts"}.`, 186);
+	const [sent] = await db`select count(*)::int as n from post_mentions m join posts p on p.id = m.post_id
+		where p.user_id = ${userId}::bigint and m.user_id <> ${userId}::bigint and p.id >= ${idAt(Date.now() - 86_400_000)}::bigint
+			${editing ? db`and p.id <> ${editing}::bigint` : db``}`;
+	if (sent.n + named.length > limits.per_day) throw new PostError(`You've reached the limit of ${limits.per_day} mentions a day. Try again later.`, 185);
+}
+
 export async function refuseHate(userId: string, text: string, where: Parameters<typeof automodStrike>[2] = "post") {
 	const hit = hateIn(text);
 	if (!hit) return;
@@ -230,6 +252,8 @@ export async function editPost(userId: string, postId: string, input: string): P
 	const text = cleanText(input, { blankLines: 2 });
 	// the length first: the checks below scan the whole text
 	await checkLength(userId, text);
+	const [editor] = await sql`select role from users where id = ${userId}::bigint`;
+	await checkMentions(userId, text, editor?.role ?? null, sql, postId);
 	await refuseHate(userId, text);
 	if (hasBlockedPhrase(text)) throw new PostError("Your post contains a phrase this instance doesn't allow.", 186);
 	if (!text.trim()) throw new PostError("Your post is empty.", 170);
@@ -246,6 +270,7 @@ export async function editPost(userId: string, postId: string, input: string): P
 		values (${newId()}::bigint, ${postId}::bigint, ${post.edit_count}, ${post.text}, ${post.edited_at ?? post.created_at})`;
 	await sql`update posts set text = ${text}, edit_count = edit_count + 1, edited_at = now() where id = ${postId}::bigint`;
 	await saveMentions(postId, text, undefined, lookupRemoteUser);
+	queueReview("post", postId);
 }
 
 export async function getPost(viewerId: string, id: string): Promise<PostRow | undefined> {
@@ -292,6 +317,8 @@ export type FeedQuery = {
 const originalAuthor = () => sql`(select x.user_id from posts x where x.id = f.post_id)`;
 export const homeHidden = (viewerId: string) => sql`f.author_id not in ${blockedFor(viewerId)} and ${originalAuthor()} not in ${blockedFor(viewerId)}
 	and f.author_id not in ${outOfView(viewerId)} and ${originalAuthor()} not in ${outOfView(viewerId)}
+	and f.author_id not in ${shadowedFor(viewerId)} and ${originalAuthor()} not in ${shadowedFor(viewerId)}
+	and (f.reposter_id is null or f.reposter_id not in ${shadowedFor(viewerId)})
 	and f.author_id not in ${protectedFor(viewerId)} and ${originalAuthor()} not in ${protectedFor(viewerId)}
 	and f.author_id not in ${mutedFor(viewerId)} and ${originalAuthor()} not in ${mutedFor(viewerId)}
 	and f.author_id not in ${federatedHiddenFor(viewerId)} and ${originalAuthor()} not in ${federatedHiddenFor(viewerId)}
@@ -392,8 +419,10 @@ export async function forYouFeed(viewerId: string, limit: number, offset = 0): P
 
 // feed_items rows (aliased f) as feed entries, in the order given
 export async function itemsFromRows(viewerId: string, rows: any[]): Promise<FeedItem[]> {
-	const posts = await postsByIds(viewerId, [...new Set(rows.map((r: any) => r.post_id as string))] as string[]);
-	const reposters = await usersByIds(viewerId, [...new Set(rows.filter((r: any) => r.reposter_id).map((r: any) => r.reposter_id as string))] as string[]);
+	const [posts, reposters] = await Promise.all([
+		postsByIds(viewerId, [...new Set(rows.map((r: any) => r.post_id as string))] as string[]),
+		usersByIds(viewerId, [...new Set(rows.filter((r: any) => r.reposter_id).map((r: any) => r.reposter_id as string))] as string[]),
+	]);
 	const items: FeedItem[] = [];
 	for (const r of rows) {
 		const post = posts.get(r.post_id);
@@ -519,7 +548,7 @@ export async function likedPosts(viewerId: string, userId: string, limit = 100):
 export const seenBy = (userId: string) =>
 	sql`(u.id = ${userId}::bigint or ((not p.hidden or ${staffViewer(userId)}) and ${circleSeen(userId)} and u.id not in ${protectedFor(userId)} and u.id not in ${suspendedFor(userId)}))`;
 
-export async function createPost(userId: string, input: string, opts: { replyToId?: string; quoteId?: string; articleId?: string; source?: string; communityId?: string; placeId?: string; replyPolicy?: string; replySelections?: string[]; circle?: boolean; db?: typeof sql; skipPreview?: boolean } = {}): Promise<string> {
+export async function createPost(userId: string, input: string, opts: { replyToId?: string; quoteId?: string; articleId?: string; source?: string; communityId?: string; placeId?: string; replyPolicy?: string; replySelections?: string[]; circle?: boolean; db?: typeof sql; skipPreview?: boolean; skipReview?: boolean } = {}): Promise<string> {
 	const db = opts.db ?? sql;
 	const text = cleanText(input, { blankLines: 2 });
 	const control = replyControl(opts.replyPolicy, opts.replySelections);
@@ -534,6 +563,7 @@ export async function createPost(userId: string, input: string, opts: { replyToI
 		if (made.n >= cap) throw new PostError(`You've reached the limit of ${cap} ${reply ? (cap === 1 ? "reply" : "replies") : cap === 1 ? "post" : "posts"} a day. Try again later.`, 185);
 	}
 	await checkLength(userId, text, db);
+	await checkMentions(userId, text, author.role, db);
 	await refuseHate(userId, text);
 	if (hasBlockedPhrase(text)) throw new PostError("Your post contains a phrase this instance doesn't allow.", 186);
 	const id = newId();
@@ -559,12 +589,13 @@ export async function createPost(userId: string, input: string, opts: { replyToI
 		const [unseenRoot] = await db`select 1 from posts p join users u on u.id = p.user_id
 			where p.id = ${conversationId}::bigint and not ${seenBy(userId)}`;
 		if (unseenRoot) throw new PostError("The post you are replying to no longer exists.", 385);
-		if (await replyLimited(String(conversationId), userId, db)) throw new PostError("The author of the original post limited who can reply to it.", 433);
+		if (await replyLimited(opts.replyToId!, String(conversationId), userId, db)) throw new PostError("The author of this post or one above it limited who can reply.", 433);
 	}
 	if (opts.quoteId) {
-		const [quoted] = await db`select p.id, p.user_id, p.circle_owner_id from posts p join users u on u.id = p.user_id where p.id = ${opts.quoteId}::bigint and ${seenBy(userId)}`;
+		const [quoted] = await db`select p.id, p.user_id, p.circle_owner_id, p.ad_only from posts p join users u on u.id = p.user_id where p.id = ${opts.quoteId}::bigint and ${seenBy(userId)}`;
 		if (!quoted) throw new PostError("The post you are quoting no longer exists.", 385);
 		if (quoted.circle_owner_id) throw new PostError("Circle posts can't be quoted.", 460);
+		if (quoted.ad_only) throw new PostError("Ads can't be quoted.", 460);
 		if (await isBlockedEitherWay(userId, String(quoted.user_id), db)) throw new PostError("You can't quote this post.", 433);
 		const [owner] = await db`select protected from users where id = ${quoted.user_id}::bigint`;
 		if (owner?.protected && String(quoted.user_id) !== userId) throw new PostError("Posts from protected accounts can't be quoted.", 433);
@@ -580,6 +611,10 @@ export async function createPost(userId: string, input: string, opts: { replyToI
 	await saveMentions(id, text, undefined, opts.db ? undefined : lookupRemoteUser, db);
 	const link = opts.quoteId || opts.articleId ? undefined : linksIn(text).filter((l) => previewable(l.url)).at(-1);
 	if (!opts.skipPreview && link && !(await db`select 1 from link_previews where url = ${link.url}`).length) await Promise.race([fetchPreview(link.url), Bun.sleep(4000)]);
+	// Claude reads it afterwards (claude-mod.ts); inside a caller's transaction
+	// (imports) the post isn't committed yet, so those are left out; the
+	// server's own posts (payments feed) aren't read either
+	if (!opts.db && !opts.skipReview) queueReview("post", id);
 	return id;
 }
 
@@ -641,9 +676,10 @@ export async function setMark(table: Mark, userId: string, postId: string, on: b
 export async function repost(userId: string, postId: string): Promise<string> {
 	postId = await originalPostId(postId);
 	// a protected account's posts can't be passed on
-	const [owner] = await sql`select u.protected, u.id::text as owner, p.circle_owner_id is not null as circle from posts p join users u on u.id = p.user_id where p.id = ${postId}::bigint`;
+	const [owner] = await sql`select u.protected, u.id::text as owner, p.circle_owner_id is not null as circle, p.ad_only from posts p join users u on u.id = p.user_id where p.id = ${postId}::bigint`;
 	if (!owner || !(await getPost(userId, postId))) throw new PostError("No status found with that ID.", 144);
 	if (owner.circle) throw new PostError("Circle posts can't be reposted.", 456);
+	if (owner.ad_only) throw new PostError("Ads can't be reposted.", 456);
 	if (owner?.protected && owner.owner !== userId) throw new PostError("Posts from protected accounts can't be reposted.", 328);
 	const id = newId();
 	const rows = await sql`insert into reposts (id, user_id, post_id) values (${id}::bigint, ${userId}::bigint, ${postId}::bigint)

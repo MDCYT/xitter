@@ -150,6 +150,7 @@ alter table sessions add column if not exists id uuid not null default gen_rando
 create unique index if not exists sessions_id_key on sessions(id);
 alter table sessions add column if not exists last_seen_at timestamptz not null default now();
 alter table sessions add column if not exists user_agent text;
+update sessions set token = encode(sha256(convert_to(token, 'UTF8')), 'hex') where token !~ '^[0-9a-f]{64}$';
 
 create table if not exists staff_notes (
 	id bigint primary key, user_id bigint not null references users(id) on delete cascade,
@@ -181,6 +182,7 @@ create unique index if not exists moderation_appeals_open_user_idx on moderation
 
 alter table posts add column if not exists source text not null default 'Xitter for Web';
 alter table users add column if not exists notes_writer boolean not null default false;
+alter table users add column if not exists shadow_banned boolean not null default false;
 alter table users add column if not exists notes_alias text not null default ('Contributor-' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 12));
 create unique index if not exists users_notes_alias_key on users(notes_alias);
 create table if not exists client_platforms (
@@ -204,6 +206,7 @@ create table if not exists community_notes (
 );
 create index if not exists community_notes_author_idx on community_notes(author_id);
 alter table community_notes add column if not exists data_v1 jsonb not null default '{}';
+alter table community_notes add column if not exists staff boolean not null default false;
 create table if not exists community_note_ratings (
 	note_id bigint not null references community_notes(id) on delete cascade,
 	user_id bigint not null references users(id) on delete cascade,
@@ -314,13 +317,16 @@ alter table users add column if not exists pinned_post_id bigint references post
 create index if not exists reposts_user_idx on reposts (user_id, id desc);
 
 -- posts and reposts as one ordered stream; a repost's own id places it in time
+alter table posts add column if not exists ad_only boolean not null default false;
 create or replace view feed_items as
 	select p.id as item_id, p.id as post_id, null::bigint as reposter_id, p.user_id as author_id,
 		p.reply_to_id is not null as is_reply, p.created_at
 	from posts p
+	where not p.ad_only
 	union all
 	select r.id, r.post_id, r.user_id, r.user_id, false, r.created_at
-	from reposts r;
+	from reposts r
+	where not exists (select 1 from posts x where x.id = r.post_id and x.ad_only);
 create index if not exists posts_top_level_idx on posts (id) where reply_to_id is null;
 
 -- videos: converted after upload; 'processing' until ffmpeg is done
@@ -1120,6 +1126,15 @@ create table if not exists retired_identities (
 	primary key (kind, value)
 );
 
+do $$ begin
+	if not exists (select 1 from schema_steps where name = 'unretire_deactivated') then
+		delete from retired_identities r where r.reason like 'deleted while suspended%' and not exists (
+			select 1 from audit_log l where (l.target = r.user_id::text or (l.action = 'bulk_status' and l.detail->'ids' ? r.user_id::text))
+				and l.action in ('set_status', 'temporary_status', 'bulk_status', 'auto_suspend_name', 'suspend_blocked_names', 'escalate'));
+		insert into schema_steps (name) values ('unretire_deactivated');
+	end if;
+end $$;
+
 -- Profile labels staff make in the admin panel, worn where X shows "Parody
 -- account": the text, a custom badge as its icon (the parody mask without
 -- one) and an optional link. Staff and parody/commentary/fan labels don't
@@ -1183,11 +1198,11 @@ create or replace function user_stats_posts() returns trigger language plpgsql a
 begin
 	if tg_op = 'INSERT' then
 		insert into user_stats (user_id, posts, articles)
-			select user_id, count(*), count(article_id) from new_rows group by user_id
+			select user_id, count(*), count(article_id) from new_rows where not ad_only group by user_id
 			on conflict (user_id) do update set posts = user_stats.posts + excluded.posts, articles = user_stats.articles + excluded.articles;
 	else
 		update user_stats s set posts = s.posts - d.posts, articles = s.articles - d.articles
-			from (select user_id, count(*) as posts, count(article_id) as articles from old_rows group by user_id) d where s.user_id = d.user_id;
+			from (select user_id, count(*) as posts, count(article_id) as articles from old_rows where not ad_only group by user_id) d where s.user_id = d.user_id;
 	end if;
 	return null;
 end $$;
@@ -1295,6 +1310,7 @@ alter table media add column if not exists remote_instance text;
 alter table media add column if not exists remote_id bigint;
 alter table sessions add column if not exists expires_at timestamptz;
 alter table sessions add column if not exists superadmin boolean not null default false;
+alter table sessions add column if not exists impersonator_id bigint references users(id) on delete cascade;
 create table if not exists federated_objects (
 	instance text not null,
 	kind text not null check (kind in ('user', 'post', 'media')),
@@ -1845,3 +1861,93 @@ create index if not exists post_boosts_post_idx on post_boosts (post_id);
 create index if not exists reports_post_idx on reports (post_id) where post_id is not null;
 create index if not exists reports_user_idx on reports (user_id) where user_id is not null;
 create index if not exists mutes_muted_idx on mutes (muted_id);
+
+-- Direct messages of the 2020 web client (legacy-dm.ts). Unencrypted, unlike
+-- XChat, which that client can't read; these chats exist only in old clients.
+-- A one-to-one conversation's id is "<smaller user id>-<larger user id>".
+create table if not exists legacy_dm_participants (
+	conversation_id text not null,
+	user_id bigint not null references users (id) on delete cascade,
+	last_read_event_id bigint not null default 0,
+	-- left the conversation: hidden from the inbox until a new message arrives
+	left_at_event_id bigint,
+	primary key (conversation_id, user_id)
+);
+create index if not exists legacy_dm_participants_user_idx on legacy_dm_participants (user_id);
+create table if not exists legacy_dm_events (
+	id bigint primary key,
+	conversation_id text not null,
+	sender_id bigint not null references users (id) on delete cascade,
+	text text not null,
+	request_id text,
+	created_at timestamptz not null default now()
+);
+create index if not exists legacy_dm_events_conversation_idx on legacy_dm_events (conversation_id, id);
+alter table users add column if not exists legacy_dm_last_seen bigint not null default 0;
+-- hidden by the Claude moderator (claude-mod.ts): gone for both sides, kept for staff
+alter table legacy_dm_events add column if not exists hidden boolean not null default false;
+
+-- media-scan.ts: when the photo's signed copy went through Cloudflare's cache,
+-- when it was last asked for again, and when Cloudflare's CSAM tool blocked it
+alter table media add column if not exists scan_warmed_at timestamptz;
+alter table media add column if not exists scan_checked_at timestamptz;
+alter table media add column if not exists scan_blocked_at timestamptz;
+create index if not exists media_scan_todo_idx on media (id) where kind = 'photo' and scan_warmed_at is null;
+
+create table if not exists grok_conversations (
+	id bigint primary key,
+	user_id bigint not null references users(id) on delete cascade,
+	title text not null default '',
+	pinned boolean not null default false,
+	created_at timestamptz not null default now(),
+	updated_at timestamptz not null default now()
+);
+create index if not exists grok_conversations_user on grok_conversations (user_id, updated_at desc);
+create table if not exists grok_items (
+	id bigint primary key,
+	conversation_id bigint not null references grok_conversations(id) on delete cascade,
+	sender text not null check (sender in ('User', 'Agent')),
+	message text not null,
+	created_at timestamptz not null default now()
+);
+create index if not exists grok_items_conversation on grok_items (conversation_id, id);
+
+create table if not exists ads (
+	id bigint primary key,
+	user_id bigint not null references users (id) on delete cascade,
+	text text not null,
+	url text,
+	budget_cents bigint not null check (budget_cents > 0),
+	spent_cents bigint not null default 0 check (spent_cents >= 0 and spent_cents <= budget_cents),
+	refunded_cents bigint not null default 0 check (refunded_cents >= 0),
+	days int not null check (days > 0),
+	status text not null check (status in ('pending', 'running', 'paused', 'ended', 'rejected', 'cancelled')),
+	reject_reason text,
+	created_at timestamptz not null default now(),
+	reviewed_at timestamptz,
+	reviewed_by bigint references users (id) on delete set null,
+	starts_at timestamptz,
+	ends_at timestamptz
+);
+create index if not exists ads_status_idx on ads (status, ends_at);
+create index if not exists ads_user_idx on ads (user_id, id desc);
+alter table ads add column if not exists ad_only boolean not null default true;
+alter table ads add column if not exists post_id bigint references posts (id) on delete set null;
+alter table ads add column if not exists spent_milli bigint not null default 0;
+alter table ads add column if not exists views int not null default 0;
+create table if not exists ad_views (
+	ad_id bigint not null references ads (id) on delete cascade,
+	viewer_id bigint not null references users (id) on delete cascade,
+	day date not null default current_date,
+	n int not null default 0,
+	last_at timestamptz not null default now(),
+	primary key (ad_id, viewer_id, day)
+);
+alter table ad_views add column if not exists shown int not null default 0;
+alter table ad_views alter column day set default (now() at time zone 'utc')::date;
+alter table ad_views alter column last_at set default '-infinity';
+alter table ads add column if not exists paused_left interval;
+alter table ads add column if not exists paused_at timestamptz;
+alter table ads add column if not exists name text;
+alter table ads add column if not exists existing_post boolean not null default false;
+create index if not exists ads_post_idx on ads (post_id) where post_id is not null;

@@ -1,13 +1,13 @@
 // What staff sent an account (messages, warnings, strikes) and its appeals.
 // New ones arrive in the Notifications tab (notifications.ts), which links
-// here. A suspended account can't sign in, so /appeal also takes the
-// handle and password.
+// here. A suspended account signs in to /account/suspended and nothing
+// else; /appeal also takes the handle and password, for a link from outside.
 
-import { hit, used } from "./ratelimit";
+import { passwordTry } from "./ratelimit";
 import { randomBytes } from "node:crypto";
 import { accountPage, esc } from "./account-page";
 import type { Viewer } from "./auth";
-import { SECURE } from "./auth";
+import { SECURE, clearedCookies } from "./auth";
 import { PUBLIC_ORIGIN } from "./config";
 import { sql } from "./db";
 import { isId, newId } from "./ids";
@@ -138,13 +138,12 @@ export async function appealRoute(req: Request, address: string) {
 	const cookie = /(?:^|;\s*)appeal_csrf=([^;]+)/.exec(req.headers.get("cookie") ?? "")?.[1];
 	if (!cookie || form.get("csrf") !== cookie) return page("The form expired. Try again.", 403);
 	const handle = String(form.get("username") ?? "").trim().replace(/^@/, "").toLowerCase().slice(0, 15);
-	if (used("password", handle)) return page("Too many tries for that account. Wait 15 minutes.", 429);
+	const refund = passwordTry(handle);
+	if (!refund) return page("Too many tries for that account. Wait 15 minutes.", 429);
 	const [user] = await sql`select id::text, password_hash from users where lower(screen_name) = ${handle} and instance is null`;
 	const valid = await Bun.password.verify(String(form.get("password") ?? "").slice(0, 1024), user?.password_hash ?? (await dummyHash)).catch(() => false);
-	if (!user || !valid) {
-		hit("password", handle);
-		return page("Wrong handle or password.", 400);
-	}
+	if (!user || !valid) return page("Wrong handle or password.", 400);
+	refund();
 	try {
 		await submitAppeal(user.id, form.get("body"));
 	} catch (e) {
@@ -161,4 +160,57 @@ export async function appealRoute(req: Request, address: string) {
 	<p class="dim"><a href="/">Back</a></p>
 </form>`,
 	});
+}
+
+export async function suspendedPage(req: Request, who: { id: string; screen_name: string; csrf: string }): Promise<Response> {
+	let error = "";
+	if (req.method === "POST") {
+		if (Number(req.headers.get("content-length") ?? Infinity) > 8192) error = "That's too long.";
+		const form = error ? undefined : await req.formData().catch(() => undefined);
+		if (!error && String(form?.get("csrf") ?? "") !== who.csrf) error = "That form is out of date. Try again.";
+		else if (form?.get("action") === "signout") {
+			await sql`delete from sessions where user_id = ${who.id}::bigint and csrf = ${who.csrf}`;
+			const headers = new Headers({ location: "/" });
+			for (const c of clearedCookies()) headers.append("set-cookie", c);
+			return new Response(null, { status: 303, headers });
+		} else if (!error) {
+			try {
+				await submitAppeal(who.id, form?.get("body"));
+				return new Response(null, { status: 303, headers: { location: "/account/suspended" } });
+			} catch (e) {
+				error = (e as Error).message;
+			}
+		}
+	} else if (req.method !== "GET") return new Response(null, { status: 405 });
+	const [appeals, [message], [sanction]] = await Promise.all([
+		appealsOf(who.id),
+		sql`select body from staff_messages where user_id = ${who.id}::bigint and revoked_at is null order by id desc limit 1`,
+		sql`select detail->>'reason' as reason from audit_log where target = ${who.id} and action in ('set_status', 'temporary_status', 'escalate', 'bulk_status')
+			and detail->>'reason' is not null order by id desc limit 1`,
+	]);
+	const [until] = await sql`select status_until from users where id = ${who.id}::bigint`;
+	const open = appeals.some((a: any) => a.status === "open");
+	const reason = message?.body || sanction?.reason || "The instance team suspended this account.";
+	const appealList = appeals.map((a: any) => `<div class="card">
+		<div class="meta">${esc(OUTCOME[a.status] ?? a.status)} · ${esc(date(a.created_at))}</div>
+		<p>${esc(a.body)}</p>
+		${a.staff_reply ? `<div class="meta">Staff replied</div><p>${esc(a.staff_reply)}</p>` : ""}
+	</div>`).join("");
+	const body = `<h1>Your account is suspended</h1>
+	<p class="dim">@${esc(who.screen_name)} can't use ${esc(settings().instance_name)} ${until?.status_until ? `until ${esc(date(until.status_until))}` : "until staff lift the suspension"}.</p>
+	<div class="card strike"><strong>Reason</strong><p>${esc(reason)}</p></div>
+	${appealList ? `<h2>Your appeals</h2>${appealList}` : ""}
+	${open ? `<p class="dim">Staff have your appeal. You'll see their answer here, and if they lift the suspension this page opens the app again.</p>` : `<form method="post" action="/account/suspended">
+		<input type="hidden" name="csrf" value="${esc(who.csrf)}">
+		<label for="appeal-body">Why should staff reconsider?</label>
+		<textarea id="appeal-body" name="body" maxlength="2000" required></textarea>
+		${error ? `<p class="error" role="alert">${esc(error)}</p>` : ""}
+		<button type="submit">Send appeal</button>
+	</form>`}
+	<form method="post" action="/account/suspended">
+		<input type="hidden" name="csrf" value="${esc(who.csrf)}">
+		<input type="hidden" name="action" value="signout">
+		<button class="secondary" type="submit">Sign out</button>
+	</form>`;
+	return accountPage({ req, title: "Account suspended", body, status: error ? 400 : 200, referrer: null, css: ".bar .back{display:none}" });
 }

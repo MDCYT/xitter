@@ -135,6 +135,17 @@ export function used(bucket: Bucket, who: string): boolean {
 	return !!w && w.reset > Date.now() && w.count >= limitOf(bucket);
 }
 
+// A password check takes a moment, so its try counts before it runs: checked
+// with `used` and counted only once found wrong, tries sent all at once got
+// past the limit together. A right password gives its try back.
+export function passwordTry(who: string): (() => void) | undefined {
+	if (!hit("password", who).ok) return undefined;
+	return () => {
+		const w = windows.get(`password:${who}`);
+		if (w && w.count > 0) w.count--;
+	};
+}
+
 export const limitHeaders = (h: Hit) => ({
 	"x-rate-limit-limit": String(h.limit),
 	"x-rate-limit-remaining": String(h.remaining),
@@ -146,7 +157,9 @@ export const limitedResponse = (h: Hit) =>
 
 const POST_OPS = /^(CreateTweet|CreateNoteTweet|CreateScheduledTweet|CreateDraftTweet|ArticleEntityPublish)$/;
 const ENGAGE_OPS = /^(FavoriteTweet|UnfavoriteTweet|CreateRetweet|DeleteRetweet|CreateBookmark|DeleteBookmark|bookmarkTweetToFolder|PinTweet|UnpinTweet)$/;
-const ENGAGE_REST = /^\/1\.1\/(friendships\/(create|destroy)|favorites\/(create|destroy)|statuses\/(retweet|unretweet))/;
+const ENGAGE_REST = /^\/1\.1\/(friendships\/(create|destroy)|favorites\/(create|destroy)|statuses\/(retweet|unretweet)|bookmark\/entries\/(add|remove))/;
+// the 2020 client (adaptive.ts) posts here
+const POST_REST = /^\/1\.1\/statuses\/update\.json$/;
 const DM_OPS = /XChat|SendMessage|ConversationEvent|GroupConversation/;
 // what the client posts on its own all the time (event logging, its error
 // reports, read markers): about 40 a minute, which would use up "write" in a
@@ -277,6 +290,7 @@ export function bucketsFor(method: string, path: string, operation: string | und
 		if (DM_OPS.test(operation)) return method === "GET" ? ["read"] : ["read", "dm"];
 		return method === "GET" || (operationTypes.queries.has(operation) && !operationTypes.mutations.has(operation)) ? ["read"] : ["read", "write"];
 	}
+	if (POST_REST.test(path)) return ["read", "post"];
 	if (ENGAGE_REST.test(path)) return ["read", "engage"];
 	if (/\/translation\/service\/translate(Tweet|Profile)$/.test(path)) return ["read", "translate"];
 	return method === "GET" ? ["read"] : ["read", "write"];

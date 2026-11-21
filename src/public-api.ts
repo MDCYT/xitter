@@ -9,6 +9,7 @@ import { BodyTooLarge, boundedBody } from "./api-input";
 import { accountPage, esc } from "./account-page";
 import { type User, type Viewer, GUEST_VIEWER } from "./auth";
 import { PUBLIC_ORIGIN } from "./config";
+import { pronounsValue } from "./pronouns";
 import { sql } from "./db";
 import { callOperation } from "./graphql";
 import { isId, newId } from "./ids";
@@ -17,7 +18,7 @@ import { postLimitFor } from "./textlen";
 import { absolute, mediaUpload, mediaUrl, posterUrl } from "./media";
 import { type PostRow, badgeList, isOrganization, isVerified, shownVerifiedType, verifiedSince } from "./model";
 import { PostError, feed, forYouFeed, getPost, likedPosts, likerIds, postsByIds, replies, type FeedItem } from "./posts";
-import { setProfileImage, updateProfileText } from "./rest";
+import { setProfileImage, updatePronouns, updateProfileText } from "./rest";
 import { ReplyControlError } from "./reply-controls";
 import { listNotifications } from "./notifications";
 import { type Bucket, limitHeaders, limitedResponse, noteRefusal, take } from "./ratelimit";
@@ -106,6 +107,7 @@ function userJson(u: User) {
 		screen_name: u.screen_name,
 		name: u.name,
 		bio: u.bio ?? "",
+		pronouns: pronounsValue(u.pronouns),
 		location: u.location ?? "",
 		website: u.website || null,
 		avatar_url: absolute(u.avatar_url) || `${PUBLIC_ORIGIN}/public/default-avatar.png`,
@@ -114,10 +116,10 @@ function userJson(u: User) {
 		verified_at: iso(u.verified_at),
 		country: u.country ?? null,
 		region: u.region ?? u.country ?? null,
-		pronouns: u.pronouns ?? null,
 		verified: isVerified(u),
 		verified_since: iso(isVerified(u) ? verifiedSince(u) : null),
 		parody_label: u.parody_label && u.parody_label !== "None" ? u.parody_label : null,
+		label: u.label ? { text: u.label.text, url: u.label.url ?? null, badge_url: u.label.badge_id ? badgeUrl(u.label.badge_id) : null } : null,
 		automated_by: u.automated_by ?? null,
 		organization: isOrganization(u),
 		...(isOrganization(u) ? { affiliates_count: u.affiliates ?? 0 } : {}),
@@ -630,8 +632,8 @@ const ROUTES: Route[] = [
 	},
 	{ method: "GET", pattern: /^\/suggestions$/, scope: "read", run: async (v, _m, _req, url) => ({ data: (await suggestedUsers(v.id, limitOf(url, 5))).map(userJson) }) },
 	{
-		// edit the profile: name, bio, location, website (empty string clears),
-		// avatar_media_id / banner_media_id from POST /media, remove_banner: true
+		// edit the profile: name, bio, pronouns, location, website (empty string
+		// clears), avatar_media_id / banner_media_id from POST /media, remove_banner: true
 		method: "PATCH", pattern: /^\/me$/, scope: "write",
 		run: async (v, _m, req) => {
 			const b = await body(req);
@@ -641,10 +643,12 @@ const ROUTES: Route[] = [
 				if (typeof b[key] !== "string") throw new ApiError(400, `${key} is a string.`);
 				text[web] = b[key];
 			}
+			if (b.pronouns !== undefined && b.pronouns !== null && typeof b.pronouns !== "string") throw new ApiError(400, "pronouns is a string.");
 			if (b.avatar_media_id !== undefined && !isId(String(b.avatar_media_id))) throw new ApiError(400, "avatar_media_id is a media id.");
 			if (b.banner_media_id !== undefined && !isId(String(b.banner_media_id))) throw new ApiError(400, "banner_media_id is a media id.");
 			const problem =
 				(Object.keys(text).length ? await updateProfileText(v, text) : null) ??
+				(typeof b.pronouns === "string" ? await updatePronouns(v, b.pronouns) : null) ??
 				(b.avatar_media_id !== undefined ? await setProfileImage(v, "avatar", String(b.avatar_media_id)) : null) ??
 				(b.banner_media_id !== undefined ? await setProfileImage(v, "banner", String(b.banner_media_id)) : null);
 			if (problem) throw new ApiError(400, problem);
@@ -859,7 +863,10 @@ export async function publicApi(req: Request, url: URL, sessionViewer?: Viewer):
 		}
 	}
 	if (!route || !match) return withCors(fail(404, "No such endpoint. See /api for the list."));
-	if (route.scope === "write" && (scope !== "write" || viewer.id === "0")) return withCors(fail(401, "Sign in to perform this action."));
+	if (route.scope === "write" && viewer.id === "0") return withCors(fail(401, "Sign in to perform this action."));
+	if (route.scope === "write" && scope !== "write") return withCors(fail(403, "This token can only read."));
+	// the same standing as in the app (restricted-page.ts): reading goes on, nothing else
+	if (route.scope === "write" && viewer.status === "restricted") return withCors(fail(403, "Your account can't interact right now."));
 	if (settings().operations.maintenance) return withCors(fail(503, settings().operations.message || "The instance is under maintenance."));
 
 	const rateId = viewer.id === "0" ? "guest" : viewer.id;

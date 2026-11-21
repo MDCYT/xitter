@@ -13,8 +13,8 @@
 // realm (a separate service, see README) reached at /juicebox, with tokens this
 // instance signs. Voice and video calls are not offered.
 
-import { affiliateChecked, pictureShape, remoteCheckHidden, shownVerifiedType } from "./model";
-import { createHmac, randomBytes } from "node:crypto";
+import { affiliateChecked, pictureShape, checkHidden, shownVerifiedType } from "./model";
+import { createHash, createHmac, randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import type { ServerWebSocket } from "bun";
 import type { User, Viewer } from "./auth";
@@ -38,10 +38,11 @@ const SECRETS_FILE = "data/chat-secrets.json";
 function loadSecrets(): Secrets {
 	let saved: Partial<Secrets> = {};
 	if (existsSync(SECRETS_FILE)) saved = JSON.parse(readFileSync(SECRETS_FILE, "utf8"));
+	// `||`: a variable left empty in .env would otherwise sign tokens with an empty key
 	const s: Secrets = {
-		tokenKey: process.env.CHAT_TOKEN_SECRET ?? saved.tokenKey ?? randomBytes(32).toString("hex"),
-		realmId: process.env.JUICEBOX_REALM_ID ?? saved.realmId ?? randomBytes(16).toString("hex"),
-		tenantSecret: process.env.JUICEBOX_TENANT_SECRET ?? saved.tenantSecret ?? randomBytes(32).toString("hex"),
+		tokenKey: process.env.CHAT_TOKEN_SECRET || saved.tokenKey || randomBytes(32).toString("hex"),
+		realmId: process.env.JUICEBOX_REALM_ID || saved.realmId || randomBytes(16).toString("hex"),
+		tenantSecret: process.env.JUICEBOX_TENANT_SECRET || saved.tenantSecret || randomBytes(32).toString("hex"),
 	};
 	if (!existsSync(SECRETS_FILE) || JSON.stringify(saved) !== JSON.stringify(s)) {
 		mkdirSync("data", { recursive: true });
@@ -64,8 +65,17 @@ function jwt(header: object, claims: object, key: string): string {
 	return `${body}.${createHmac("sha256", key).update(body).digest("base64url")}`;
 }
 // the chat socket's token, from GenerateXChatTokenMutation
-const socketToken = (userId: string) => jwt({ alg: "HS256", typ: "JWT" }, { sub: userId, exp: Math.floor(Date.now() / 1000) + 86400 }, secrets.tokenKey);
-export const socketUser = (token: string): string | undefined => verifyChatToken(token, secrets.tokenKey)?.sub as string | undefined;
+// `sid` ties it to the session that asked: signed out (or reset), the token
+// stops opening sockets instead of working for the rest of its day
+const sessionId = (sessionToken: string) => createHash("sha256").update(sessionToken).digest("hex");
+const socketToken = (userId: string, sessionToken: string) =>
+	jwt({ alg: "HS256", typ: "JWT" }, { sub: userId, exp: Math.floor(Date.now() / 1000) + 86400, ...(sessionToken ? { sid: sessionId(sessionToken) } : {}) }, secrets.tokenKey);
+// `sid` is missing from tokens made before it existed; they run out within a day
+export function socketUser(token: string): { userId: string; sid?: string } | undefined {
+	const claims = verifyChatToken(token, secrets.tokenKey);
+	if (!claims) return undefined;
+	return { userId: claims.sub as string, sid: typeof claims.sid === "string" && /^[0-9a-f]{64}$/.test(claims.sid) ? claims.sid : undefined };
+}
 
 // what the realm accepts: kid tenant:version, iss tenant, aud realm, sub user
 const realmToken = (userId: string) =>
@@ -105,7 +115,7 @@ async function hasKey(userIds: string[]): Promise<Set<string>> {
 function verificationOf(u: User) {
 	return {
 		__typename: "UserVerification",
-		is_blue_verified: !remoteCheckHidden(u) && (u.verified_type === "blue" || (!u.verified_type && affiliateChecked(u))),
+		is_blue_verified: !checkHidden(u) && (u.verified_type === "blue" || (!u.verified_type && affiliateChecked(u))),
 		is_verified_organization: shownVerifiedType(u) === "business",
 		is_verified_organization_affiliate: !!u.org,
 		verified: false,
@@ -324,6 +334,27 @@ async function store(seq: string, ev: Struct, senderId: string, conversationId: 
 	return bytes;
 }
 
+async function withRequestFlags<T extends { event: Buffer }>(viewerId: string, rows: T[]): Promise<T[]> {
+	const messages = rows.map((r) => {
+		const ev = thrift.decode(new Uint8Array(r.event));
+		return thrift.fields(thrift.fields(ev[7])?.[1])?.[109] ? ev : null;
+	});
+	const conversations = [...new Set(messages.flatMap((ev) => (ev ? [thrift.text(ev[4]) ?? ""] : [])))];
+	if (!conversations.length) return rows;
+	const pending: { conversation_id: string; id: string }[] = await sql`select conversation_id, user_id::text as id from chat_members
+		where conversation_id = any(${sql.array(conversations, "TEXT")}) and not accepted`;
+	return rows.map((r, i) => {
+		const ev = messages[i];
+		if (!ev) return r;
+		const waiting = pending.filter((p) => p.conversation_id === thrift.text(ev[4]));
+		const flag = thrift.text(ev[3]) === viewerId ? waiting.some((p) => p.id !== viewerId) : waiting.some((p) => p.id === viewerId);
+		const mce = thrift.fields(thrift.fields(ev[7])![1])!;
+		if (mce[109].v === flag) return r;
+		mce[109] = bool(flag);
+		return { ...r, event: Buffer.from(thrift.encode(ev)) };
+	});
+}
+
 // --- the socket: frames are Thrift structs; {1: event} and {3: {1: [events]}}
 // carry events, {2: instruction} the rest (2 is keep-alive)
 
@@ -393,9 +424,9 @@ type Vars = Record<string, any>;
 
 async function conversationData(viewerId: string, conversationId: string) {
 	const all = await members(conversationId);
-	const latest = await sql`select e.event from chat_events e where e.conversation_id = ${conversationId} and e.kind = ${KIND.message} and not e.deleted
+	const latest = await withRequestFlags(viewerId, await sql`select e.event from chat_events e where e.conversation_id = ${conversationId} and e.kind = ${KIND.message} and not e.deleted
 		and e.seq > coalesce((select deleted_before from chat_members where conversation_id = ${conversationId} and user_id = ${viewerId}::bigint), 0)
-		and not exists (select 1 from chat_hidden_events h where h.user_id = ${viewerId}::bigint and h.seq = e.seq) order by e.seq desc limit 21`;
+		and not exists (select 1 from chat_hidden_events h where h.user_id = ${viewerId}::bigint and h.seq = e.seq) order by e.seq desc limit 21`);
 	const keys = await sql`select event from chat_events where conversation_id = ${conversationId} and kind = ${KIND.keyChange} order by seq desc limit 5`;
 	// each member's newest read marker: one index lookup per member, where
 	// sorting every marker the conversation ever had grew with its history
@@ -549,6 +580,28 @@ async function deleteMessages(v: Viewer, vars: Vars) {
 	return { data: { xchat_delete_messages: { __typename: "DeleteMessageResponse", error_code: null } } };
 }
 
+const DM_FROM = new Set(["all", "following", "verified"]);
+const DM_RECEIPTS = new Set(["all_enabled", "all_disabled"]);
+const AV_PERMS = ["accept_calls_from_addressbook", "accept_calls_from_everyone", "accept_calls_from_following", "accept_calls_from_verified"];
+async function dmSettings(userId: string) {
+	const [row] = await sql`select preferences->'dm_settings' as s from users where id = ${userId}::bigint`;
+	const s = (row?.s ?? {}) as Record<string, any>;
+	const av = s.av_settings ?? {};
+	return {
+		__typename: "DmSettings",
+		allow_dms_from: s.allow_dms_from ?? "all",
+		always_allow_dms_from_subscribers: s.always_allow_dms_from_subscribers ?? false,
+		dm_quality_filter: "disabled",
+		dm_receipt_settings: s.dm_receipt_settings ?? "all_enabled",
+		av_settings: {
+			__typename: "AvSettings",
+			has_av_calls_enabled: av.has_av_calls_enabled ?? false,
+			has_enhanced_call_privacy_enabled: av.has_enhanced_call_privacy_enabled ?? false,
+			av_call_permissions: { __typename: "AvCallPermissions", ...Object.fromEntries(AV_PERMS.map((k) => [k, av.av_call_permissions?.[k] ?? false])) },
+		},
+	};
+}
+
 export const chatHandlers: Record<string, (viewer: Viewer, vars: Vars) => Promise<unknown> | unknown> = {
 	...media.handlers,
 	GetConversationEntryDetailsQuery: async (v, vars) => {
@@ -656,20 +709,26 @@ export const chatHandlers: Record<string, (viewer: Viewer, vars: Vars) => Promis
 		}
 		return { data: { xchat_remove_group_members: { __typename: "RemoveGroupMembersResponse", error_code: null, conversation_key_change_sequence_id: seqs[0] ?? null } } };
 	},
-	xChatDmSettingsQuery: () => ({
-		data: {
-			dm_settings: {
-				__typename: "DmSettings",
-				allow_dms_from: "all",
-				dm_quality_filter: "disabled",
-				av_settings: {
-					__typename: "AvSettings",
-					has_av_calls_enabled: false,
-					av_call_permissions: { accept_calls_from_addressbook: false, accept_calls_from_everyone: false, accept_calls_from_following: false, accept_calls_from_verified: false },
-				},
-			},
-		},
-	}),
+	xChatDmSettingsQuery: async (v) => ({ data: { dm_settings: await dmSettings(v.id) } }),
+	DmSettingsQuery: async (v) => ({ data: { dm_settings: await dmSettings(v.id) } }),
+	UpdateDmSettingsMutation: async (v, vars) => {
+		const saved: Record<string, unknown> = {};
+		if (typeof vars.allow_dms_from === "string" && DM_FROM.has(vars.allow_dms_from)) saved.allow_dms_from = vars.allow_dms_from;
+		if (typeof vars.always_allow_dms_from_subscribers === "boolean") saved.always_allow_dms_from_subscribers = vars.always_allow_dms_from_subscribers;
+		if (typeof vars.dm_receipt_settings === "string" && DM_RECEIPTS.has(vars.dm_receipt_settings)) saved.dm_receipt_settings = vars.dm_receipt_settings;
+		const av = vars.av_settings as Record<string, unknown> | undefined;
+		if (av && typeof av === "object") {
+			const perms = (av.av_call_permissions ?? {}) as Record<string, unknown>;
+			saved.av_settings = {
+				has_av_calls_enabled: av.has_av_calls_enabled === true,
+				has_enhanced_call_privacy_enabled: av.has_enhanced_call_privacy_enabled === true,
+				av_call_permissions: Object.fromEntries(AV_PERMS.map((k) => [k, perms[k] === true])),
+			};
+		}
+		await sql`update users set preferences = jsonb_set(coalesce(preferences, '{}'), '{dm_settings}', coalesce(preferences->'dm_settings', '{}') || ${JSON.stringify(saved)}::text::jsonb, true) where id = ${v.id}::bigint`;
+		const { dm_quality_filter: _, ...rest } = await dmSettings(v.id);
+		return { data: { xchat_update_dm_settings: { ...rest, __typename: "XChatDmSettings" } } };
+	},
 	// calls run on X's Periscope servers; none here
 	useDirectCallSetupQuery: () => ({ data: { authenticate_periscope: null } }),
 	GetExternalAppIntegrationsQuery: () => ({ data: { get_external_app_integrations: { __typename: "ExternalAppIntegrations", integrations: [] } } }),
@@ -677,7 +736,7 @@ export const chatHandlers: Record<string, (viewer: Viewer, vars: Vars) => Promis
 		const [me] = await userResults(v.id, [v.id]);
 		return { data: { viewer: { claims: [], is_active_creator: false, user_results: { id: Buffer.from(`User:${v.id}`).toString("base64"), ...me } } } };
 	},
-	GenerateXChatTokenMutation: (v) => ({ data: { user_get_x_chat_auth_token: { __typename: "XChatGetAuthTokenResponse", token: socketToken(v.id) } } }),
+	GenerateXChatTokenMutation: (v) => ({ data: { user_get_x_chat_auth_token: { __typename: "XChatGetAuthTokenResponse", token: socketToken(v.id, v.token) } } }),
 
 	GetPublicKeysQuery: async (v, vars) => ({
 		data: {
@@ -822,7 +881,7 @@ export const chatHandlers: Record<string, (viewer: Viewer, vars: Vars) => Promis
 				get_conversation_page: {
 					...empty,
 					message_request_state: state?.accepted === false ? "Received" : pendingPeer ? "Sent" : "None",
-					encoded_message_events: rows.slice(0, limit).map((r: { event: Buffer }) => b64(r.event)),
+					encoded_message_events: (await withRequestFlags(v.id, rows.slice(0, limit))).map((r: { event: Buffer }) => b64(r.event)),
 					missing_conversation_key_change_events: missing.map((r: { event: Buffer }) => b64(r.event)),
 					has_more: rows.length > limit,
 				},
@@ -841,7 +900,7 @@ export const chatHandlers: Record<string, (viewer: Viewer, vars: Vars) => Promis
 			data: {
 				get_message_events_by_sequence_id: {
 					__typename: "XChatGetMessageEventsBySequenceIdResponse",
-					encoded_message_events: rows.filter((r: any) => r.kind !== KIND.keyChange).map((r: any) => b64(r.event)),
+					encoded_message_events: (await withRequestFlags(v.id, rows.filter((r: any) => r.kind !== KIND.keyChange))).map((r: any) => b64(r.event)),
 					encoded_conversation_key_change_events: rows.filter((r: any) => r.kind === KIND.keyChange).map((r: any) => b64(r.event)),
 					not_found_sequence_ids: seqs.filter((s) => !found.has(s)),
 				},
@@ -864,7 +923,7 @@ export const chatHandlers: Record<string, (viewer: Viewer, vars: Vars) => Promis
 						rows.length > limit
 							? { __typename: "XChatGetMessageEventsPageContinueCursor", max_local_sequence_id: page[page.length - 1].seq }
 							: { __typename: "XChatGetMessageEventsPageEndCursor", pull_finished: true },
-					encoded_message_events: page.map((r: any) => b64(r.event)),
+					encoded_message_events: (await withRequestFlags(v.id, page)).map((r: any) => b64(r.event)),
 					message_requests_count: 0,
 					message_requests_info: null,
 					error_code: null,
@@ -939,7 +998,7 @@ export const chatHandlers: Record<string, (viewer: Viewer, vars: Vars) => Promis
 	},
 };
 
-export const knownChatOperation = (name: string) => name in chatHandlers;
+export const knownChatOperation = (name: string) => Object.hasOwn(chatHandlers, name);
 
 // the browser's way to the Juicebox realm
 export async function juiceboxProxy(req: Request, path: string): Promise<Response> {

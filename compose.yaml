@@ -1,3 +1,7 @@
+# Xitter with Postgres. First run:
+#   docker/env.sh                      writes .env with fresh secrets
+#   docker compose up -d --build       (add --profile keybackup for chat key backup,
+#                                       --profile bee for the buzzing Grok brain)
 services:
   db:
     image: postgres:17-alpine
@@ -103,12 +107,23 @@ services:
     networks:
       - xitter-net
 
+  bee:
+    profiles: ["bee"]
+    image: ghcr.io/ggml-org/llama.cpp:server
+    restart: unless-stopped
+    command: ["--hf-repo", "schizophyllume/BeeLLM", "--hf-file", "${BEE_FILE:-mood/BeeLLM-Scintilla-50M.gguf}", "-c", "4096", "--host", "0.0.0.0", "--port", "8080", "-t", "2", "--parallel", "2"]
+    volumes:
+      - bee:/root/.cache
+    networks:
+      - xitter-net
+
 volumes:
   postgres_data:
   xitter_client:
   xitter_media:
   xitter_data:
   realm-db:
+  bee:
 
 networks:
   xitter-net:

@@ -4,7 +4,9 @@
 import { recordSignIn } from "./login-history";
 import { login, sessionCookies } from "./auth";
 import { loadLook, nightModeCookies } from "./themes/api";
-import { hit, used } from "./ratelimit";
+import { passwordStep } from "./password-sign-in";
+import { passwordTry } from "./ratelimit";
+import { answerChallenge } from "./two-factor";
 import { settings } from "./settings";
 
 export const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
@@ -67,15 +69,63 @@ async function fields(req: Request): Promise<Record<string, string>> {
 // For scripts and tests; people sign in through X's own dialog (onboarding.ts).
 export async function handleLogin(req: Request): Promise<Response> {
 	const f = await fields(req);
-	const username = (f.username ?? "").replace(/^@/, "").trim();
-	const password = f.password ?? "";
-	const account = username.toLowerCase();
-	if (username && used("password", account)) return new Response("Too many tries for this account. Wait 15 minutes.", { status: 429 });
-	const session = username && password ? await login(username, password) : undefined;
-	if (!session) {
-		if (username) hit("password", account);
-		return new Response("Wrong username or password.", { status: 401 });
+	return passwordLogin(req, f.username ?? "", f.password ?? "");
+}
+
+// The 2020 client's own sign-in form (client/old/): POST /sessions with
+// session[username_or_email] and session[password]. A wrong password goes back
+// to its sign-in page, which shows the error, as twitter.com did.
+export async function handleOldSessions(req: Request): Promise<Response> {
+	const f = await fields(req);
+	const typed = f["session[username_or_email]"] ?? "";
+	// the dialog's password step: an email works too, and an account with a
+	// second factor gets its code asked for (this client has no screen of its own for it)
+	const step = await passwordStep(typed, f["session[password]"] ?? "");
+	if ("challenge" in step) return new Response(null, { status: 303, headers: { location: `/sessions/code?c=${step.challenge}` } });
+	if ("error" in step) return new Response(null, { status: 303, headers: { location: `/login/error?username_or_email=${encodeURIComponent(typed)}` } });
+	await recordSignIn(req, step.session);
+	return signedIn(step.session);
+}
+
+const codePage = (challenge: string, error = "") =>
+	html(
+		layout(
+			"Enter your code",
+			`<form method="post" action="/sessions/code">
+	<img class="logo" src="/public/logo-dark.png" alt="${esc(settings().instance_name)}">
+	<h1>Enter your verification code</h1>
+	<p class="alt">Open your authenticator app and enter the code for ${esc(settings().instance_name)}, or use a backup code.</p>
+	${error ? `<p class="error" role="alert">${esc(error)}</p>` : ""}
+	<input type="hidden" name="c" value="${esc(challenge)}">
+	<input name="code" inputmode="numeric" autocomplete="one-time-code" autofocus required aria-label="Code">
+	<button type="submit">Next</button>
+	<p class="alt"><a href="/login">Start again</a></p>
+</form>`,
+		),
+		error ? 400 : 200,
+	);
+
+// the code step after /sessions, for accounts with a second factor
+export async function handleOldCode(req: Request): Promise<Response> {
+	if (req.method !== "POST") return codePage(new URL(req.url).searchParams.get("c") ?? "");
+	const f = await fields(req);
+	const answered = await answerChallenge(f.c ?? "", (f.code ?? "").trim());
+	if (answered.session) {
+		await recordSignIn(req, answered.session);
+		return signedIn(answered.session);
 	}
+	if (answered.unknown) return new Response(null, { status: 303, headers: { location: "/login" } });
+	return codePage(f.c ?? "", answered.error ?? "That code isn't right.");
+}
+
+async function passwordLogin(req: Request, typed: string, password: string): Promise<Response> {
+	const username = typed.replace(/^@/, "").trim();
+	const account = username.toLowerCase();
+	const refund = username ? passwordTry(account) : () => {};
+	if (!refund) return new Response("Too many tries for this account. Wait 15 minutes.", { status: 429 });
+	const session = username && password ? await login(username, password) : undefined;
+	if (!session) return new Response("Wrong username or password.", { status: 401 });
+	refund();
 	await recordSignIn(req, session);
 	return signedIn(session);
 }
