@@ -241,7 +241,6 @@ function parseJson(text: string | null): any {
 	}
 }
 
-<<<<<<< HEAD
 const GUEST_ALLOWED_REST = new Set([
 	"/1.1/search/typeahead.json",
 	"/1.1/hashflags.json",
@@ -258,7 +257,6 @@ const GUEST_ALLOWED_REST = new Set([
 	"/xitter/stickers",
 ]);
 
-=======
 const GUEST_OPERATIONS = new Set([
 	"UserByScreenName", "UserByRestId", "UsersByRestIds", "UserResultByScreenNameQuery",
 	"UserTweets", "UserTweetsAndReplies", "UserMedia", "UserHighlightsTweets",
@@ -285,24 +283,16 @@ async function guestApi(url: URL): Promise<Response> {
 	return runOperation(name, guestViewer(), vars ?? {});
 }
 
->>>>>>> upstream/main
 async function serveApi(req: Request, url: URL, viewer: Viewer | undefined): Promise<Response> {
 	if (!viewer && url.pathname.endsWith("/1.1/guest/activate.json")) return Response.json({ guest_token: "1" });
-<<<<<<< HEAD
-=======
 	if (!viewer && settings().operations.guest_reading && req.method === "POST" && url.pathname.endsWith("/1.1/graphql/app_context.json")) return new Response(null, { status: 204 });
 	if (!viewer && settings().operations.guest_reading && req.method === "GET") return guestApi(url);
-	if (!viewer) return apiError(401, 32, "Could not authenticate you.");
-	const source = await platformSource(req);
-	if (source === null) return apiError(401, 32, "Invalid or revoked client token.");
-	viewer = { ...viewer, postSource: source };
->>>>>>> upstream/main
+
 	const path = url.pathname.replace(/^\/i\/(jf)?api/, "");
 	const parts = path.split("/").filter(Boolean);
 	const gql = parts.indexOf("graphql");
 	const operation = gql >= 0 ? parts[parts.length - 1] : undefined;
 	if (req.method === "POST" && path === "/1.1/graphql/app_context.json") return new Response(null, { status: 204 });
-<<<<<<< HEAD
 
 	if (!viewer) {
 		const isGuestGql = !!operation && GUEST_ALLOWED_GQL.has(operation);
@@ -317,13 +307,11 @@ async function serveApi(req: Request, url: URL, viewer: Viewer | undefined): Pro
 	const source = await platformSource(req);
 	if (source === null && viewer.id !== "0") return apiError(401, 32, "Invalid or revoked client token.");
 	viewer = { ...viewer, postSource: source ?? undefined };
-	if (viewer.id !== "0" && (req.method !== "GET" || operation) && req.headers.get("x-csrf-token") !== viewer.csrf)
-=======
+
 	// The 2020 client's uploader (client/old/) sends cookies and no csrf header, as
 	// upload.twitter.com wanted; the browser's own same-origin mark stands in for it
 	const oldUpload = !!loadBuild()?.build.stateBase && /^\/(i|1\.1)\/media\/upload2?\.json$/.test(path) && req.headers.get("sec-fetch-site") === "same-origin";
-	if ((req.method !== "GET" || operation) && req.headers.get("x-csrf-token") !== viewer.csrf && !oldUpload)
->>>>>>> upstream/main
+	if (viewer.id !== "0" && (req.method !== "GET" || operation) && req.headers.get("x-csrf-token") !== viewer.csrf && !oldUpload)
 		return apiError(403, 353, "This request requires a matching csrf cookie and header.");
 	if (req.method === "GET" && operation && isMutation(operation)) return apiError(405, 144, "Use POST for this operation.");
 	// a delegate switched into another account (delegation.ts); the client sends
