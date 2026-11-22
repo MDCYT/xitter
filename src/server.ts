@@ -77,7 +77,7 @@ import { startMailDigests } from "./mail-digest";
 import { SERVICE_WORKER, startPush } from "./push";
 import { manifest } from "./pwa";
 import { emailRoute } from "./email-address";
-import { embedImage, embedMedia, linkPreview, oembed } from "./embeds";
+import { embedImage, linkPreview, oembed } from "./embeds";
 import { noteAppealsRoute } from "./note-appeals";
 import { decorCatalog, decorFor, decorRoute, decorShop, steamFile } from "./decor";
 import { nightModeCookies, themeApi, themeExport, themeImport } from "./themes/api";
@@ -739,7 +739,7 @@ async function route(req: Request): Promise<Response | undefined> {
 	const activity = /^\/i\/tfb\/v1\/quick_promote\/lite\/(\d{1,19})$/.exec(p);
 	if (activity && req.method === "GET") return legacyAnalyticsPage(req, activity[1]!, viewer ?? undefined);
 	// pictures and oEmbed for previews of public posts in other apps (embeds.ts)
-	if (p.startsWith("/embed/")) return embedMedia(req, p);
+	if (p.startsWith("/embed/")) return embedImage(p);
 	if (p === "/oembed") return oembed(url);
 	// the frame X's client opens for a player card (YouTube links)
 	if (isPlayerPage(p)) return viewer ? playerPage(p, viewer.id) : new Response("not found", { status: 404 });

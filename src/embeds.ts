@@ -291,3 +291,6 @@ export async function oembed(url: URL): Promise<Response> {
 		{ headers: { "cache-control": "no-store", "access-control-allow-origin": "*" } },
 	);
 }
+
+export const embedMedia = (_req: Request, pathname: string) => embedImage(pathname);
+
