@@ -422,13 +422,8 @@ export function shell(user: User | null, multi = false, inCommunity = false, edu
 	const lang = user?.language || guestLang || "en";
 	const isRtl = ["ar", "fa", "he", "ur"].includes(lang.slice(0, 2).toLowerCase());
 	const dir = isRtl ? "rtl" : "ltr";
-	const manifest = i18nManifest as Record<string, string>;
-	const i18nScript = manifest[lang] || manifest[lang.slice(0, 2).toLowerCase()] || manifest["en"] || "/responsive-web/client-web/i18n/en.d884011cfcd60cd7a.js";
 	const scripts = build.scripts
-		.map((p) => {
-			const target = p.includes("/i18n/") ? i18nScript : p;
-			return `<script defer charset="utf-8" crossorigin="anonymous" src="${PUBLIC_ORIGIN}/abs${target}?v=${PATCH_VERSION}"></script>`;
-		})
+		.map((p) => `<script defer charset="utf-8" crossorigin="anonymous" src="${PUBLIC_ORIGIN}/abs${p}?v=${PATCH_VERSION}"></script>`)
 		.join("");
 	// an old build gets the page it came with: Xitter's CSS and scripts are written
 	// against the current client's markup and would only get in its way
