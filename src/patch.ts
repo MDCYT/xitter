@@ -205,11 +205,6 @@ const RULES: [RegExp, string][] = [
 		/\bo=\w+\.Ay\.isAndroid\(\)\|\|\w+\.Ay\.isIOS\(\)/g,
 		'o=!1',
 	],
-	// Disable in-app webview redirect to x-safari-https://redirect.x.com (e.g. WhatsApp, Instagram, Telegram)
-	[
-		/function ec\(\w+,\w+,\w+\)\{var \w+,\w+;let \w+;[\s\S]*?window\.location\.href=\w+\}/g,
-		'function ec(){}',
-	],
 	// Disable iOS 17 external webview detector so it never triggers ec()
 	[
 		/async function ei\(\)\{[\s\S]*?await et\(\)\)\}/g,
